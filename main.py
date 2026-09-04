@@ -29,6 +29,7 @@ import classify
 import website
 import health
 import utils
+import price_history
 from scrapers import ss_com, city24
 
 
@@ -82,7 +83,10 @@ def run():
     #     so it is not double-counted in the training baseline)
     all_listings, _n_merged = utils.dedupe_cross_source(all_listings)
 
-    # 1d. Health check -> alerts the OPERATOR if a scraper looks broken
+    # 1d. Update price history (CenuMednieks backfill + our own daily tracking)
+    price_data = price_history.update_price_history(all_listings)
+
+    # 1e. Health check -> alerts the OPERATOR if a scraper looks broken
     health.check_and_alert(source_counts, len(all_listings), context="daily")
 
     if not all_listings:
@@ -123,8 +127,9 @@ def run():
     print(f"[main] classified: {n_main} main (new/changed/reappeared), "
           f"{n_still} still active from yesterday")
 
-    # 7. Notify
-    sent, info = notifier.send(main_deals, still_active, comparison_html, status_note)
+    # 7. Notify (pass price history for timeline display)
+    sent, info = notifier.send(main_deals, still_active, comparison_html,
+                               status_note, price_data)
 
     # 8. Build hosted site (latest digest -> docs/index.html + archive)
     website.build()

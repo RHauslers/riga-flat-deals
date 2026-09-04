@@ -130,6 +130,16 @@ ALERT_ON_SOURCE_ZERO = True  # a source returning 0 while another returns > 0
 OPS_EMAIL_TO = os.environ.get("OPS_EMAIL_TO", "")
 
 # ----------------------------------------------------------------------------
+# 5e. PRICE HISTORY (CenuMednieks.lv + our own daily tracking)
+#    CenuMednieks.lv tracks SS.lv ad price history — original price, changes,
+#    days on market. We use it to backfill history we missed before our first
+#    run. Our own daily tracking supplements this going forward.
+#    Only SS.com listings can be enriched (CenuMednieks tracks SS.lv only).
+# ----------------------------------------------------------------------------
+PRICE_HISTORY_CENU_ENABLED = True
+CENU_REFRESH_DAYS = 7       # re-fetch CenuMednieks data weekly (not daily)
+
+# ----------------------------------------------------------------------------
 # 6. EMAIL DIGEST settings (env-ready: reads from environment / GitHub secrets)
 #    Set these secrets in GitHub Actions (or your local env) to enable sending:
 #       SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM, EMAIL_TO
@@ -175,6 +185,7 @@ LAST_DIGEST_JSON = os.path.join(DATA_DIR, "last_digest.json")
 UNSUBSCRIBED_JSON = os.path.join(DATA_DIR, "unsubscribed.json")
 ALERTED_DEALS_JSON = os.path.join(DATA_DIR, "alerted_deals.json")
 OPS_ALERTS_JSON = os.path.join(DATA_DIR, "ops_alerts.json")
+PRICE_HISTORY_JSON = os.path.join(DATA_DIR, "price_history.json")
 DIGEST_DIR = os.path.join(DATA_DIR, "digests")
 HISTORY_COLUMNS = [
     "scrape_date", "source", "deal_type", "id", "url", "district", "street",

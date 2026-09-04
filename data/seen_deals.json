@@ -8,9 +8,9 @@
   },
   "city24.lv:2131578": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-04",
+    "last_shown_date": "2026-09-05",
     "last_shown_price": 350.0,
-    "last_shown_score": 0.0,
+    "last_shown_score": 2.227705941747162,
     "deal_type": "rent"
   },
   "ss.com:58042258": {
@@ -36,30 +36,30 @@
   },
   "city24.lv:2463532": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-04",
+    "last_shown_date": "2026-09-05",
     "last_shown_price": 700.0,
-    "last_shown_score": 0.0,
+    "last_shown_score": -0.4090750680018403,
     "deal_type": "rent"
   },
   "city24.lv:2469393": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-04",
+    "last_shown_date": "2026-09-05",
     "last_shown_price": 800.0,
-    "last_shown_score": 0.0,
+    "last_shown_score": -0.9139905805069688,
     "deal_type": "rent"
   },
   "city24.lv:2469243": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-04",
+    "last_shown_date": "2026-09-05",
     "last_shown_price": 1000.0,
-    "last_shown_score": 0.0,
+    "last_shown_score": -0.696596401511705,
     "deal_type": "rent"
   },
   "city24.lv:1343271": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-04",
+    "last_shown_date": "2026-09-05",
     "last_shown_price": 550.0,
-    "last_shown_score": 0.0,
+    "last_shown_score": -0.696596401511705,
     "deal_type": "rent"
   },
   "ss.com:58040465": {
@@ -78,9 +78,9 @@
   },
   "city24.lv:2468372": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-04",
+    "last_shown_date": "2026-09-05",
     "last_shown_price": 61900.0,
-    "last_shown_score": 0.0,
+    "last_shown_score": 0.9045438554144282,
     "deal_type": "sale"
   },
   "city24.lv:2474304": {
@@ -99,30 +99,30 @@
   },
   "city24.lv:2443318": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-04",
+    "last_shown_date": "2026-09-05",
     "last_shown_price": 54000.0,
-    "last_shown_score": 0.0,
+    "last_shown_score": 1.172778378160204,
     "deal_type": "sale"
   },
   "city24.lv:2471958": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-04",
+    "last_shown_date": "2026-09-05",
     "last_shown_price": 55000.0,
-    "last_shown_score": 0.0,
+    "last_shown_score": 1.1339462695521527,
     "deal_type": "sale"
   },
   "city24.lv:2461816": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-04",
+    "last_shown_date": "2026-09-05",
     "last_shown_price": 415000.0,
-    "last_shown_score": 0.0,
+    "last_shown_score": -0.008895964802981708,
     "deal_type": "sale"
   },
   "city24.lv:2473798": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-04",
+    "last_shown_date": "2026-09-05",
     "last_shown_price": 93000.0,
-    "last_shown_score": 0.0,
+    "last_shown_score": 1.5688108025676641,
     "deal_type": "sale"
   },
   "city24.lv:2471677": {
@@ -134,16 +134,37 @@
   },
   "city24.lv:2460692": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-04",
+    "last_shown_date": "2026-09-05",
     "last_shown_price": 249980.0,
-    "last_shown_score": 0.0,
+    "last_shown_score": 0.44312100129335136,
     "deal_type": "sale"
   },
   "city24.lv:2452034": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-04",
+    "last_shown_date": "2026-09-05",
     "last_shown_price": 88000.0,
-    "last_shown_score": 0.0,
+    "last_shown_score": 2.510851606332709,
+    "deal_type": "sale"
+  },
+  "city24.lv:2449129": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 203715.0,
+    "last_shown_score": -0.3311102317534266,
+    "deal_type": "sale"
+  },
+  "city24.lv:2364007": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 119000.0,
+    "last_shown_score": -0.3786555518183943,
+    "deal_type": "sale"
+  },
+  "city24.lv:2297206": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 200010.0,
+    "last_shown_score": -0.408239010357121,
     "deal_type": "sale"
   }
 }

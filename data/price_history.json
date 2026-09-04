@@ -1,0 +1,271 @@
+{
+  "ss.com:ahgbe": {
+    "cenumednieks": {
+      "original_price": 550,
+      "current_price": 550,
+      "total_change": 0,
+      "first_listed_date": "2026-03-11",
+      "days_on_market": 178,
+      "previous_listings": [
+        {
+          "date": "2024-11-19",
+          "price": 250,
+          "original_price": 250
+        },
+        {
+          "date": "2024-04-24",
+          "price": 370,
+          "original_price": 370
+        },
+        {
+          "date": "2022-10-01",
+          "price": 300,
+          "original_price": 300
+        },
+        {
+          "date": "2020-11-17",
+          "price": 420,
+          "original_price": 430
+        },
+        {
+          "date": "2020-05-29",
+          "price": 250,
+          "original_price": 250
+        }
+      ],
+      "fetched_at": "2026-09-05",
+      "source_url": "https://cenumednieks.lv/ad/ahgbe"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 550.0
+      }
+    ]
+  },
+  "city24.lv:6542359": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 350.0
+      }
+    ]
+  },
+  "city24.lv:2131578": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 350.0
+      }
+    ]
+  },
+  "city24.lv:2469393": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 800.0
+      }
+    ]
+  },
+  "city24.lv:2469243": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 1000.0
+      }
+    ]
+  },
+  "city24.lv:1343271": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 550.0
+      }
+    ]
+  },
+  "city24.lv:2463532": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 700.0
+      }
+    ]
+  },
+  "city24.lv:2471958": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 55000.0
+      }
+    ]
+  },
+  "city24.lv:2468372": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 61900.0
+      }
+    ]
+  },
+  "city24.lv:2474304": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 105000.0
+      }
+    ]
+  },
+  "city24.lv:2474190": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 141000.0
+      }
+    ]
+  },
+  "city24.lv:2443318": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 54000.0
+      }
+    ]
+  },
+  "city24.lv:2461816": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 415000.0
+      }
+    ]
+  },
+  "city24.lv:2473798": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 93000.0
+      }
+    ]
+  },
+  "city24.lv:2471677": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 188000.0
+      }
+    ]
+  },
+  "city24.lv:2364007": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 119000.0
+      }
+    ]
+  },
+  "city24.lv:2460692": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 249980.0
+      }
+    ]
+  },
+  "city24.lv:2452034": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 88000.0
+      }
+    ]
+  },
+  "city24.lv:2449129": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 203715.0
+      }
+    ]
+  },
+  "city24.lv:2215359": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 212690.0
+      }
+    ]
+  },
+  "city24.lv:2451036": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 129900.0
+      }
+    ]
+  },
+  "city24.lv:2215354": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 86500.0
+      }
+    ]
+  },
+  "city24.lv:2295938": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 162428.0
+      }
+    ]
+  },
+  "city24.lv:2215344": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 208580.0
+      }
+    ]
+  },
+  "city24.lv:2297206": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 200010.0
+      }
+    ]
+  },
+  "city24.lv:2449123": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 174758.0
+      }
+    ]
+  }
+}

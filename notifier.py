@@ -26,6 +26,7 @@ from urllib.parse import quote
 
 import config
 import history
+import price_history
 
 
 # ---------------------------------------------------------------------------
@@ -62,9 +63,16 @@ def _badge_html(badge, detail):
 # ---------------------------------------------------------------------------
 # table builders
 # ---------------------------------------------------------------------------
-def _main_row_html(item):
+def _main_row_html(item, price_data=None):
     listing, score, method, badge, detail = item
     score_str = f"{score:+.2f}" if score is not None else "-"
+    timeline_html = ""
+    if price_data is not None:
+        timeline_html = price_history.format_price_timeline_html(listing, price_data)
+    timeline_row = ""
+    if timeline_html:
+        timeline_row = (f'<tr><td colspan="9" style="padding:2px 5px;'
+                        f'border-top:none;background:#fafafa">{timeline_html}</td></tr>')
     return (
         "<tr>"
         f"<td>{listing.get('district','')}</td>"
@@ -77,12 +85,20 @@ def _main_row_html(item):
         f"<td>{_badge_html(badge, detail)}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
         "</tr>"
+        f"{timeline_row}"
     )
 
 
-def _still_row_html(item):
+def _still_row_html(item, price_data=None):
     listing, score, method = item
     score_str = f"{score:+.2f}" if score is not None else "-"
+    timeline_html = ""
+    if price_data is not None:
+        timeline_html = price_history.format_price_timeline_html(listing, price_data)
+    timeline_row = ""
+    if timeline_html:
+        timeline_row = (f'<tr><td colspan="8" style="padding:2px 5px;'
+                        f'border-top:none;background:#fafafa">{timeline_html}</td></tr>')
     return (
         "<tr>"
         f"<td>{listing.get('district','')}</td>"
@@ -94,6 +110,7 @@ def _still_row_html(item):
         f"<td style='text-align:center'>{score_str}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
         "</tr>"
+        f"{timeline_row}"
     )
 
 
@@ -111,12 +128,12 @@ def _table_header(extra_col="Status"):
     )
 
 
-def _main_section_html(title, items, subtitle):
+def _main_section_html(title, items, subtitle, price_data=None):
     if not items:
         return (f"<h3>{title}</h3>"
                 f"<p style='color:#666;font-size:12px'>{subtitle}</p>"
                 "<p>No new or changed qualifying deals today.</p>")
-    rows = "".join(_main_row_html(it) for it in items)
+    rows = "".join(_main_row_html(it, price_data) for it in items)
     return (
         f"<h3>{title}</h3>"
         f"<p style='color:#666;font-size:12px'>{subtitle}</p>"
@@ -124,10 +141,10 @@ def _main_section_html(title, items, subtitle):
     )
 
 
-def _still_active_section_html(deal_type, items):
+def _still_active_section_html(deal_type, items, price_data=None):
     if not items:
         return ""
-    rows = "".join(_still_row_html(it) for it in items)
+    rows = "".join(_still_row_html(it, price_data) for it in items)
     return (
         f"<h3 style='color:#888'>Still active from yesterday — {deal_type}</h3>"
         "<p style='color:#999;font-size:12px'>These deals were in yesterday's "
@@ -154,7 +171,7 @@ def _unsubscribe_html(recipient):
 # ---------------------------------------------------------------------------
 # build the full HTML digest
 # ---------------------------------------------------------------------------
-def build_html(main_deals, still_active, comparison_html, status_note, recipient=""):
+def build_html(main_deals, still_active, comparison_html, status_note, recipient="", price_data=None):
     today = date.today().isoformat()
     sections = []
 
@@ -163,10 +180,10 @@ def build_html(main_deals, still_active, comparison_html, status_note, recipient
         subtitle = (f"Top {len(items)} {'new / changed' if items else ''} "
                     f"{dt} deals ranked best-first. Deal score = how much "
                     f"cheaper than the model expects (higher = better deal).")
-        sections.append(_main_section_html(dt.upper(), items, subtitle))
+        sections.append(_main_section_html(dt.upper(), items, subtitle, price_data))
 
         still = still_active.get(dt, [])
-        sa = _still_active_section_html(dt, still)
+        sa = _still_active_section_html(dt, still, price_data)
         if sa:
             sections.append(sa)
 
@@ -235,7 +252,7 @@ def _plain_summary(main_deals, still_active, comparison_html):
 # ---------------------------------------------------------------------------
 # send
 # ---------------------------------------------------------------------------
-def send(main_deals, still_active, comparison_html, status_note):
+def send(main_deals, still_active, comparison_html, status_note, price_data=None):
     """Send the digest email. Returns (sent:bool, info:str)."""
     host = os.environ.get("SMTP_HOST")
     port = os.environ.get("SMTP_PORT")
@@ -245,7 +262,8 @@ def send(main_deals, still_active, comparison_html, status_note):
     recipient = os.environ.get("EMAIL_TO") or ""
 
     # always save the HTML digest first (for audit / no-SMTP fallback)
-    html = build_html(main_deals, still_active, comparison_html, status_note, recipient)
+    html = build_html(main_deals, still_active, comparison_html, status_note,
+                      recipient, price_data)
     today = date.today().isoformat()
     digest_path = os.path.join(config.DIGEST_DIR, f"digest_{today}.html")
     os.makedirs(config.DIGEST_DIR, exist_ok=True)
