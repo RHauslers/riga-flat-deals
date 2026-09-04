@@ -10,6 +10,32 @@ leakage-safe training, conflict-safe CI commits, a min-history escalation
 gate, operator failure alerts, ridge-regularised regression with cardinality
 caps, and cross-source deduplication.
 
+### Upgrade 6 (this session): price history tracking via CenuMednieks.lv
+- **CenuMednieks.lv integration**: for SS.com listings, fetches historical
+  price data from cenumednieks.lv/ad/{ss_id} — original price, current price,
+  total change, first-listed date, days on market, and previous ads from the
+  same owner going back years. This is data we could never get from our own
+  scraping because it predates our first run.
+- **Own daily tracking**: every run records the current price for all listings
+  (both sources). Over time this builds our own price timeline that
+  supplements CenuMednieks data. City24 listings get this only (CenuMednieks
+  tracks SS.lv only).
+- **Timeline display**: the digest shows a compact price timeline below each
+  deal row — "First seen: 250 EUR (2020-05-29) → 420 EUR (↑68%) → ... →
+  550 EUR (today)". Also shows "On market: N days" when available.
+- **Caching**: CenuMednieks results are cached in `data/price_history.json`
+  and refreshed weekly (`CENU_REFRESH_DAYS=7`), not daily, to minimize API
+  calls. Our own observations are appended every run.
+- **Respectful scraping**: 1s delay between CenuMednieks requests.
+
+Verified locally:
+- CenuMednieks fetch for ad `ahgbe`: original 550 EUR, 178 days on market,
+  5 previous listings from same owner (2020-2024) ✓
+- Price timeline HTML rendering with historical + current data ✓
+- Full pipeline run with price history integration ✓
+- `price_history.json` stores 26 entries (1 SS.com with CenuMednieks +
+  25 city24 with own tracking only) ✓
+
 ### Upgrade 5 (this session): six reliability/ML hardening fixes
 
 1. **History leakage fix** (`history.py`, `main.py`, `escalation.py`):
@@ -152,6 +178,7 @@ Verified locally:
 | `escalation.py` | WORKING | hourly scan with min-history gate (≥30 rows/type) before alerting |
 | `health.py` | WORKING (new) | detects total_zero / source_zero / low_volume; throttled operator alerts |
 | `utils.py` | WORKING | district matching, slugify, cross-source dedup with `also_on` tracking |
+| `price_history.py` | WORKING (new) | CenuMednieks.lv historical backfill + own daily tracking; timeline HTML formatter |
 | `docs/index.html` | AUTO-GEN | latest digest = Pages homepage |
 | `docs/archive.html` | AUTO-GEN | browsable archive of all past digests |
 | `docs/unsubscribe.html` | READY | static page, placeholders injected by pages.yml at deploy |
@@ -240,6 +267,9 @@ To test unsubscribe: add an email to `data/unsubscribed.json`, set
   hourly escalation alerts (prevents re-alerting the same deal every hour).
 - `data/ops_alerts.json` — dict of `issue_key` → last-alerted date; used to
   throttle operator health alerts to once per issue per day.
+- `data/price_history.json` — per-listing price history: CenuMednieks cached
+  data (SS.com only, refreshed weekly) + our own daily price observations
+  (all sources).
 - `data/digests/digest_YYYY-MM-DD.html` — saved digests.
 - `data/digests/alert_YYYY-MM-DD.html` — saved escalation alerts.
 
