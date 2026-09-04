@@ -59,7 +59,7 @@ jobs:
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/history.csv data/alerted_deals.json 2>/dev/null || true
+          git add data/history.csv data/alerted_deals.json data/ops_alerts.json 2>/dev/null || true
           # only commit docs/ if the escalation updated the website (hot deal found)
           git add docs/index.html docs/archive.html docs/archive/ 2>/dev/null || true
 

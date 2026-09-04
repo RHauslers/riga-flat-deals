@@ -61,7 +61,7 @@ jobs:
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/history.csv data/seen_deals.json data/last_digest.json data/unsubscribed.json data/digests/ 2>/dev/null || true
+          git add data/history.csv data/seen_deals.json data/last_digest.json data/unsubscribed.json data/ops_alerts.json data/digests/ 2>/dev/null || true
           git add docs/index.html docs/archive.html docs/archive/ 2>/dev/null || true
 
           if git diff --cached --quiet; then
