@@ -38,7 +38,7 @@ SS_COM_TODAY_URL = {
 # that have been on the market for weeks/months.
 SS_COM_DISTRICT_SLUGS = {
     "Zolitude": "zolitude",
-    "Sampeteris": "pleskodale-sampeteris",
+    "Sampeteris": "shampeteris-pleskodale",
     "Imanta": "imanta",
 }
 SS_COM_DEAL_SLUGS = {
@@ -50,7 +50,7 @@ SS_COM_USER_AGENT = (
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 )
 SS_COM_TIMEOUT = 30   # seconds per request
-SS_COM_MAX_PAGES = 5  # safety cap if pagination ever appears
+SS_COM_MAX_PAGES = 15  # safety cap for pagination (Imanta sale has 9+ pages)
 
 # ----------------------------------------------------------------------------
 # 4. city24.lv settings (scraped via Playwright -> intercept JSON API)

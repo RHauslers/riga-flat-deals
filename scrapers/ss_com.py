@@ -179,14 +179,23 @@ def _fetch(url):
 
 
 def _next_page_url(soup, base_url):
-    """ss.com today pages are single-page; detect a 'next' anchor just in case."""
-    a = soup.select_one("a.navi[href]:-soup-contains('»')")
+    """Find the 'next page' link on SS.com pagination.
+
+    SS.com uses <a class="navi" href="...page2.html">Next</a> or » symbol.
+    """
+    # Try » symbol first
+    a = soup.select_one("a.navi[href]")
     if not a:
         return None
-    href = a.get("href", "")
-    if href.startswith("/"):
-        href = config.SS_COM_BASE + href
-    return href or None
+    # Look through all navi links for "Next" or "»"
+    for a in soup.find_all("a", class_="navi"):
+        text = a.get_text(strip=True).lower()
+        href = a.get("href", "")
+        if "next" in text or "»" in text or "›" in text:
+            if href.startswith("/"):
+                href = config.SS_COM_BASE + href
+            return href or None
+    return None
 
 
 def scrape(deal_type):
