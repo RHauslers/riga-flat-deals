@@ -30,6 +30,7 @@ import website
 import health
 import utils
 import price_history
+import geocode
 from scrapers import ss_com, city24
 
 
@@ -86,7 +87,11 @@ def run():
     # 1d. Update price history (CenuMednieks backfill + our own daily tracking)
     price_data = price_history.update_price_history(all_listings)
 
-    # 1e. Health check -> alerts the OPERATOR if a scraper looks broken
+    # 1e. Geocode listings (city24 has coords from API, SS.com via Nominatim)
+    if config.GEOCODE_ENABLED:
+        all_listings = geocode.enrich_coordinates(all_listings)
+
+    # 1f. Health check -> alerts the OPERATOR if a scraper looks broken
     health.check_and_alert(source_counts, len(all_listings), context="daily")
 
     if not all_listings:
@@ -127,9 +132,24 @@ def run():
     print(f"[main] classified: {n_main} main (new/changed/reappeared), "
           f"{n_still} still active from yesterday")
 
-    # 7. Notify (pass price history for timeline display)
+    # 6b. Build map markers from all scored listings with coordinates
+    map_markers = []
+    if config.MAP_ENABLED:
+        # Flatten all_scored (dict of deal_type -> [(listing, score, method)])
+        # and attach scores to listings for map popups
+        all_for_map = []
+        for dt, items in all_scored.items():
+            for item in items:
+                listing = item[0]
+                score = item[1]
+                listing["_score"] = score
+                all_for_map.append(listing)
+        map_markers = geocode.get_map_data(all_for_map, price_data)
+        print(f"[main] map: {len(map_markers)} markers with coordinates")
+
+    # 7. Notify (pass price history + map markers)
     sent, info = notifier.send(main_deals, still_active, comparison_html,
-                               status_note, price_data)
+                               status_note, price_data, map_markers)
 
     # 8. Build hosted site (latest digest -> docs/index.html + archive)
     website.build()

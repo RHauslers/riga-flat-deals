@@ -87,6 +87,10 @@ def _extract_item(item, deal_type):
         "price_eur": float(price),
         "price_per_m2": float(ppu) if ppu is not None else round(float(price) / float(area), 2),
         "title": title,
+        "lat": float(item.get("latitude")) if item.get("latitude") else None,
+        "lon": float(item.get("longitude")) if item.get("longitude") else None,
+        "old_price": float(item.get("old_price")) if item.get("old_price") else None,
+        "show_price_drop": bool(item.get("show_price_drop")),
     }
 
 

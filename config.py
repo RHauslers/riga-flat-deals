@@ -140,6 +140,15 @@ PRICE_HISTORY_CENU_ENABLED = True
 CENU_REFRESH_DAYS = 7       # re-fetch CenuMednieks data weekly (not daily)
 
 # ----------------------------------------------------------------------------
+# 5f. GEOCODING + MAP
+#    City24.lv API returns lat/lon directly. SS.com listings are geocoded
+#    via Nominatim (free OSM geocoder, no API key, 1 req/sec).
+#    Results cached in data/geocode_cache.json (streets don't move).
+# ----------------------------------------------------------------------------
+GEOCODE_ENABLED = True
+MAP_ENABLED = True
+
+# ----------------------------------------------------------------------------
 # 6. EMAIL DIGEST settings (env-ready: reads from environment / GitHub secrets)
 #    Set these secrets in GitHub Actions (or your local env) to enable sending:
 #       SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM, EMAIL_TO
@@ -186,6 +195,7 @@ UNSUBSCRIBED_JSON = os.path.join(DATA_DIR, "unsubscribed.json")
 ALERTED_DEALS_JSON = os.path.join(DATA_DIR, "alerted_deals.json")
 OPS_ALERTS_JSON = os.path.join(DATA_DIR, "ops_alerts.json")
 PRICE_HISTORY_JSON = os.path.join(DATA_DIR, "price_history.json")
+GEOCODE_CACHE_JSON = os.path.join(DATA_DIR, "geocode_cache.json")
 DIGEST_DIR = os.path.join(DATA_DIR, "digests")
 HISTORY_COLUMNS = [
     "scrape_date", "source", "deal_type", "id", "url", "district", "street",
