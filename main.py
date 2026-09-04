@@ -31,7 +31,6 @@ import health
 import utils
 import price_history
 import geocode
-import exceptional
 from scrapers import ss_com, city24
 
 
@@ -150,16 +149,18 @@ def run():
         print(f"[main] map: {len(map_markers)} markers with coordinates "
               f"(of {len(all_listings)} total listings)")
 
-    # 6c. Build exceptional deals header (top 5 across all deal types)
-    exceptional_html = exceptional.build_exceptional_html(
-        all_scored, all_listings, price_data, top_n=5
-    )
-    print(f"[main] exceptional deals header built")
+    # 6c. Build "Newest listings today" section (listings with NEW badge,
+    #     ranked by deal score). This replaces the old "exceptional deals"
+    #     composite score, which was misleading — it rewarded flats that
+    #     were statistically cheap, but couldn't distinguish a genuine
+    #     bargain from a trash flat that nobody wants.
+    newest_html = notifier.build_newest_html(main_deals, price_data)
+    print(f"[main] newest listings section built")
 
-    # 7. Notify (pass price history + map markers + exceptional deals)
+    # 7. Notify (pass price history + map markers + newest section)
     sent, info = notifier.send(main_deals, still_active, comparison_html,
                                status_note, price_data, map_markers,
-                               exceptional_html)
+                               newest_html)
 
     # 8. Build hosted site (latest digest -> docs/index.html + archive)
     website.build()

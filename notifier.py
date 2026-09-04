@@ -356,11 +356,110 @@ def _unsubscribe_html(recipient):
 
 
 # ---------------------------------------------------------------------------
+# "Newest listings today" section
+# ---------------------------------------------------------------------------
+def build_newest_html(main_deals, price_data=None, top_n=10):
+    """Build a compact section showing the newest listings (NEW badge only),
+    ranked by deal score (best first).
+
+    This replaces the old "exceptional deals" composite score, which was
+    misleading — it rewarded flats that were statistically cheap but
+    couldn't distinguish a genuine bargain from a trash flat nobody wants.
+    Newest listings are actionable: act fast on new listings, judge
+    quality yourself from the source site photos.
+    """
+    # Collect all NEW listings across deal types
+    new_items = []
+    for dt, items in main_deals.items():
+        for item in items:
+            listing, score, method, badge, detail = item
+            if badge == "NEW":
+                new_items.append(item)
+
+    if not new_items:
+        return (
+            '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
+            'padding:16px;margin:16px 0">'
+            '<h3 style="color:#1a5276;border:none;margin:0 0 8px 0">'
+            'Newest listings today</h3>'
+            '<p style="color:#666;font-size:12px;margin:0">'
+            'No brand-new listings today. Check the tables below for '
+            'price drops and still-active deals.</p>'
+            '</div>'
+        )
+
+    # Sort by deal score descending (best first)
+    new_items.sort(key=lambda x: x[1] if x[1] is not None else -999, reverse=True)
+    new_items = new_items[:top_n]
+
+    rows = []
+    for idx, (listing, score, method, badge, detail) in enumerate(new_items):
+        score_str = f"{score:+.2f}" if score is not None else "-"
+        district = listing.get('district', '?')
+        rooms = listing.get('rooms', '?')
+        area = listing.get('area_m2', '?')
+        floor = listing.get('floor', '?')
+        price_str = _fmt_price(listing.get('price_eur'), listing.get('price_unit'))
+        ppu_str = _fmt_ppu(listing.get('price_per_m2'))
+        deal_type = listing.get('deal_type', '?')
+        url = listing.get('url', '')
+        source = listing.get('source', '')
+
+        # "map" link if coordinates available
+        map_link = ""
+        if listing.get('lat') and listing.get('lon'):
+            marker_id = f"{source}:{listing.get('id','')}"
+            map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
+                        f"return false\" style=\"font-size:11px;color:#1a5276\">map</a>")
+
+        zebra = ' style="background:#fafafa"' if idx % 2 else ''
+        rows.append(
+            f'<tr{zebra}>'
+            f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276'>{score_str}</td>"
+            f"<td>{district}</td>"
+            f"<td style='text-align:right'>{rooms}</td>"
+            f"<td style='text-align:right'>{area}</td>"
+            f"<td style='text-align:right'>{floor}</td>"
+            f"<td style='text-align:right;font-weight:bold'>{price_str}</td>"
+            f"<td style='text-align:right'>{ppu_str}</td>"
+            f"<td style='text-align:right'>{deal_type}</td>"
+            f"<td><a href='{url}'>{source}</a>{map_link}</td>"
+            '</tr>'
+        )
+
+    rows_html = "".join(rows)
+    n = len(new_items)
+    return (
+        '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
+        'padding:16px;margin:16px 0">'
+        '<h3 style="color:#1a5276;border:none;margin:0 0 8px 0">'
+        f'Newest listings today ({n})</h3>'
+        '<p style="color:#666;font-size:12px;margin:0 0 10px 0">'
+        'Brand-new listings that appeared today, ranked by deal score '
+        '(higher = cheaper than expected). Act fast &mdash; new listings '
+        'get taken quickly. Always check the photos and condition on the '
+        'source site before contacting.</p>'
+        f"<table style='border-collapse:collapse;width:100%;font-size:14px'>"
+        "<tr style='background:#f0f0f0'>"
+        "<th style='text-align:right'>Deal score</th>"
+        "<th style='text-align:left'>District</th>"
+        "<th>Rooms</th><th>m²</th><th>Floor</th>"
+        "<th style='text-align:right'>Price</th>"
+        "<th style='text-align:right'>EUR/m²</th>"
+        "<th>Type</th><th>Source</th>"
+        "</tr>"
+        f"{rows_html}"
+        "</table>"
+        '</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
 # build the full HTML digest
 # ---------------------------------------------------------------------------
 def build_html(main_deals, still_active, comparison_html, status_note,
                recipient="", price_data=None, map_markers=None,
-               exceptional_html=""):
+               newest_html=""):
     today = date.today().isoformat()
     sections = []
 
@@ -502,7 +601,7 @@ function hideInfo() {{
 <p>Districts: {', '.join(config.DISTRICTS.keys())} &middot; Sources: ss.com, city24.lv</p>
 <p class="note">Scoring: {status_note}</p>
 {comparison_html}
-{exceptional_html}
+{newest_html}
 {body_sections}
 {map_html}
 <hr><p class="note">Generated by Flat_Searcher. Higher deal score = cheaper than
@@ -555,10 +654,11 @@ Historical data comes from <b>CenuMednieks.lv</b> (for ss.com listings)
 and our own daily tracking. "Previous ads at this address" are older
 listings at the same location &mdash; they may or may not be the same flat.</p>
 
-<h4>Top exceptional deals</h4>
-<p>The ranked cards at the top combine multiple signals: deal score,
-price drop percentage, days on market, and price vs area average.
-Short-term/daily rentals are excluded from this ranking.</p>
+<h4>Newest listings today</h4>
+<p>The section at the top shows listings that appeared for the first time
+today, ranked by deal score. New listings get taken quickly, so check
+these first. Always look at the photos and condition on the source site
+&mdash; a high deal score means it's cheap, not that it's good.</p>
 
 <h4>How often does it update?</h4>
 <p>The full digest runs <b>once daily</b>. An <b>hourly scan</b> checks
@@ -704,7 +804,7 @@ def _plain_summary(main_deals, still_active, comparison_html):
 # send
 # ---------------------------------------------------------------------------
 def send(main_deals, still_active, comparison_html, status_note,
-         price_data=None, map_markers=None, exceptional_html=""):
+         price_data=None, map_markers=None, newest_html=""):
     """Send the digest email. Returns (sent:bool, info:str)."""
     host = os.environ.get("SMTP_HOST")
     port = os.environ.get("SMTP_PORT")
@@ -715,7 +815,7 @@ def send(main_deals, still_active, comparison_html, status_note,
 
     # always save the HTML digest first (for audit / no-SMTP fallback)
     html = build_html(main_deals, still_active, comparison_html, status_note,
-                      recipient, price_data, map_markers, exceptional_html)
+                      recipient, price_data, map_markers, newest_html)
     today = date.today().isoformat()
     digest_path = os.path.join(config.DIGEST_DIR, f"digest_{today}.html")
     os.makedirs(config.DIGEST_DIR, exist_ok=True)
