@@ -2,10 +2,52 @@
 
 Living document. Updated after each Devin session. Read this first.
 
-## Current state (after session 2026-09-05, upgrade #7 — SS.com fix + UI + review)
+## Current state (after session 2026-09-05, upgrade #8 — visual readability overhaul)
 
 **Working, tested end-to-end locally on Windows + Python 3.14.4.**
 Pipeline scrapes 278 SS.com + 29 city24.lv = 307 listings daily.
+
+### Upgrade 8 (this session): visual readability overhaul + map repositioned
+
+**Table structure:**
+- Reduced from 13 to 11 columns (10 for still-active) by merging
+  Listed+Days into one column and First price+Change into one.
+- Removed the empty Status column from still-active tables.
+- Right-aligned all numeric columns (was mixed center/right).
+- Deal score is now the boldest element in each row (16px, bold, blue).
+- Zebra striping per listing group for easier vertical scanning.
+- Fixed m2 -> m² in all headers and cell values.
+
+**Change column:**
+- +0.0% is now grey instead of red (was alarm-red on 13 of 20 rows).
+- Numeric data-sort preserved for proper sorting.
+
+**Timeline:**
+- Single-observation timelines show "Listed at X EUR (date), unchanged"
+  instead of "First: X → X" with a no-op arrow.
+- Previous ads truncated to 3 most recent + "(+N earlier)" summary
+  (was showing up to 17 entries, dominating the row).
+
+**Sort indicators:**
+- Removed always-visible ⇓ glyphs from all headers.
+- Indicators now appear only on hover (faded) and on the active sorted
+  column (directional arrow via JS).
+
+**CenuMednieks deal-type mismatch:**
+- original_price and previous ad prices that differ from the current
+  price by more than 5x are now filtered out (was showing 275,000 EUR
+  "first price" for a 1,100 EUR rental, producing a -99.6% "change").
+
+**Map:**
+- Moved from fixed right-side sidebar back to an inline map at the
+  bottom of the page (per user request).
+- Removed all position:fixed, display:flex, toggleMap JS, and responsive
+  sidebar CSS that broke in email clients.
+
+**Email compatibility:**
+- Exceptional deal cards now use table-based layout instead of flex
+  (Gmail/Outlook ignore flex and margin-left:auto).
+- Zero display:flex rules remain in the digest.
 
 ### Upgrade 7 (this session): SS.com district pages + sortable tables + map sidebar + 12-issue code review fix
 
