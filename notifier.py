@@ -71,22 +71,35 @@ def _main_row_html(item, price_data=None):
         timeline_html = price_history.format_price_timeline_html(listing, price_data)
     timeline_row = ""
     if timeline_html:
-        timeline_row = (f'<tr><td colspan="11" style="padding:2px 5px;'
+        timeline_row = (f'<tr class="timeline-row"><td colspan="13" style="padding:2px 5px;'
                         f'border-top:none;background:#fafafa">{timeline_html}</td></tr>')
-    # Extract listing age info
-    listed_date, days_market = _get_listing_age(listing, price_data)
+    listed_date, days_market, first_price, change_pct = _get_listing_age(listing, price_data)
+    # Numeric sort values
+    price_val = listing.get('price_eur', 0) or 0
+    ppu_val = listing.get('price_per_m2', 0) or 0
+    score_val = score if score is not None else -999
+    days_val = int(days_market) if days_market and days_market.lstrip('-').isdigit() else -1
+    # Color for change percentage
+    change_color = '#666'
+    if change_pct:
+        if change_pct.startswith('-'):
+            change_color = '#27ae60'  # green = price dropped
+        elif change_pct.startswith('+'):
+            change_color = '#e74c3c'  # red = price increased
     return (
         "<tr>"
         f"<td>{listing.get('district','')}</td>"
-        f"<td style='text-align:center'>{listing.get('rooms','')}</td>"
-        f"<td style='text-align:center'>{listing.get('area_m2','')}</td>"
+        f"<td style='text-align:center' data-sort='{listing.get('rooms',0) or 0}'>{listing.get('rooms','')}</td>"
+        f"<td style='text-align:center' data-sort='{listing.get('area_m2',0) or 0}'>{listing.get('area_m2','')}</td>"
         f"<td style='text-align:center'>{listing.get('floor','')}</td>"
-        f"<td style='text-align:right'>{_fmt_price(listing.get('price_eur'))}</td>"
-        f"<td style='text-align:right'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
-        f"<td style='text-align:center'>{score_str}</td>"
+        f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'))}</td>"
+        f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
+        f"<td style='text-align:center' data-sort='{score_val}'>{score_str}</td>"
         f"<td>{_badge_html(badge, detail)}</td>"
-        f"<td style='text-align:center;font-size:12px;color:#666'>{listed_date}</td>"
-        f"<td style='text-align:center;font-size:12px;color:#666'>{days_market}</td>"
+        f"<td style='text-align:center;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_date}</td>"
+        f"<td style='text-align:center;font-size:12px;color:#666' data-sort='{days_val}'>{days_market}</td>"
+        f"<td style='text-align:right;font-size:12px;color:#666'>{first_price}</td>"
+        f"<td style='text-align:center;font-size:12px;color:{change_color}'>{change_pct}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
         "</tr>"
         f"{timeline_row}"
@@ -101,21 +114,33 @@ def _still_row_html(item, price_data=None):
         timeline_html = price_history.format_price_timeline_html(listing, price_data)
     timeline_row = ""
     if timeline_html:
-        timeline_row = (f'<tr><td colspan="11" style="padding:2px 5px;'
+        timeline_row = (f'<tr class="timeline-row"><td colspan="13" style="padding:2px 5px;'
                         f'border-top:none;background:#fafafa">{timeline_html}</td></tr>')
-    listed_date, days_market = _get_listing_age(listing, price_data)
+    listed_date, days_market, first_price, change_pct = _get_listing_age(listing, price_data)
+    price_val = listing.get('price_eur', 0) or 0
+    ppu_val = listing.get('price_per_m2', 0) or 0
+    score_val = score if score is not None else -999
+    days_val = int(days_market) if days_market and days_market.lstrip('-').isdigit() else -1
+    change_color = '#666'
+    if change_pct:
+        if change_pct.startswith('-'):
+            change_color = '#27ae60'
+        elif change_pct.startswith('+'):
+            change_color = '#e74c3c'
     return (
         "<tr>"
         f"<td>{listing.get('district','')}</td>"
-        f"<td style='text-align:center'>{listing.get('rooms','')}</td>"
-        f"<td style='text-align:center'>{listing.get('area_m2','')}</td>"
+        f"<td style='text-align:center' data-sort='{listing.get('rooms',0) or 0}'>{listing.get('rooms','')}</td>"
+        f"<td style='text-align:center' data-sort='{listing.get('area_m2',0) or 0}'>{listing.get('area_m2','')}</td>"
         f"<td style='text-align:center'>{listing.get('floor','')}</td>"
-        f"<td style='text-align:right'>{_fmt_price(listing.get('price_eur'))}</td>"
-        f"<td style='text-align:right'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
-        f"<td style='text-align:center'>{score_str}</td>"
-        f"<td></td>"  # empty Status column (still-active rows have no badge)
-        f"<td style='text-align:center;font-size:12px;color:#666'>{listed_date}</td>"
-        f"<td style='text-align:center;font-size:12px;color:#666'>{days_market}</td>"
+        f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'))}</td>"
+        f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
+        f"<td style='text-align:center' data-sort='{score_val}'>{score_str}</td>"
+        f"<td></td>"
+        f"<td style='text-align:center;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_date}</td>"
+        f"<td style='text-align:center;font-size:12px;color:#666' data-sort='{days_val}'>{days_market}</td>"
+        f"<td style='text-align:right;font-size:12px;color:#666'>{first_price}</td>"
+        f"<td style='text-align:center;font-size:12px;color:{change_color}'>{change_pct}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
         "</tr>"
         f"{timeline_row}"
@@ -123,64 +148,91 @@ def _still_row_html(item, price_data=None):
 
 
 def _get_listing_age(listing, price_data=None):
-    """Return (listed_date_str, days_on_market_str) for a listing.
+    """Return (listed_date_str, days_on_market_str, first_price_str, price_change_pct_str)
+    for a listing.
 
-    Uses CenuMednieks first_listed_date if available, otherwise falls back
-    to our own first observation date. Returns ('', '') if no data.
+    Uses CenuMednieks first_listed_date + original_price if available, otherwise
+    falls back to our own first observation date + price.
+    Returns ('', '', '', '') if no data.
     """
     from datetime import date as _date
 
     if price_data is None:
-        return '', ''
+        return '', '', '', ''
 
     key = f"{listing.get('source')}:{listing.get('id')}"
     entry = price_data.get(key, {})
     cenu = entry.get('cenumednieks')
+    current_price = listing.get('price_eur')
 
     # Prefer CenuMednieks first_listed_date (true original listing date)
     if cenu and cenu.get('first_listed_date'):
         listed = cenu['first_listed_date']
         days = cenu.get('days_on_market')
-        if days is not None:
-            return listed[:10], str(days)
-        try:
-            d = _date.fromisoformat(listed[:10])
-            days = (_date.today() - d).days
-            return listed[:10], str(days)
-        except ValueError:
-            return listed[:10], ''
+        first_price = cenu.get('original_price')
+        if days is None:
+            try:
+                d = _date.fromisoformat(listed[:10])
+                days = (_date.today() - d).days
+            except ValueError:
+                days = None
+        # Calculate price change percentage
+        change_pct = ''
+        if first_price and current_price and first_price > 0:
+            pct = ((current_price - first_price) / first_price) * 100
+            change_pct = f"{pct:+.1f}%"
+        return (listed[:10],
+                str(days) if days is not None else '',
+                _fmt_price(first_price) if first_price else '',
+                change_pct)
 
     # Fall back to our own first observation
     our = entry.get('our_tracking', [])
     if our:
         first_date = our[0].get('date', '')
+        first_price = our[0].get('price')
+        days = None
         try:
             d = _date.fromisoformat(first_date[:10])
             days = (_date.today() - d).days
-            return first_date[:10], str(days)
         except ValueError:
-            return first_date[:10], ''
+            pass
+        change_pct = ''
+        if first_price and current_price and first_price > 0:
+            pct = ((current_price - first_price) / first_price) * 100
+            change_pct = f"{pct:+.1f}%"
+        return (first_date[:10],
+                str(days) if days is not None else '',
+                _fmt_price(first_price) if first_price else '',
+                change_pct)
 
-    return '', ''
+    return '', '', '', ''
 
 
-def _table_header(extra_col="Status"):
+def _table_header(extra_col="Status", sortable_id=""):
+    """Build table header. sortable_id is a unique id for the table (for JS sorting)."""
+    sort_attr = f" onclick=\"sortTable('{sortable_id}',{{col}})\" style='cursor:pointer'" if sortable_id else ""
+    sort_marker = " &#8661;" if sortable_id else ""
     return (
-        "<table style='border-collapse:collapse;width:100%;font-size:14px'>"
+        f"<table id='{sortable_id}' style='border-collapse:collapse;width:100%;font-size:14px' data-sortable='1'>"
         "<tr style='background:#f0f0f0'>"
-        "<th style='text-align:left;padding:4px'>District</th>"
-        "<th>Rooms</th><th>m2</th><th>Floor</th>"
-        "<th style='text-align:right'>Price</th>"
-        "<th style='text-align:right'>EUR/m2</th>"
-        "<th>Deal score</th>"
+        f"<th style='text-align:left;padding:4px'{sort_attr.format(col=0)}>District{sort_marker}</th>"
+        f"<th{sort_attr.format(col=1)}>Rooms{sort_marker}</th>"
+        f"<th{sort_attr.format(col=2)}>m2{sort_marker}</th>"
+        f"<th{sort_attr.format(col=3)}>Floor{sort_marker}</th>"
+        f"<th style='text-align:right'{sort_attr.format(col=4)}>Price{sort_marker}</th>"
+        f"<th style='text-align:right'{sort_attr.format(col=5)}>EUR/m2{sort_marker}</th>"
+        f"<th{sort_attr.format(col=6)}>Deal score{sort_marker}</th>"
         f"<th>{extra_col}</th>"
-        "<th>Listed</th>"
-        "<th>Days</th>"
-        "<th>Source</th></tr>"
+        f"<th{sort_attr.format(col=8)}>Listed{sort_marker}</th>"
+        f"<th{sort_attr.format(col=9)}>Days{sort_marker}</th>"
+        f"<th style='text-align:right'{sort_attr.format(col=10)}>First price{sort_marker}</th>"
+        f"<th{sort_attr.format(col=11)}>Change{sort_marker}</th>"
+        f"<th>Source</th></tr>"
     )
 
 
-def _main_section_html(title, items, subtitle, price_data=None):
+def _main_section_html(title, items, subtitle, price_data=None, table_id=""):
     if not items:
         return (f"<h3>{title}</h3>"
                 f"<p style='color:#666;font-size:12px'>{subtitle}</p>"
@@ -189,11 +241,11 @@ def _main_section_html(title, items, subtitle, price_data=None):
     return (
         f"<h3>{title}</h3>"
         f"<p style='color:#666;font-size:12px'>{subtitle}</p>"
-        f"{_table_header('Status')}{rows}</table>"
+        f"{_table_header('Status', table_id)}{rows}</table>"
     )
 
 
-def _still_active_section_html(deal_type, items, price_data=None):
+def _still_active_section_html(deal_type, items, price_data=None, table_id=""):
     if not items:
         return ""
     rows = "".join(_still_row_html(it, price_data) for it in items)
@@ -202,7 +254,7 @@ def _still_active_section_html(deal_type, items, price_data=None):
         "<p style='color:#999;font-size:12px'>These deals were in yesterday's "
         "digest and are still among the best today. No action needed unless "
         "you missed them.</p>"
-        f"<div style='opacity:0.6'>{_table_header('')}{rows}</table></div>"
+        f"<div style='opacity:0.85'>{_table_header('', table_id)}{rows}</table></div>"
     )
 
 
@@ -232,11 +284,13 @@ def build_html(main_deals, still_active, comparison_html, status_note,
         items = main_deals.get(dt, [])
         subtitle = (f"Top {len(items)} {'new / changed' if items else ''} "
                     f"{dt} deals ranked best-first. Deal score = how much "
-                    f"cheaper than the model expects (higher = better deal).")
-        sections.append(_main_section_html(dt.upper(), items, subtitle, price_data))
+                    f"cheaper than the model expects (higher = better deal). "
+                    f"Click column headers to sort.")
+        sections.append(_main_section_html(dt.upper(), items, subtitle,
+                                            price_data, f"tbl_main_{dt}"))
 
         still = still_active.get(dt, [])
-        sa = _still_active_section_html(dt, still, price_data)
+        sa = _still_active_section_html(dt, still, price_data, f"tbl_still_{dt}")
         if sa:
             sections.append(sa)
 
@@ -259,11 +313,56 @@ h2{{color:#1a5276}}h3{{color:#2874a6;border-bottom:2px solid #2874a6;padding-bot
 td,th{{border:1px solid #ddd;padding:5px}}a{{color:#2874a6}}
 .note{{color:#777;font-size:12px}}
 #map{{height:500px;border:1px solid #ddd;border-radius:4px;margin:10px 0}}
+th{{user-select:none}}th:hover{{background:#e8e8e8}}
+.timeline-row td{{border:none;padding:2px 5px}}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       crossorigin=""/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        crossorigin=""></script></head><body>
+        crossorigin=""></script>
+<script>
+// Click-to-sort table headers. Keeps timeline rows attached to their parent row.
+var sortState = {{}};
+function sortTable(tableId, colIdx) {{
+  var table = document.getElementById(tableId);
+  if (!table) return;
+  var tbody = table;
+  var rows = Array.from(table.querySelectorAll('tr')).slice(1); // skip header
+  // Group data rows with their timeline rows
+  var groups = [];
+  for (var i = 0; i < rows.length; i++) {{
+    if (rows[i].classList.contains('timeline-row')) {{
+      if (groups.length) groups[groups.length-1].push(rows[i]);
+    }} else {{
+      groups.push([rows[i]]);
+    }}
+  }}
+  // Toggle sort direction
+  var key = tableId + '_' + colIdx;
+  sortState[key] = !sortState[key];
+  var asc = sortState[key];
+  groups.sort(function(a, b) {{
+    var va = a[0].children[colIdx].getAttribute('data-sort');
+    var vb = b[0].children[colIdx].getAttribute('data-sort');
+    if (va === null || vb === null) return 0;
+    va = va.trim(); vb = vb.trim();
+    // Try numeric comparison
+    var na = parseFloat(va), nb = parseFloat(vb);
+    if (!isNaN(na) && !isNaN(nb)) {{
+      return asc ? na - nb : nb - na;
+    }}
+    // String comparison (dates sort correctly as strings)
+    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+  }});
+  // Re-insert rows in sorted order
+  for (var g = 0; g < groups.length; g++) {{
+    for (var r = 0; r < groups[g].length; r++) {{
+      table.appendChild(groups[g][r]);
+    }}
+  }}
+}}
+</script>
+</head><body>
 <h2>Riga flat deals - {today}</h2>
 {browser_link}
 <p>Districts: {', '.join(config.DISTRICTS.keys())} &middot; Sources: ss.com, city24.lv</p>
