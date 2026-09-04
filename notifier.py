@@ -71,8 +71,10 @@ def _main_row_html(item, price_data=None):
         timeline_html = price_history.format_price_timeline_html(listing, price_data)
     timeline_row = ""
     if timeline_html:
-        timeline_row = (f'<tr class="timeline-row"><td colspan="13" style="padding:2px 5px;'
-                        f'border-top:none;background:#fafafa">{timeline_html}</td></tr>')
+        timeline_row = (f'<tr class="timeline-row"><td colspan="13" style="padding:6px 10px;'
+                        f'border-top:none;border-bottom:1px solid #ccc;'
+                        f'background:#f5f5f5;font-size:11px;line-height:1.6">'
+                        f'{timeline_html}</td></tr>')
     listed_date, days_market, first_price, change_pct = _get_listing_age(listing, price_data)
     # Numeric sort values
     price_val = listing.get('price_eur', 0) or 0
@@ -114,8 +116,10 @@ def _still_row_html(item, price_data=None):
         timeline_html = price_history.format_price_timeline_html(listing, price_data)
     timeline_row = ""
     if timeline_html:
-        timeline_row = (f'<tr class="timeline-row"><td colspan="13" style="padding:2px 5px;'
-                        f'border-top:none;background:#fafafa">{timeline_html}</td></tr>')
+        timeline_row = (f'<tr class="timeline-row"><td colspan="13" style="padding:6px 10px;'
+                        f'border-top:none;border-bottom:1px solid #ccc;'
+                        f'background:#f5f5f5;font-size:11px;line-height:1.6">'
+                        f'{timeline_html}</td></tr>')
     listed_date, days_market, first_price, change_pct = _get_listing_age(listing, price_data)
     price_val = listing.get('price_eur', 0) or 0
     ppu_val = listing.get('price_per_m2', 0) or 0
@@ -319,7 +323,7 @@ h2{{color:#1a5276}}h3{{color:#2874a6;border-bottom:2px solid #2874a6;padding-bot
 td,th{{border:1px solid #ddd;padding:5px}}a{{color:#2874a6}}
 .note{{color:#777;font-size:12px}}
 th{{user-select:none}}th:hover{{background:#e8e8e8}}
-.timeline-row td{{border:none;padding:2px 5px}}
+.timeline-row td{{border-top:none;border-bottom:1px solid #ccc;padding:6px 10px;background:#f5f5f5;font-size:11px;line-height:1.6}}
 
 /* Floating map sidebar */
 #map-sidebar{{
