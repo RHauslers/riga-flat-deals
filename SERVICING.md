@@ -2,10 +2,40 @@
 
 Living document. Updated after each Devin session. Read this first.
 
-## Current state (after session 2026-09-05, upgrade #8 — visual readability overhaul)
+## Current state (after session 2026-09-05, upgrade #9 — daily rental detection + map fix)
 
 **Working, tested end-to-end locally on Windows + Python 3.14.4.**
 Pipeline scrapes 278 SS.com + 29 city24.lv = 307 listings daily.
+
+### Upgrade 9 (this session): daily rental detection + map coverage fix
+
+**Daily rental detection:**
+- SS.com price text shows "EUR/day" for daily rentals and "EUR/mon." for
+  monthly. The scraper now captures `price_unit` ("day" or "mon") from
+  the price cell text.
+- Daily rentals show "60 EUR/day" in the price column instead of "60 EUR".
+- Daily rentals are excluded from the exceptional deals composite score
+  (they always win on price since 60 EUR/day looks like an impossibly
+  cheap monthly rent).
+- Daily rentals are excluded from the regression model training baseline
+  and district median calculations.
+- Daily rentals in the main deals section get a SHORT-TERM/DAILY badge.
+- Exceptional deals section description notes that short-term/daily
+  rentals are excluded from the ranking.
+- `price_unit` added to HISTORY_COLUMNS and city24 scraper output.
+
+**CenuMednieks deal-type mismatch (also fixed in exceptional.py):**
+- `_get_price_drop_pct` now applies the same 5x ratio sanity check as
+  `get_price_timeline` and `_get_listing_age`. A 275,000 EUR "original
+  price" on a 1,100 EUR rental is filtered out instead of producing a
+  distorted composite score.
+
+**Map coverage fix:**
+- Map markers were built from `all_scored` (top 10 per deal type = 20
+  listings), not `all_listings` (261 listings). Fixed by building markers
+  from `all_listings`. Map went from 15 markers to 203 markers.
+- Scores are still attached to map popups where available (looked up
+  from `all_scored` by `source:id` key).
 
 ### Upgrade 8 (this session): visual readability overhaul + map repositioned
 
