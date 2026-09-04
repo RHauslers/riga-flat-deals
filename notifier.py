@@ -71,8 +71,10 @@ def _main_row_html(item, price_data=None):
         timeline_html = price_history.format_price_timeline_html(listing, price_data)
     timeline_row = ""
     if timeline_html:
-        timeline_row = (f'<tr><td colspan="9" style="padding:2px 5px;'
+        timeline_row = (f'<tr><td colspan="11" style="padding:2px 5px;'
                         f'border-top:none;background:#fafafa">{timeline_html}</td></tr>')
+    # Extract listing age info
+    listed_date, days_market = _get_listing_age(listing, price_data)
     return (
         "<tr>"
         f"<td>{listing.get('district','')}</td>"
@@ -83,6 +85,8 @@ def _main_row_html(item, price_data=None):
         f"<td style='text-align:right'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
         f"<td style='text-align:center'>{score_str}</td>"
         f"<td>{_badge_html(badge, detail)}</td>"
+        f"<td style='text-align:center;font-size:12px;color:#666'>{listed_date}</td>"
+        f"<td style='text-align:center;font-size:12px;color:#666'>{days_market}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
         "</tr>"
         f"{timeline_row}"
@@ -97,8 +101,9 @@ def _still_row_html(item, price_data=None):
         timeline_html = price_history.format_price_timeline_html(listing, price_data)
     timeline_row = ""
     if timeline_html:
-        timeline_row = (f'<tr><td colspan="8" style="padding:2px 5px;'
+        timeline_row = (f'<tr><td colspan="11" style="padding:2px 5px;'
                         f'border-top:none;background:#fafafa">{timeline_html}</td></tr>')
+    listed_date, days_market = _get_listing_age(listing, price_data)
     return (
         "<tr>"
         f"<td>{listing.get('district','')}</td>"
@@ -108,10 +113,54 @@ def _still_row_html(item, price_data=None):
         f"<td style='text-align:right'>{_fmt_price(listing.get('price_eur'))}</td>"
         f"<td style='text-align:right'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
         f"<td style='text-align:center'>{score_str}</td>"
+        f"<td style='text-align:center;font-size:12px;color:#666'>{listed_date}</td>"
+        f"<td style='text-align:center;font-size:12px;color:#666'>{days_market}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
         "</tr>"
         f"{timeline_row}"
     )
+
+
+def _get_listing_age(listing, price_data=None):
+    """Return (listed_date_str, days_on_market_str) for a listing.
+
+    Uses CenuMednieks first_listed_date if available, otherwise falls back
+    to our own first observation date. Returns ('', '') if no data.
+    """
+    from datetime import date as _date
+
+    if price_data is None:
+        return '', ''
+
+    key = f"{listing.get('source')}:{listing.get('id')}"
+    entry = price_data.get(key, {})
+    cenu = entry.get('cenumednieks')
+
+    # Prefer CenuMednieks first_listed_date (true original listing date)
+    if cenu and cenu.get('first_listed_date'):
+        listed = cenu['first_listed_date']
+        days = cenu.get('days_on_market')
+        if days is not None:
+            return listed[:10], str(days)
+        try:
+            d = _date.fromisoformat(listed[:10])
+            days = (_date.today() - d).days
+            return listed[:10], str(days)
+        except ValueError:
+            return listed[:10], ''
+
+    # Fall back to our own first observation
+    our = entry.get('our_tracking', [])
+    if our:
+        first_date = our[0].get('date', '')
+        try:
+            d = _date.fromisoformat(first_date[:10])
+            days = (_date.today() - d).days
+            return first_date[:10], str(days)
+        except ValueError:
+            return first_date[:10], ''
+
+    return '', ''
 
 
 def _table_header(extra_col="Status"):
@@ -124,6 +173,8 @@ def _table_header(extra_col="Status"):
         "<th style='text-align:right'>EUR/m2</th>"
         "<th>Deal score</th>"
         f"<th>{extra_col}</th>"
+        "<th>Listed</th>"
+        "<th>Days</th>"
         "<th>Source</th></tr>"
     )
 

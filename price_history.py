@@ -338,45 +338,36 @@ def get_price_timeline(listing, history=None):
 def format_price_timeline_html(listing, history=None):
     """Return an HTML snippet showing the price timeline for a listing.
 
-    Returns empty string if no history or only one data point.
+    Shows even for single-observation listings (just "First seen: X EUR (date)").
+    Every price point includes its date so the viewer can see how stale the
+    listing is and how long between price changes.
     """
     timeline = get_price_timeline(listing, history)
-    if not timeline or len(timeline) < 2:
+    if not timeline:
         return ''
 
-    # Build a compact timeline
+    # Build a compact timeline with dates on every entry
     parts = []
     for i, t in enumerate(timeline):
         price = t['price']
         date_str = t['date']
-        source = t['source']
         if i == 0:
             parts.append(f'<span style="color:#888;font-size:11px">'
-                        f'First seen: <b>{price:,.0f} EUR</b> ({date_str})</span>')
-        elif i == len(timeline) - 1:
-            prev_price = timeline[i - 1]['price']
-            if price != prev_price:
-                pct = ((price - prev_price) / prev_price) * 100
-                color = '#e74c3c' if price > prev_price else '#27ae60'
-                arrow = '↑' if price > prev_price else '↓'
-                parts.append(f' → <span style="color:{color};font-size:11px">'
-                            f'<b>{price:,.0f} EUR</b> ({date_str}) '
-                            f'{arrow}{abs(pct):.1f}%</span>')
-            else:
-                parts.append(f' → <span style="color:#888;font-size:11px">'
-                            f'{price:,.0f} EUR ({date_str})</span>')
+                        f'First: <b>{price:,.0f} EUR</b> ({date_str})</span>')
         else:
             prev_price = timeline[i - 1]['price']
             if price != prev_price:
                 pct = ((price - prev_price) / prev_price) * 100
                 color = '#e74c3c' if price > prev_price else '#27ae60'
                 arrow = '↑' if price > prev_price else '↓'
-                parts.append(f' → <span style="color:{color};font-size:11px">'
+                parts.append(f' &rarr; <span style="color:{color};font-size:11px">'
                             f'<b>{price:,.0f} EUR</b> ({date_str}) '
                             f'{arrow}{abs(pct):.1f}%</span>')
-            # skip if price unchanged to keep it compact
+            else:
+                parts.append(f' &rarr; <span style="color:#888;font-size:11px">'
+                            f'{price:,.0f} EUR ({date_str})</span>')
 
-    cenu = None
+    # Add "days on market" from CenuMednieks if available
     key = _listing_key(listing)
     if history is None:
         history = load_price_history()
@@ -387,7 +378,7 @@ def format_price_timeline_html(listing, history=None):
     header = ''
     if days_market is not None and days_market > 0:
         header = (f'<div style="font-size:11px;color:#666;margin:2px 0">'
-                  f'On market: {days_market} days</div>')
+                  f'On market: <b>{days_market} days</b></div>')
 
     timeline_html = '<div style="margin:2px 0">' + ''.join(parts) + '</div>'
     return header + timeline_html
