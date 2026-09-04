@@ -31,6 +31,7 @@ import health
 import utils
 import price_history
 import geocode
+import exceptional
 from scrapers import ss_com, city24
 
 
@@ -147,9 +148,16 @@ def run():
         map_markers = geocode.get_map_data(all_for_map, price_data)
         print(f"[main] map: {len(map_markers)} markers with coordinates")
 
-    # 7. Notify (pass price history + map markers)
+    # 6c. Build exceptional deals header (top 5 across all deal types)
+    exceptional_html = exceptional.build_exceptional_html(
+        all_scored, all_listings, price_data, top_n=5
+    )
+    print(f"[main] exceptional deals header built")
+
+    # 7. Notify (pass price history + map markers + exceptional deals)
     sent, info = notifier.send(main_deals, still_active, comparison_html,
-                               status_note, price_data, map_markers)
+                               status_note, price_data, map_markers,
+                               exceptional_html)
 
     # 8. Build hosted site (latest digest -> docs/index.html + archive)
     website.build()
