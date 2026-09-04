@@ -116,7 +116,12 @@ def _row_to_listing(tr, deal_type, forced_district=None):
     floor_num, floor_total = _parse_floor(floor_text)
     series = desc_cells[4].get_text(strip=True)
     price_per_m2 = _parse_price(desc_cells[5].get_text(strip=True))
-    price = _parse_price(desc_cells[6].get_text(strip=True))
+    price_text = desc_cells[6].get_text(strip=True)
+    price = _parse_price(price_text)
+    # Detect price unit: SS.com shows "€/mon." for monthly, "€/day" for daily
+    price_unit = "mon"  # default assumption
+    if "/day" in price_text.lower() or "/dien" in price_text.lower():
+        price_unit = "day"
 
     # ad url + title from the message link
     a = tr.select_one("td.msg2 a.am") or tr.select_one("a[href^='/msg/']")
@@ -150,6 +155,7 @@ def _row_to_listing(tr, deal_type, forced_district=None):
         "series": series,
         "price_eur": price,
         "price_per_m2": price_per_m2 if price_per_m2 is not None else round(price / area, 2),
+        "price_unit": price_unit,  # "mon" (monthly) or "day" (daily/short-term)
         "title": title,
     }
 

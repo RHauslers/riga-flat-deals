@@ -37,18 +37,24 @@ def _get_price_drop_pct(listing, price_data):
     cenu = entry.get('cenumednieks')
     current = _safe_float(listing.get('price_eur'))
 
-    # Prefer CenuMednieks original price
+    # Prefer CenuMednieks original price, but sanity-check: if original
+    # and current differ by >5x, it's likely a different deal type (e.g.
+    # a sale price showing up for a rental). Skip it.
     if cenu and cenu.get('original_price') and current > 0:
         original = _safe_float(cenu['original_price'])
         if original > 0:
-            return ((original - current) / original) * 100
+            ratio = max(original, current) / min(original, current)
+            if ratio <= 5.0:
+                return ((original - current) / original) * 100
 
     # Fall back to our own tracking (first observed price vs current)
     our = entry.get('our_tracking', [])
     if our and current > 0:
         first = _safe_float(our[0].get('price'))
         if first > 0:
-            return ((first - current) / first) * 100
+            ratio = max(first, current) / min(first, current)
+            if ratio <= 5.0:
+                return ((first - current) / first) * 100
 
     return 0.0
 
@@ -103,17 +109,27 @@ def compute_exceptional_scores(all_scored, all_listings, price_data):
     """
     results = []
 
-    # Precompute district medians
+    # Precompute district medians (excluding daily rentals — they distort
+    # the price-per-m² baseline for monthly rentals)
     medians = {}
     for dt in config.DEAL_TYPES:
         for district in config.DISTRICTS:
-            medians[(district, dt)] = _district_median_ppu(
-                all_listings, district, dt
-            )
+            monthly_listings = [l for l in all_listings
+                                if l.get('district') == district
+                                and l.get('deal_type') == dt
+                                and l.get('price_unit') != 'day'
+                                and _safe_float(l.get('price_per_m2')) > 0]
+            ppus = [_safe_float(l.get('price_per_m2')) for l in monthly_listings]
+            medians[(district, dt)] = median(ppus) if ppus else 0.0
 
     for dt, items in all_scored.items():
         for item in items:
             listing, deal_score, method = item[0], item[1], item[2]
+
+            # Skip daily rentals from exceptional deals — they're not
+            # comparable to monthly rentals and always win on price.
+            if listing.get('price_unit') == 'day':
+                continue
 
             drop_pct = _get_price_drop_pct(listing, price_data)
             # Clamp to ±50% to prevent outlier historical data (e.g. a
@@ -253,8 +269,10 @@ def build_exceptional_html(all_scored, all_listings, price_data, top_n=5):
         '<h3 style="color:#1a5276;border:none;margin:0 0 8px 0">'
         'Top exceptional deals</h3>'
         '<p style="color:#666;font-size:12px;margin:0 0 10px 0">'
-        'Best opportunities based on price drops, days on market, '
-        'deal score, and price vs area average. Start here.</p>'
+        'Best monthly rental and sale opportunities based on price drops, '
+        'days on market, deal score, and price vs area average. '
+        'Short-term/daily rentals are excluded from this ranking. '
+        'Start here.</p>'
         f'{cards_html}'
         '</div>'
     )

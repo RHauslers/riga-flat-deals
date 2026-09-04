@@ -84,10 +84,12 @@ def classify(scored_by_type, seen_deals, last_digest):
             listing, score, method = entry
             key = _key(listing)
             today_price = _to_float(listing.get("price_eur"))
+            is_daily = listing.get("price_unit") == "day"
 
             if key not in seen_deals:
                 # brand new
-                main_list.append((listing, score, method, "NEW", None))
+                badge = "SHORT_TERM" if is_daily else "NEW"
+                main_list.append((listing, score, method, badge, None))
                 continue
 
             prev = seen_deals[key] or {}
@@ -98,7 +100,8 @@ def classify(scored_by_type, seen_deals, last_digest):
                 # price dropped meaningfully since last shown
                 detail = (f"was {int(prev_price)} EUR "
                           f"(\u2193{drop_pct:.0f}%)")
-                main_list.append((listing, score, method, "PRICE_DROP", detail))
+                badge = "SHORT_TERM" if is_daily else "PRICE_DROP"
+                main_list.append((listing, score, method, badge, detail))
                 continue
 
             if key in yest_keys:
@@ -106,13 +109,15 @@ def classify(scored_by_type, seen_deals, last_digest):
                 # (unless too stale)
                 days = _days_since(prev.get("last_shown_date"), today)
                 if days is not None and days > config.STILL_ACTIVE_MAX_DAYS:
-                    main_list.append((listing, score, method, "REAPPEARED", None))
+                    badge = "SHORT_TERM" if is_daily else "REAPPEARED"
+                    main_list.append((listing, score, method, badge, None))
                 else:
                     still_list.append((listing, score, method))
                 continue
 
             # seen before but not in yesterday's top N -> reappeared
-            main_list.append((listing, score, method, "REAPPEARED", None))
+            badge = "SHORT_TERM" if is_daily else "REAPPEARED"
+            main_list.append((listing, score, method, badge, None))
 
         main_deals[dt] = main_list
         still_active[dt] = still_list

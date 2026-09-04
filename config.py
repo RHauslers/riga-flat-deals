@@ -214,5 +214,5 @@ HISTORY_COLUMNS = [
     "scrape_date", "source", "deal_type", "id", "url", "district", "street",
     "rooms", "area_m2", "floor", "floor_num", "floor_total", "series",
     "price_eur", "price_per_m2", "title",
-    "ad_slug", "old_price", "show_price_drop",
+    "ad_slug", "old_price", "show_price_drop", "price_unit",
 ]

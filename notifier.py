@@ -32,9 +32,10 @@ import price_history
 # ---------------------------------------------------------------------------
 # formatting helpers
 # ---------------------------------------------------------------------------
-def _fmt_price(v):
+def _fmt_price(v, price_unit=None):
     try:
-        return f"{float(v):,.0f} EUR".replace(",", " ")
+        unit = f"/{price_unit}" if price_unit and price_unit != "mon" else ""
+        return f"{float(v):,.0f} EUR{unit}".replace(",", " ")
     except (TypeError, ValueError):
         return str(v)
 
@@ -50,6 +51,7 @@ _BADGE_HTML = {
     "NEW": "<span style='color:#27ae60;font-weight:bold'>NEW</span>",
     "PRICE_DROP": "<span style='color:#e67e22;font-weight:bold'>PRICE DROP</span>",
     "REAPPEARED": "<span style='color:#2980b9'>REAPPEARED</span>",
+    "SHORT_TERM": "<span style='color:#8e44ad;font-weight:bold'>SHORT-TERM/DAILY</span>",
 }
 
 
@@ -128,7 +130,7 @@ def _main_row_html(item, price_data=None, row_idx=0):
         f"<td style='text-align:right' data-sort='{listing.get('rooms',0) or 0}'>{listing.get('rooms','')}</td>"
         f"<td style='text-align:right' data-sort='{listing.get('area_m2',0) or 0}'>{listing.get('area_m2','')}</td>"
         f"<td style='text-align:right'>{listing.get('floor','')}</td>"
-        f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'))}</td>"
+        f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'), listing.get('price_unit'))}</td>"
         f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
         f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
         f"<td>{_badge_html(badge, detail)}</td>"
@@ -172,7 +174,7 @@ def _still_row_html(item, price_data=None, row_idx=0):
         f"<td style='text-align:right' data-sort='{listing.get('rooms',0) or 0}'>{listing.get('rooms','')}</td>"
         f"<td style='text-align:right' data-sort='{listing.get('area_m2',0) or 0}'>{listing.get('area_m2','')}</td>"
         f"<td style='text-align:right'>{listing.get('floor','')}</td>"
-        f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'))}</td>"
+        f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'), listing.get('price_unit'))}</td>"
         f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
         f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
         f"<td style='text-align:right;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_days}</td>"
@@ -655,7 +657,7 @@ def _alert_row_html(listing, score, price_data=None):
         f"<td style='text-align:center'>{listing.get('rooms','')}</td>"
         f"<td style='text-align:center'>{listing.get('area_m2','')}</td>"
         f"<td style='text-align:center'>{listing.get('floor','')}</td>"
-        f"<td style='text-align:right;font-weight:bold'>{_fmt_price(listing.get('price_eur'))}</td>"
+        f"<td style='text-align:right;font-weight:bold'>{_fmt_price(listing.get('price_eur'), listing.get('price_unit'))}</td>"
         f"<td style='text-align:right'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')} &rarr;</a></td>"
         "</tr>"

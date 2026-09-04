@@ -133,20 +133,22 @@ def run():
     print(f"[main] classified: {n_main} main (new/changed/reappeared), "
           f"{n_still} still active from yesterday")
 
-    # 6b. Build map markers from all scored listings with coordinates
+    # 6b. Build map markers from ALL listings with coordinates (not just
+    #     the top N scored — the map should show everything we found, so
+    #     the user can see all options at a glance).
     map_markers = []
     if config.MAP_ENABLED:
-        # Flatten all_scored (dict of deal_type -> [(listing, score, method)])
-        # and attach scores to listings for map popups
-        all_for_map = []
+        # Attach scores to listings for map popups where available
+        score_map = {}
         for dt, items in all_scored.items():
-            for item in items:
-                listing = item[0]
-                score = item[1]
-                listing["_score"] = score
-                all_for_map.append(listing)
-        map_markers = geocode.get_map_data(all_for_map)
-        print(f"[main] map: {len(map_markers)} markers with coordinates")
+            for listing, score, method in items:
+                score_map[f"{listing.get('source')}:{listing.get('id')}"] = score
+        for listing in all_listings:
+            key = f"{listing.get('source')}:{listing.get('id')}"
+            listing["_score"] = score_map.get(key)
+        map_markers = geocode.get_map_data(all_listings)
+        print(f"[main] map: {len(map_markers)} markers with coordinates "
+              f"(of {len(all_listings)} total listings)")
 
     # 6c. Build exceptional deals header (top 5 across all deal types)
     exceptional_html = exceptional.build_exceptional_html(

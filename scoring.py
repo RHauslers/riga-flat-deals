@@ -198,6 +198,12 @@ def score_and_rank(new_listings, history):
     """Score new listings and return the top N per deal_type, sorted best first.
 
     Returns dict: deal_type -> list of (listing, score, method) tuples.
+
+    Daily rentals (price_unit='day') are excluded from the regression model
+    training baseline and from district median calculations, since their
+    prices are not comparable to monthly rents. They are still scored (using
+    the fallback z-score against monthly listings) so they appear in the
+    digest with a SHORT-TERM badge, but they won't dominate the ranking.
     """
     by_type = {}
     for l in new_listings:
@@ -205,7 +211,9 @@ def score_and_rank(new_listings, history):
 
     result = {}
     for dt, items in by_type.items():
-        hist_dt = [r for r in history if r.get("deal_type") == dt]
+        # Exclude daily rentals from the training baseline
+        hist_dt = [r for r in history
+                   if r.get("deal_type") == dt and r.get("price_unit") != "day"]
 
         scored = None
         if _HAS_NUMPY:
