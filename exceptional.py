@@ -234,7 +234,7 @@ def build_exceptional_html(all_scored, all_listings, price_data, top_n=5):
         '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
         'padding:16px;margin:16px 0">'
         '<h3 style="color:#1a5276;border:none;margin:0 0 8px 0">'
-        '⭐ Top exceptional deals</h3>'
+        'Top exceptional deals</h3>'
         '<p style="color:#666;font-size:12px;margin:0 0 10px 0">'
         'Best opportunities based on price drops, days on market, '
         'deal score, and price vs area average. Start here.</p>'

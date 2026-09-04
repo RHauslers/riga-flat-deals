@@ -463,12 +463,12 @@ def _build_map_html(markers):
 <!-- Floating map sidebar -->
 <div id="map-sidebar">
   <div class="map-header">
-    <b>📍 Map ({n_markers} listings)</b>
-    <button class="map-toggle" onclick="toggleMap()">Hide ✕</button>
+    <b>Map ({n_markers} listings)</b>
+    <button class="map-toggle" onclick="toggleMap()">Hide</button>
   </div>
   <div id="map"></div>
 </div>
-<button id="map-float-btn" onclick="toggleMap()">📍 Show map</button>
+<button id="map-float-btn" onclick="toggleMap()">Show map</button>
 <script>
 (function() {{
   var map = L.map('map').setView([{center_lat}, {center_lon}], {zoom});
