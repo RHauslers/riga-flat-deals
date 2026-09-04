@@ -34,6 +34,8 @@ import notifier
 import website
 import health
 import utils
+import price_history
+import geocode
 from scrapers import ss_com, city24
 
 
@@ -61,12 +63,17 @@ def run():
         return "escalation disabled"
 
     # 1. Scrape (tracking per-source counts for health checks)
+    #    Use fewer pages for SS.com to limit request volume (hourly runs
+    #    would otherwise hit ss.com ~2000x/day and risk an IP block).
     all_listings = []
     source_counts = {"ss.com": 0, "city24.lv": 0}
     for dt in config.DEAL_TYPES:
         for scraper in (ss_com, city24):
             try:
-                items = scraper.scrape(dt)
+                if scraper is ss_com:
+                    items = scraper.scrape(dt, max_pages=config.SS_COM_MAX_PAGES_HOURLY)
+                else:
+                    items = scraper.scrape(dt)
                 all_listings.extend(items)
                 for it in items:
                     src = it.get("source")
@@ -103,6 +110,10 @@ def run():
     #    repeated hourly appends cannot poison the baseline.
     hist_rows = history.load_history(exclude_today=True)
     history.append_history(all_listings)
+
+    # 3b. Update price history (CenuMednieks + our own tracking) so hot-deal
+    #     alert emails include price drop context and days on market.
+    price_data = price_history.update_price_history(all_listings)
 
     # 4. Score ALL current listings
     all_scored = scoring.score_and_rank(all_listings, hist_rows)
@@ -153,7 +164,7 @@ def run():
         print(f"  -> score {s:+.2f} | {l.get('district')} | {l.get('rooms')}r "
               f"{l.get('area_m2')}m2 | {_fmt_price_inline(l.get('price_eur'))} | {l.get('url')}")
 
-    sent, info = notifier.send_alert(hot_deals, threshold)
+    sent, info = notifier.send_alert(hot_deals, threshold, price_data)
 
     # 7. Mark as alerted so we don't re-alert next hour
     history.mark_alerted(hot_keys)

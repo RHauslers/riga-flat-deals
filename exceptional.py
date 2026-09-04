@@ -43,9 +43,9 @@ def _get_price_drop_pct(listing, price_data):
         if original > 0:
             return ((original - current) / original) * 100
 
-    # Fall back to our own tracking
+    # Fall back to our own tracking (first observed price vs current)
     our = entry.get('our_tracking', [])
-    if len(our) >= 2 and current > 0:
+    if our and current > 0:
         first = _safe_float(our[0].get('price'))
         if first > 0:
             return ((first - current) / first) * 100
@@ -63,6 +63,16 @@ def _get_days_on_market(listing, price_data):
     if cenu and cenu.get('days_on_market') is not None:
         return cenu['days_on_market']
 
+    # Fall back to first_seen (set once, never overwritten)
+    first_seen = entry.get('first_seen')
+    if first_seen:
+        try:
+            d = date.fromisoformat(first_seen[:10])
+            return (date.today() - d).days
+        except ValueError:
+            pass
+
+    # Last resort: our_tracking[0]
     our = entry.get('our_tracking', [])
     if our:
         try:
@@ -106,6 +116,9 @@ def compute_exceptional_scores(all_scored, all_listings, price_data):
             listing, deal_score, method = item[0], item[1], item[2]
 
             drop_pct = _get_price_drop_pct(listing, price_data)
+            # Clamp to ±50% to prevent outlier historical data (e.g. a
+            # spurious 30 EUR entry) from dominating the composite score.
+            drop_pct = max(-50.0, min(50.0, drop_pct))
             days = _get_days_on_market(listing, price_data)
             ppu = _safe_float(listing.get('price_per_m2'))
             district = listing.get('district', '')

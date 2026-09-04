@@ -241,15 +241,41 @@ def update_price_history(listings):
         entry = history.get(key, {
             'cenumednieks': None,
             'our_tracking': [],
+            'first_seen': None,
         })
 
-        # 1. Record today's price in our own tracking (skip duplicates)
+        # 1. Record today's price in our own tracking.
+        #    - first_seen is set once (the first day we ever saw this listing)
+        #      and NEVER overwritten, so days-on-market stays correct.
+        #    - our_tracking appends a new entry only when the price CHANGES.
+        #    - When the price is unchanged we update last_seen on the most
+        #      recent tracking entry, but never touch entry[0].
+        #    - For city24 listings, if the API provides old_price (the price
+        #      before the current one), inject it as a synthetic earlier
+        #      observation so we capture drops we missed before tracking.
+        if entry.get('first_seen') is None:
+            entry['first_seen'] = today
+            # city24 old_price: inject as a synthetic prior observation
+            old_price = listing.get('old_price')
+            if old_price and float(old_price) > 0 and float(old_price) != float(price):
+                # Use yesterday as the date (we don't know when it changed)
+                from datetime import timedelta as _td
+                yesterday = (date.today() - _td(days=1)).isoformat()
+                entry['our_tracking'].append({'date': yesterday, 'price': float(old_price)})
+                entry['city24_old_price'] = float(old_price)
+
         today_obs = {'date': today, 'price': float(price)}
-        if not entry['our_tracking'] or entry['our_tracking'][-1]['price'] != float(price):
+        if not entry['our_tracking']:
             entry['our_tracking'].append(today_obs)
             n_tracked += 1
-        elif entry['our_tracking'] and entry['our_tracking'][-1]['date'] != today:
-            # Same price but new day — update the date
+        elif entry['our_tracking'][-1]['price'] != float(price):
+            # Price changed — new observation
+            entry['our_tracking'].append(today_obs)
+            n_tracked += 1
+        elif entry['our_tracking'][-1]['date'] != today:
+            # Same price, new day — update the LAST entry's date only.
+            # This is safe: our_tracking[0] is only touched when a price
+            # change creates a new first entry, which can't happen here.
             entry['our_tracking'][-1]['date'] = today
 
         # 2. Fetch CenuMednieks data for SS.com listings (weekly refresh)
@@ -297,6 +323,11 @@ def get_price_timeline(listing, history=None):
     Merges CenuMednieks historical data with our own daily observations.
     Returns a list of {date, price, source} sorted by date ascending,
     or None if no history exists.
+
+    Note: 'previous ad' entries from CenuMednieks are older ads at the same
+    address — they are NOT the same listing. They are included for context
+    but tagged with source='CenuMednieks (previous ad)' so the formatter
+    can separate them from the current ad's price history.
     """
     key = _listing_key(listing)
     if history is None:
@@ -316,7 +347,7 @@ def get_price_timeline(listing, history=None):
                 'price': cenu['original_price'],
                 'source': 'CenuMednieks (original)',
             })
-        # Previous listings from same address (context)
+        # Previous listings from same address (context only — different ads)
         for prev in cenu.get('previous_listings', []):
             timeline.append({
                 'date': prev['date'],
@@ -349,21 +380,31 @@ def format_price_timeline_html(listing, history=None):
     Shows even for single-observation listings (just "First seen: X EUR (date)").
     Every price point includes its date so the viewer can see how stale the
     listing is and how long between price changes.
+
+    Previous CenuMednieks ads (different listings at the same address) are
+    shown in a separate "Previous ads at this address" section, not mixed
+    into the current ad's price history.
     """
     timeline = get_price_timeline(listing, history)
     if not timeline:
         return ''
 
-    # Build a compact timeline with dates on every entry
+    # Split into current-ad history and previous-ad context
+    current_timeline = [t for t in timeline
+                        if t['source'] != 'CenuMednieks (previous ad)']
+    previous_ads = [t for t in timeline
+                    if t['source'] == 'CenuMednieks (previous ad)']
+
+    # Build current ad timeline
     parts = []
-    for i, t in enumerate(timeline):
+    for i, t in enumerate(current_timeline):
         price = t['price']
         date_str = t['date']
         if i == 0:
             parts.append(f'<span style="color:#888;font-size:11px">'
                         f'First: <b>{price:,.0f} EUR</b> ({date_str})</span>')
         else:
-            prev_price = timeline[i - 1]['price']
+            prev_price = current_timeline[i - 1]['price']
             if price != prev_price:
                 pct = ((price - prev_price) / prev_price) * 100
                 color = '#e74c3c' if price > prev_price else '#27ae60'
@@ -374,6 +415,21 @@ def format_price_timeline_html(listing, history=None):
             else:
                 parts.append(f' &rarr; <span style="color:#888;font-size:11px">'
                             f'{price:,.0f} EUR ({date_str})</span>')
+
+    # Build previous ads section (if any)
+    prev_html = ''
+    if previous_ads:
+        prev_parts = []
+        for t in previous_ads:
+            prev_parts.append(
+                f'<span style="color:#aaa;font-size:10px">'
+                f'{t["price"]:,.0f} EUR ({t["date"]})</span>'
+            )
+        prev_html = (f'<div style="margin:3px 0 0 0;padding-top:3px;'
+                     f'border-top:1px dotted #ccc">'
+                     f'<span style="color:#999;font-size:10px">'
+                     f'Previous ads at this address:</span> '
+                     f'{" &middot; ".join(prev_parts)}</div>')
 
     # Add "days on market" from CenuMednieks if available
     key = _listing_key(listing)
@@ -389,7 +445,7 @@ def format_price_timeline_html(listing, history=None):
                   f'On market: <b>{days_market} days</b></div>')
 
     timeline_html = '<div style="margin:2px 0">' + ''.join(parts) + '</div>'
-    return header + timeline_html
+    return header + timeline_html + prev_html
 
 
 def get_price_drop_info(listing, history=None):

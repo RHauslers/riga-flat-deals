@@ -155,7 +155,7 @@ def enrich_coordinates(listings):
     return listings
 
 
-def get_map_data(listings, price_data=None):
+def get_map_data(listings):
     """Build a list of map markers from listings that have coordinates.
 
     Each marker: {lat, lon, popup_html, deal_type, price, score, source, url}

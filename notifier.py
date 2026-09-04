@@ -88,6 +88,14 @@ def _main_row_html(item, price_data=None):
             change_color = '#27ae60'  # green = price dropped
         elif change_pct.startswith('+'):
             change_color = '#e74c3c'  # red = price increased
+    # Numeric sort value for Change column
+    change_sort_val = 0.0
+    if change_pct:
+        import re as _re
+        m = _re.search(r'([+-]?\d+\.?\d*)', change_pct)
+        if m:
+            change_sort_val = float(m.group(1))
+
     return (
         "<tr>"
         f"<td>{listing.get('district','')}</td>"
@@ -101,7 +109,7 @@ def _main_row_html(item, price_data=None):
         f"<td style='text-align:center;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_date}</td>"
         f"<td style='text-align:center;font-size:12px;color:#666' data-sort='{days_val}'>{days_market}</td>"
         f"<td style='text-align:right;font-size:12px;color:#666'>{first_price}</td>"
-        f"<td style='text-align:center;font-size:12px;color:{change_color}'>{change_pct}</td>"
+        f"<td style='text-align:center;font-size:12px;color:{change_color}' data-sort='{change_sort_val}'>{change_pct}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
         "</tr>"
         f"{timeline_row}"
@@ -131,6 +139,12 @@ def _still_row_html(item, price_data=None):
             change_color = '#27ae60'
         elif change_pct.startswith('+'):
             change_color = '#e74c3c'
+    change_sort_val = 0.0
+    if change_pct:
+        import re as _re
+        m = _re.search(r'([+-]?\d+\.?\d*)', change_pct)
+        if m:
+            change_sort_val = float(m.group(1))
     return (
         "<tr>"
         f"<td>{listing.get('district','')}</td>"
@@ -144,7 +158,7 @@ def _still_row_html(item, price_data=None):
         f"<td style='text-align:center;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_date}</td>"
         f"<td style='text-align:center;font-size:12px;color:#666' data-sort='{days_val}'>{days_market}</td>"
         f"<td style='text-align:right;font-size:12px;color:#666'>{first_price}</td>"
-        f"<td style='text-align:center;font-size:12px;color:{change_color}'>{change_pct}</td>"
+        f"<td style='text-align:center;font-size:12px;color:{change_color}' data-sort='{change_sort_val}'>{change_pct}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
         "</tr>"
         f"{timeline_row}"
@@ -190,11 +204,14 @@ def _get_listing_age(listing, price_data=None):
                 _fmt_price(first_price) if first_price else '',
                 change_pct)
 
-    # Fall back to our own first observation
+    # Fall back to our own tracking.
+    # Use first_seen (set once, never overwritten) for the date, and
+    # our_tracking[0] for the first observed price.
+    first_seen = entry.get('first_seen')
     our = entry.get('our_tracking', [])
-    if our:
-        first_date = our[0].get('date', '')
-        first_price = our[0].get('price')
+    if first_seen or our:
+        first_date = first_seen or (our[0].get('date', '') if our else '')
+        first_price = our[0].get('price') if our else None
         days = None
         try:
             d = _date.fromisoformat(first_date[:10])
@@ -614,8 +631,23 @@ def send(main_deals, still_active, comparison_html, status_note,
 # ---------------------------------------------------------------------------
 # ESCALATION ALERT (hourly hot-deal instant email)
 # ---------------------------------------------------------------------------
-def _alert_row_html(listing, score):
+def _alert_row_html(listing, score, price_data=None):
     score_str = f"{score:+.2f}" if score is not None else "-"
+    # Add price history context if available
+    context = ""
+    if price_data is not None:
+        listed_date, days_market, first_price, change_pct = _get_listing_age(listing, price_data)
+        parts = []
+        if days_market:
+            parts.append(f"{days_market}d on market")
+        if first_price:
+            parts.append(f"first: {first_price}")
+        if change_pct:
+            parts.append(change_pct)
+        if parts:
+            context = (f'<tr><td colspan="8" style="padding:4px 8px;border-top:none;'
+                       f'background:#f5f5f5;font-size:11px;color:#666">'
+                       f'{" &middot; ".join(parts)}</td></tr>')
     return (
         "<tr>"
         f"<td style='text-align:center;font-size:20px;font-weight:bold;color:#e74c3c'>{score_str}</td>"
@@ -627,14 +659,15 @@ def _alert_row_html(listing, score):
         f"<td style='text-align:right'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')} &rarr;</a></td>"
         "</tr>"
+        f"{context}"
     )
 
 
-def build_alert_html(hot_deals, threshold):
+def build_alert_html(hot_deals, threshold, price_data=None):
     """hot_deals: list of (listing, score, method) tuples that exceeded threshold."""
     from datetime import datetime
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    rows = "".join(_alert_row_html(l, s) for l, s, _ in hot_deals)
+    rows = "".join(_alert_row_html(l, s, price_data) for l, s, _ in hot_deals)
     n = len(hot_deals)
     unsub = _unsubscribe_html(os.environ.get("EMAIL_TO", ""))
     browser = ""
@@ -647,7 +680,7 @@ h2{{color:#c0392b}}td,th{{border:1px solid #ddd;padding:8px}}a{{color:#2874a6}}
 .note{{color:#777;font-size:12px}}
 .alert{{background:#fdedee;border:2px solid #e74c3c;border-radius:8px;padding:15px;margin:15px 0}}
 </style></head><body>
-<h2>&#x1F6A8; HOT DEAL ALERT — {n} deal(s) spotted</h2>
+<h2>HOT DEAL ALERT — {n} deal(s) spotted</h2>
 <p style="color:#666">Scanned at {now} &middot; Threshold: score &ge; {threshold}</p>
 {browser}
 <div class="alert">
@@ -681,7 +714,7 @@ def _alert_plain(hot_deals, threshold):
     return "\n".join(lines)
 
 
-def send_alert(hot_deals, threshold):
+def send_alert(hot_deals, threshold, price_data=None):
     """Send an instant escalation alert email. Returns (sent:bool, info:str)."""
     if not hot_deals:
         return False, "no hot deals to alert"
@@ -693,7 +726,7 @@ def send_alert(hot_deals, threshold):
     sender = os.environ.get("EMAIL_FROM")
     recipient = os.environ.get("EMAIL_TO") or ""
 
-    html = build_alert_html(hot_deals, threshold)
+    html = build_alert_html(hot_deals, threshold, price_data)
     today = date.today().isoformat()
     alert_path = os.path.join(config.DIGEST_DIR, f"alert_{today}.html")
     os.makedirs(config.DIGEST_DIR, exist_ok=True)

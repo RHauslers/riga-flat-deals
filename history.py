@@ -208,18 +208,31 @@ def migrate_seen_ids():
 # history.csv  (training data, unique listings by source:id)
 # ---------------------------------------------------------------------------
 def append_history(listings):
-    """Append unified listings to history.csv, skipping rows already present
-    (matched by source:id). This keeps history = set of unique listings ever
-    seen, avoiding bloat from same-day re-runs."""
+    """Append unified listings to history.csv.
+
+    A listing is appended when:
+      - it has never been seen before (new source:id), OR
+      - its price has changed since the last recorded row for that source:id.
+
+    This means price drops/increases are captured as new training rows so the
+    regression model learns from current prices, not stale ones. Same-day
+    re-runs with identical prices are still skipped (no bloat).
+    """
     if not listings:
         return
     _ensure_dirs()
     exists = os.path.exists(config.HISTORY_CSV)
-    existing_keys = set()
+    # Track the latest price per source:id so we can detect changes
+    latest_price = {}
     if exists:
         with open(config.HISTORY_CSV, "r", encoding="utf-8-sig", newline="") as f:
             for r in csv.DictReader(f):
-                existing_keys.add(f"{r.get('source')}:{r.get('id')}")
+                key = f"{r.get('source')}:{r.get('id')}"
+                # DictReader yields rows in file order, so the last one wins
+                try:
+                    latest_price[key] = float(r.get('price_eur') or 0)
+                except (ValueError, TypeError):
+                    latest_price[key] = None
     today = date.today().isoformat()
     new_rows = 0
     with open(config.HISTORY_CSV, "a", encoding="utf-8-sig", newline="") as f:
@@ -228,9 +241,17 @@ def append_history(listings):
             writer.writeheader()
         for l in listings:
             key = _listing_key(l)
-            if key in existing_keys:
+            current_price = l.get('price_eur')
+            try:
+                current_price_f = float(current_price) if current_price else None
+            except (ValueError, TypeError):
+                current_price_f = None
+            prev = latest_price.get(key)
+            if prev is not None and current_price_f is not None and prev == current_price_f:
+                # Same price as last record — skip (no new info)
                 continue
-            existing_keys.add(key)
+            # New listing OR price changed — append a row
+            latest_price[key] = current_price_f
             row = {"scrape_date": today}
             for col in config.HISTORY_COLUMNS:
                 if col == "scrape_date":
@@ -239,7 +260,7 @@ def append_history(listings):
             writer.writerow(row)
             new_rows += 1
     if new_rows:
-        print(f"[history] appended {new_rows} new unique rows")
+        print(f"[history] appended {new_rows} new/changed rows")
 
 
 def load_history(exclude_today=False):

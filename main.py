@@ -145,7 +145,7 @@ def run():
                 score = item[1]
                 listing["_score"] = score
                 all_for_map.append(listing)
-        map_markers = geocode.get_map_data(all_for_map, price_data)
+        map_markers = geocode.get_map_data(all_for_map)
         print(f"[main] map: {len(map_markers)} markers with coordinates")
 
     # 6c. Build exceptional deals header (top 5 across all deal types)

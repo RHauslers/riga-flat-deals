@@ -183,11 +183,6 @@ def _next_page_url(soup, base_url):
 
     SS.com uses <a class="navi" href="...page2.html">Next</a> or » symbol.
     """
-    # Try » symbol first
-    a = soup.select_one("a.navi[href]")
-    if not a:
-        return None
-    # Look through all navi links for "Next" or "»"
     for a in soup.find_all("a", class_="navi"):
         text = a.get_text(strip=True).lower()
         href = a.get("href", "")
@@ -198,22 +193,26 @@ def _next_page_url(soup, base_url):
     return None
 
 
-def scrape(deal_type):
+def scrape(deal_type, max_pages=None):
     """Return list of listing dicts for the given deal_type ('rent'/'sale').
 
     Scrapes both the "today" page (new listings) AND district-specific pages
     (all active listings). District pages are where CenuMednieks historical
     data is most valuable — older listings that have been on the market for
     weeks/months with price drop history.
+
+    max_pages: override config.SS_COM_MAX_PAGES (e.g. hourly scan uses fewer
+    pages to limit request volume and avoid IP blocks).
     """
     if deal_type not in config.SS_COM_DEAL_SLUGS:
         return []
     results = []
     seen_ids = set()
+    page_cap = max_pages if max_pages is not None else config.SS_COM_MAX_PAGES
 
     def _scrape_url(url, forced_district=None):
         nonlocal seen_ids
-        for _ in range(config.SS_COM_MAX_PAGES):
+        for _ in range(page_cap):
             try:
                 html = _fetch(url)
             except requests.RequestException as e:
@@ -231,12 +230,9 @@ def scrape(deal_type):
                 break
             url = nxt
 
-    # 1. "Today" page (new listings posted today)
-    today_url = config.SS_COM_TODAY_URL.get(deal_type, "")
-    if today_url:
-        _scrape_url(today_url)
-
-    # 2. District-specific pages (ALL active listings, not just today)
+    # District-specific pages show ALL active listings (including today's).
+    # The old /today/ page is redundant — district pages already include
+    # new listings posted today, plus older ones with price history.
     deal_slug = config.SS_COM_DEAL_SLUGS[deal_type]
     for district, slug in config.SS_COM_DISTRICT_SLUGS.items():
         district_url = f"{config.SS_COM_BASE}/en/real-estate/flats/riga/{slug}/{deal_slug}/"

@@ -13,9 +13,9 @@ import os
 #    Sampeteris as "Shampeteris-Pleskodale"; city24.lv uses "Riga, Sampeteris".
 # ----------------------------------------------------------------------------
 DISTRICTS = {
-    "Zolitude":  ["zolitude", "Zolitūde"],
+    "Zolitude":  ["zolitude", "zolitūde"],
     "Sampeteris": ["sampeteris", "shampeteris", "šampēteris", "sampēteris"],
-    "Imanta":    ["imanta", "Imanta", "Imantas"],
+    "Imanta":    ["imanta", "imantas"],
 }
 
 # ----------------------------------------------------------------------------
@@ -51,6 +51,7 @@ SS_COM_USER_AGENT = (
 )
 SS_COM_TIMEOUT = 30   # seconds per request
 SS_COM_MAX_PAGES = 15  # safety cap for pagination (Imanta sale has 9+ pages)
+SS_COM_MAX_PAGES_HOURLY = 3  # hourly scan uses fewer pages to avoid IP blocks
 
 # ----------------------------------------------------------------------------
 # 4. city24.lv settings (scraped via Playwright -> intercept JSON API)
@@ -136,7 +137,7 @@ DEDUPE_SOURCE_PRIORITY = ["ss.com", "city24.lv"]  # which listing to keep
 #    Alerts are throttled to once per issue per day.
 # ----------------------------------------------------------------------------
 HEALTH_ALERTS_ENABLED = True
-MIN_EXPECTED_LISTINGS = 3    # total below this (but > 0) = suspicious
+MIN_EXPECTED_LISTINGS = 50    # total below this (but > 0) = suspicious
 ALERT_ON_SOURCE_ZERO = True  # a source returning 0 while another returns > 0
 # Operator alert recipient. Falls back to EMAIL_FROM if not set.
 OPS_EMAIL_TO = os.environ.get("OPS_EMAIL_TO", "")
@@ -213,4 +214,5 @@ HISTORY_COLUMNS = [
     "scrape_date", "source", "deal_type", "id", "url", "district", "street",
     "rooms", "area_m2", "floor", "floor_num", "floor_total", "series",
     "price_eur", "price_per_m2", "title",
+    "ad_slug", "old_price", "show_price_drop",
 ]
