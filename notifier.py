@@ -41,7 +41,7 @@ def _fmt_price(v):
 
 def _fmt_ppu(v):
     try:
-        return f"{float(v):,.1f} EUR/m2".replace(",", " ")
+        return f"{float(v):,.1f} EUR/m²".replace(",", " ")
     except (TypeError, ValueError):
         return ""
 
@@ -63,102 +63,120 @@ def _badge_html(badge, detail):
 # ---------------------------------------------------------------------------
 # table builders
 # ---------------------------------------------------------------------------
-def _main_row_html(item, price_data=None):
+def _change_color(change_pct):
+    """Return CSS color for a change percentage string. Grey for zero."""
+    if not change_pct:
+        return '#666'
+    # Parse the numeric value to distinguish real changes from +0.0%
+    import re as _re
+    m = _re.search(r'([+-]?\d+\.?\d*)', change_pct)
+    if m:
+        val = float(m.group(1))
+        if abs(val) < 0.05:
+            return '#666'  # grey for zero
+        if val < 0:
+            return '#27ae60'  # green = price dropped
+        return '#e74c3c'  # red = price increased
+    return '#666'
+
+
+def _change_sort_val(change_pct):
+    """Extract numeric sort value from change percentage string."""
+    if not change_pct:
+        return 0.0
+    import re as _re
+    m = _re.search(r'([+-]?\d+\.?\d*)', change_pct)
+    return float(m.group(1)) if m else 0.0
+
+
+# Column layout (11 columns after merging Listed+Days and First price+Change):
+#  0 District  1 Rooms  2 m²  3 Floor  4 Price  5 EUR/m²  6 Deal score
+#  7 Status   8 Listed (days)   9 First / change   10 Source
+NUM_COLS = 11
+
+
+def _main_row_html(item, price_data=None, row_idx=0):
     listing, score, method, badge, detail = item
     score_str = f"{score:+.2f}" if score is not None else "-"
     timeline_html = ""
     if price_data is not None:
         timeline_html = price_history.format_price_timeline_html(listing, price_data)
+    zebra = ' style="background:#fafafa"' if row_idx % 2 else ''
     timeline_row = ""
     if timeline_html:
-        timeline_row = (f'<tr class="timeline-row"><td colspan="13" style="padding:6px 10px;'
-                        f'border-top:none;border-bottom:1px solid #ccc;'
-                        f'background:#f5f5f5;font-size:11px;line-height:1.6">'
-                        f'{timeline_html}</td></tr>')
+        timeline_row = (f'<tr class="timeline-row"{zebra}><td colspan="{NUM_COLS}" '
+                        f'style="padding:6px 10px;border-top:none;'
+                        f'border-bottom:1px solid #ccc;background:#f5f5f5;'
+                        f'font-size:11px;line-height:1.6">{timeline_html}</td></tr>')
     listed_date, days_market, first_price, change_pct = _get_listing_age(listing, price_data)
-    # Numeric sort values
     price_val = listing.get('price_eur', 0) or 0
     ppu_val = listing.get('price_per_m2', 0) or 0
     score_val = score if score is not None else -999
     days_val = int(days_market) if days_market and days_market.lstrip('-').isdigit() else -1
-    # Color for change percentage
-    change_color = '#666'
+    listed_days = listed_date
+    if days_market:
+        listed_days = f"{listed_date} ({days_market}d)"
+    first_change = first_price
     if change_pct:
-        if change_pct.startswith('-'):
-            change_color = '#27ae60'  # green = price dropped
-        elif change_pct.startswith('+'):
-            change_color = '#e74c3c'  # red = price increased
-    # Numeric sort value for Change column
-    change_sort_val = 0.0
-    if change_pct:
-        import re as _re
-        m = _re.search(r'([+-]?\d+\.?\d*)', change_pct)
-        if m:
-            change_sort_val = float(m.group(1))
+        first_change = f"{first_price} {change_pct}" if first_price else change_pct
+    ch_color = _change_color(change_pct)
+    ch_sort = _change_sort_val(change_pct)
 
     return (
-        "<tr>"
+        f"<tr{zebra}>"
         f"<td>{listing.get('district','')}</td>"
-        f"<td style='text-align:center' data-sort='{listing.get('rooms',0) or 0}'>{listing.get('rooms','')}</td>"
-        f"<td style='text-align:center' data-sort='{listing.get('area_m2',0) or 0}'>{listing.get('area_m2','')}</td>"
-        f"<td style='text-align:center'>{listing.get('floor','')}</td>"
+        f"<td style='text-align:right' data-sort='{listing.get('rooms',0) or 0}'>{listing.get('rooms','')}</td>"
+        f"<td style='text-align:right' data-sort='{listing.get('area_m2',0) or 0}'>{listing.get('area_m2','')}</td>"
+        f"<td style='text-align:right'>{listing.get('floor','')}</td>"
         f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'))}</td>"
         f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
-        f"<td style='text-align:center' data-sort='{score_val}'>{score_str}</td>"
+        f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
         f"<td>{_badge_html(badge, detail)}</td>"
-        f"<td style='text-align:center;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_date}</td>"
-        f"<td style='text-align:center;font-size:12px;color:#666' data-sort='{days_val}'>{days_market}</td>"
-        f"<td style='text-align:right;font-size:12px;color:#666'>{first_price}</td>"
-        f"<td style='text-align:center;font-size:12px;color:{change_color}' data-sort='{change_sort_val}'>{change_pct}</td>"
+        f"<td style='text-align:right;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_days}</td>"
+        f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
         "</tr>"
         f"{timeline_row}"
     )
 
 
-def _still_row_html(item, price_data=None):
+def _still_row_html(item, price_data=None, row_idx=0):
     listing, score, method = item
     score_str = f"{score:+.2f}" if score is not None else "-"
     timeline_html = ""
     if price_data is not None:
         timeline_html = price_history.format_price_timeline_html(listing, price_data)
+    zebra = ' style="background:#fafafa"' if row_idx % 2 else ''
     timeline_row = ""
     if timeline_html:
-        timeline_row = (f'<tr class="timeline-row"><td colspan="13" style="padding:6px 10px;'
-                        f'border-top:none;border-bottom:1px solid #ccc;'
-                        f'background:#f5f5f5;font-size:11px;line-height:1.6">'
-                        f'{timeline_html}</td></tr>')
+        timeline_row = (f'<tr class="timeline-row"{zebra}><td colspan="{NUM_COLS}" '
+                        f'style="padding:6px 10px;border-top:none;'
+                        f'border-bottom:1px solid #ccc;background:#f5f5f5;'
+                        f'font-size:11px;line-height:1.6">{timeline_html}</td></tr>')
     listed_date, days_market, first_price, change_pct = _get_listing_age(listing, price_data)
     price_val = listing.get('price_eur', 0) or 0
     ppu_val = listing.get('price_per_m2', 0) or 0
     score_val = score if score is not None else -999
-    days_val = int(days_market) if days_market and days_market.lstrip('-').isdigit() else -1
-    change_color = '#666'
+    listed_days = listed_date
+    if days_market:
+        listed_days = f"{listed_date} ({days_market}d)"
+    first_change = first_price
     if change_pct:
-        if change_pct.startswith('-'):
-            change_color = '#27ae60'
-        elif change_pct.startswith('+'):
-            change_color = '#e74c3c'
-    change_sort_val = 0.0
-    if change_pct:
-        import re as _re
-        m = _re.search(r'([+-]?\d+\.?\d*)', change_pct)
-        if m:
-            change_sort_val = float(m.group(1))
+        first_change = f"{first_price} {change_pct}" if first_price else change_pct
+    ch_color = _change_color(change_pct)
+    ch_sort = _change_sort_val(change_pct)
+
     return (
-        "<tr>"
+        f"<tr{zebra}>"
         f"<td>{listing.get('district','')}</td>"
-        f"<td style='text-align:center' data-sort='{listing.get('rooms',0) or 0}'>{listing.get('rooms','')}</td>"
-        f"<td style='text-align:center' data-sort='{listing.get('area_m2',0) or 0}'>{listing.get('area_m2','')}</td>"
-        f"<td style='text-align:center'>{listing.get('floor','')}</td>"
+        f"<td style='text-align:right' data-sort='{listing.get('rooms',0) or 0}'>{listing.get('rooms','')}</td>"
+        f"<td style='text-align:right' data-sort='{listing.get('area_m2',0) or 0}'>{listing.get('area_m2','')}</td>"
+        f"<td style='text-align:right'>{listing.get('floor','')}</td>"
         f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'))}</td>"
         f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
-        f"<td style='text-align:center' data-sort='{score_val}'>{score_str}</td>"
-        f"<td></td>"
-        f"<td style='text-align:center;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_date}</td>"
-        f"<td style='text-align:center;font-size:12px;color:#666' data-sort='{days_val}'>{days_market}</td>"
-        f"<td style='text-align:right;font-size:12px;color:#666'>{first_price}</td>"
-        f"<td style='text-align:center;font-size:12px;color:{change_color}' data-sort='{change_sort_val}'>{change_pct}</td>"
+        f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
+        f"<td style='text-align:right;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_days}</td>"
+        f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
         "</tr>"
         f"{timeline_row}"
@@ -172,6 +190,10 @@ def _get_listing_age(listing, price_data=None):
     Uses CenuMednieks first_listed_date + original_price if available, otherwise
     falls back to our own first observation date + price.
     Returns ('', '', '', '') if no data.
+
+    Sanity-checks CenuMednieks original_price against the current price: if
+    they differ by more than 5x, the original_price is likely from a different
+    deal type (e.g. a sale price showing up for a rental) and is ignored.
     """
     from datetime import date as _date
 
@@ -188,6 +210,12 @@ def _get_listing_age(listing, price_data=None):
         listed = cenu['first_listed_date']
         days = cenu.get('days_on_market')
         first_price = cenu.get('original_price')
+        # Sanity check: skip original_price if it's wildly different from
+        # current price (likely a different deal type, e.g. sale vs rent).
+        if first_price and current_price and first_price > 0 and current_price > 0:
+            ratio = max(first_price, current_price) / min(first_price, current_price)
+            if ratio > 5.0:
+                first_price = None  # discard, fall back below
         if days is None:
             try:
                 d = _date.fromisoformat(listed[:10])
@@ -199,10 +227,16 @@ def _get_listing_age(listing, price_data=None):
         if first_price and current_price and first_price > 0:
             pct = ((current_price - first_price) / first_price) * 100
             change_pct = f"{pct:+.1f}%"
+        if first_price:
+            return (listed[:10],
+                    str(days) if days is not None else '',
+                    _fmt_price(first_price),
+                    change_pct)
+        # first_price was discarded — still return the date/days but no price
         return (listed[:10],
                 str(days) if days is not None else '',
-                _fmt_price(first_price) if first_price else '',
-                change_pct)
+                '',
+                '')
 
     # Fall back to our own tracking.
     # Use first_seen (set once, never overwritten) for the date, and
@@ -230,26 +264,38 @@ def _get_listing_age(listing, price_data=None):
     return '', '', '', ''
 
 
-def _table_header(extra_col="Status", sortable_id=""):
-    """Build table header. sortable_id is a unique id for the table (for JS sorting)."""
-    sort_attr = f" onclick=\"sortTable('{sortable_id}',{{col}})\" style='cursor:pointer'" if sortable_id else ""
-    sort_marker = " &#8661;" if sortable_id else ""
+def _table_header(sortable_id="", has_status=True):
+    """Build table header with 11 columns (Listed+Days and First+Change merged).
+
+    sortable_id: unique id for JS sorting (empty = not sortable).
+    has_status: if True, include the Status column (main deals only).
+    """
+    if sortable_id:
+        sort_attr = " class=\"sort-th\" onclick=\"sortTable('{0}',{{col}})\"".format(sortable_id)
+    else:
+        sort_attr = ""
+    cols = (
+        f"<th style='text-align:left'{sort_attr.format(col=0)}>District</th>"
+        f"<th{sort_attr.format(col=1)}>Rooms</th>"
+        f"<th{sort_attr.format(col=2)}>m²</th>"
+        f"<th{sort_attr.format(col=3)}>Floor</th>"
+        f"<th style='text-align:right'{sort_attr.format(col=4)}>Price</th>"
+        f"<th style='text-align:right'{sort_attr.format(col=5)}>EUR/m²</th>"
+        f"<th style='text-align:right'{sort_attr.format(col=6)}>Deal score</th>"
+    )
+    if has_status:
+        cols += f"<th{sort_attr.format(col=7)}>Status</th>"
+        cols += (f"<th style='text-align:right'{sort_attr.format(col=8)}>Listed</th>"
+                 f"<th style='text-align:right'{sort_attr.format(col=9)}>First / change</th>"
+                 f"<th>Source</th>")
+    else:
+        cols += (f"<th style='text-align:right'{sort_attr.format(col=7)}>Listed</th>"
+                 f"<th style='text-align:right'{sort_attr.format(col=8)}>First / change</th>"
+                 f"<th>Source</th>")
     return (
-        f"<table id='{sortable_id}' style='border-collapse:collapse;width:100%;font-size:14px' data-sortable='1'>"
-        "<tr style='background:#f0f0f0'>"
-        f"<th style='text-align:left;padding:4px'{sort_attr.format(col=0)}>District{sort_marker}</th>"
-        f"<th{sort_attr.format(col=1)}>Rooms{sort_marker}</th>"
-        f"<th{sort_attr.format(col=2)}>m2{sort_marker}</th>"
-        f"<th{sort_attr.format(col=3)}>Floor{sort_marker}</th>"
-        f"<th style='text-align:right'{sort_attr.format(col=4)}>Price{sort_marker}</th>"
-        f"<th style='text-align:right'{sort_attr.format(col=5)}>EUR/m2{sort_marker}</th>"
-        f"<th{sort_attr.format(col=6)}>Deal score{sort_marker}</th>"
-        f"<th>{extra_col}</th>"
-        f"<th{sort_attr.format(col=8)}>Listed{sort_marker}</th>"
-        f"<th{sort_attr.format(col=9)}>Days{sort_marker}</th>"
-        f"<th style='text-align:right'{sort_attr.format(col=10)}>First price{sort_marker}</th>"
-        f"<th{sort_attr.format(col=11)}>Change{sort_marker}</th>"
-        f"<th>Source</th></tr>"
+        f"<table id='{sortable_id}' style='border-collapse:collapse;width:100%;font-size:14px' "
+        f"data-sortable='1'>"
+        "<tr style='background:#f0f0f0'>" + cols + "</tr>"
     )
 
 
@@ -258,24 +304,24 @@ def _main_section_html(title, items, subtitle, price_data=None, table_id=""):
         return (f"<h3>{title}</h3>"
                 f"<p style='color:#666;font-size:12px'>{subtitle}</p>"
                 "<p>No new or changed qualifying deals today.</p>")
-    rows = "".join(_main_row_html(it, price_data) for it in items)
+    rows = "".join(_main_row_html(it, price_data, idx) for idx, it in enumerate(items))
     return (
         f"<h3>{title}</h3>"
         f"<p style='color:#666;font-size:12px'>{subtitle}</p>"
-        f"{_table_header('Status', table_id)}{rows}</table>"
+        f"{_table_header(table_id, has_status=True)}{rows}</table>"
     )
 
 
 def _still_active_section_html(deal_type, items, price_data=None, table_id=""):
     if not items:
         return ""
-    rows = "".join(_still_row_html(it, price_data) for it in items)
+    rows = "".join(_still_row_html(it, price_data, idx) for idx, it in enumerate(items))
     return (
         f"<h3 style='color:#888'>Still active from yesterday — {deal_type}</h3>"
         "<p style='color:#999;font-size:12px'>These deals were in yesterday's "
         "digest and are still among the best today. No action needed unless "
         "you missed them.</p>"
-        f"<div style='opacity:0.85'>{_table_header('', table_id)}{rows}</table></div>"
+        f"<div style='opacity:0.85'>{_table_header(table_id, has_status=False)}{rows}</table></div>"
     )
 
 
@@ -329,9 +375,6 @@ def build_html(main_deals, still_active, comparison_html, status_note,
     # Map section (Leaflet.js with OpenStreetMap tiles — free, no API key)
     map_html = _build_map_html(map_markers) if map_markers else ""
 
-    has_map = bool(map_markers)
-    body_class = ' class="has-map"' if has_map else ''
-
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
@@ -339,49 +382,19 @@ body{{font-family:Arial,sans-serif;color:#222;max-width:900px;margin:0 auto;padd
 h2{{color:#1a5276}}h3{{color:#2874a6;border-bottom:2px solid #2874a6;padding-bottom:4px}}
 td,th{{border:1px solid #ddd;padding:5px}}a{{color:#2874a6}}
 .note{{color:#777;font-size:12px}}
-th{{user-select:none}}th:hover{{background:#e8e8e8}}
+th{{user-select:none;cursor:default;position:relative}}
+th.sort-th{{cursor:pointer}}
+th.sort-th:hover{{background:#e8e8e8}}
+th.sort-th::after{{content:"\\21C5";font-size:10px;color:#bbb;margin-left:4px;opacity:0}}
+th.sort-th:hover::after{{opacity:1}}
+th.sort-asc::after{{content:"\\2191";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
+th.sort-desc::after{{content:"\\2193";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
 .timeline-row td{{border-top:none;border-bottom:1px solid #ccc;padding:6px 10px;background:#f5f5f5;font-size:11px;line-height:1.6}}
 
-/* Floating map sidebar */
-#map-sidebar{{
-  position:fixed;top:0;right:0;width:380px;height:100vh;z-index:1000;
-  background:#fff;border-left:1px solid #ddd;box-shadow:-2px 0 8px rgba(0,0,0,0.1);
-  display:flex;flex-direction:column;transition:transform 0.3s ease;
-}}
-#map-sidebar.hidden{{transform:translateX(380px)}}
-#map-sidebar .map-header{{
-  padding:10px 14px;background:#1a5276;color:#fff;font-size:14px;
-  display:flex;justify-content:space-between;align-items:center;flex-shrink:0;
-}}
-#map-sidebar .map-header b{{font-size:15px}}
-#map-sidebar .map-toggle{{
-  background:rgba(255,255,255,0.2);border:none;color:#fff;cursor:pointer;
-  padding:4px 10px;border-radius:4px;font-size:12px;
-}}
-#map-sidebar .map-toggle:hover{{background:rgba(255,255,255,0.3)}}
-#map-sidebar #map{{flex:1;width:100%;height:auto;border:none}}
-
-/* Floating button when sidebar is hidden */
-#map-float-btn{{
-  position:fixed;top:20px;right:20px;z-index:1001;
-  background:#1a5276;color:#fff;border:none;cursor:pointer;
-  padding:10px 16px;border-radius:8px;font-size:14px;font-weight:bold;
-  box-shadow:0 2px 8px rgba(0,0,0,0.2);display:none;
-}}
-#map-float-btn:hover{{background:#2874a6}}
-#map-sidebar.hidden ~ #map-float-btn{{display:block}}
-
-/* On wide screens, shift content left to make room for sidebar */
-@media(min-width:1200px){{
-  body.has-map{{margin-right:380px;max-width:calc(900px + 380px)}}
-  #map-float-btn{{display:none !important}}
-  #map-sidebar .map-toggle{{display:none}}
-}}
-/* On narrow screens, sidebar overlays content */
-@media(max-width:1199px){{
-  #map-sidebar{{width:320px}}
-  #map-sidebar.hidden{{transform:translateX(320px)}}
-}}
+/* Inline map at bottom of page */
+#map-container{{margin:20px 0;border:1px solid #ddd;border-radius:8px;overflow:hidden}}
+#map-container .map-header{{padding:10px 14px;background:#1a5276;color:#fff;font-size:14px;font-weight:bold}}
+#map-container #map{{width:100%;height:400px}}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       crossorigin=""/>
@@ -393,6 +406,9 @@ var sortState = {{}};
 function sortTable(tableId, colIdx) {{
   var table = document.getElementById(tableId);
   if (!table) return;
+  // Update header sort indicators
+  var ths = table.querySelectorAll('th.sort-th');
+  ths.forEach(function(th) {{ th.classList.remove('sort-asc','sort-desc'); }});
   var rows = Array.from(table.querySelectorAll('tr')).slice(1);
   var groups = [];
   for (var i = 0; i < rows.length; i++) {{
@@ -405,6 +421,9 @@ function sortTable(tableId, colIdx) {{
   var key = tableId + '_' + colIdx;
   sortState[key] = !sortState[key];
   var asc = sortState[key];
+  // Set indicator on the clicked column header
+  var clickedTh = table.querySelectorAll('th')[colIdx];
+  if (clickedTh) clickedTh.classList.add(asc ? 'sort-asc' : 'sort-desc');
   groups.sort(function(a, b) {{
     var va = a[0].children[colIdx].getAttribute('data-sort');
     var vb = b[0].children[colIdx].getAttribute('data-sort');
@@ -422,16 +441,8 @@ function sortTable(tableId, colIdx) {{
     }}
   }}
 }}
-function toggleMap() {{
-  var sb = document.getElementById('map-sidebar');
-  sb.classList.toggle('hidden');
-  if (!sb.classList.contains('hidden') && window._leafletMap) {{
-    setTimeout(function(){{ window._leafletMap.invalidateSize(); }}, 300);
-  }}
-}}
 </script>
-</head><body{body_class}>
-{map_html}
+</head><body>
 <h2>Riga flat deals - {today}</h2>
 {browser_link}
 <p>Districts: {', '.join(config.DISTRICTS.keys())} &middot; Sources: ss.com, city24.lv</p>
@@ -439,6 +450,7 @@ function toggleMap() {{
 {comparison_html}
 {exceptional_html}
 {body_sections}
+{map_html}
 <hr><p class="note">Generated by Flat_Searcher. Higher deal score = cheaper than
 expected for its size/floor/district. Always verify on the source site before
 contacting.</p>
@@ -447,11 +459,7 @@ contacting.</p>
 
 
 def _build_map_html(markers):
-    """Build a floating sidebar map with markers for each listing.
-
-    The map is position:fixed on the right side, always visible while
-    scrolling. On wide screens (≥1200px) the content shifts left to
-    make room. On narrow screens, a toggle button shows/hides the sidebar.
+    """Build an inline map at the bottom of the page with markers for each listing.
 
     Markers are color-coded by deal type:
       - rent = blue
@@ -481,19 +489,14 @@ def _build_map_html(markers):
     n_markers = len(js_markers)
 
     return f"""
-<!-- Floating map sidebar -->
-<div id="map-sidebar">
-  <div class="map-header">
-    <b>Map ({n_markers} listings)</b>
-    <button class="map-toggle" onclick="toggleMap()">Hide</button>
-  </div>
+<!-- Inline map at bottom -->
+<div id="map-container">
+  <div class="map-header">Map ({n_markers} listings)</div>
   <div id="map"></div>
 </div>
-<button id="map-float-btn" onclick="toggleMap()">Show map</button>
 <script>
 (function() {{
   var map = L.map('map').setView([{center_lat}, {center_lon}], {zoom});
-  window._leafletMap = map;
   L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
     attribution: '&copy; OpenStreetMap contributors',
     maxZoom: 19
@@ -517,9 +520,6 @@ def _build_map_html(markers):
     var bounds = L.latLngBounds(markers.map(function(m){{ return [m.lat, m.lon]; }}));
     map.fitBounds(bounds, {{padding: [30, 30]}});
   }}
-
-  // Invalidate size after load (sidebar may need a moment)
-  setTimeout(function(){{ map.invalidateSize(); }}, 500);
 }})();
 </script>
 """

@@ -229,15 +229,19 @@ def build_exceptional_html(all_scored, all_listings, price_data, top_n=5):
         cards.append(
             f'<div style="background:#f8f9fa;border-left:4px solid {rank_color};'
             f'padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0">'
-            f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">'
-            f'{rank_badge}'
-            f'<b style="font-size:16px">{price:,.0f} EUR</b>'
-            f'<span style="color:#666;font-size:13px">'
+            # Use a table for layout so it renders correctly in email clients
+            # (flex/margin-left:auto don't work in Gmail/Outlook).
+            f'<table style="width:100%;border-collapse:collapse"><tr>'
+            f'<td style="border:none;padding:0 8px 0 0;white-space:nowrap">{rank_badge}</td>'
+            f'<td style="border:none;padding:0 8px 0 0;white-space:nowrap">'
+            f'<b style="font-size:16px">{price:,.0f} EUR</b></td>'
+            f'<td style="border:none;padding:0 8px 0 0;color:#666;font-size:13px">'
             f'{rooms} rooms &middot; {area} m² &middot; floor {floor} &middot; '
-            f'{district} &middot; {deal_type}</span>'
-            f'<a href="{url}" style="margin-left:auto;font-size:12px">'
-            f'View on {source} &rarr;</a></div>'
-            f'<div>{badges_html}</div>'
+            f'{district} &middot; {deal_type}</td>'
+            f'<td style="border:none;padding:0;text-align:right;white-space:nowrap">'
+            f'<a href="{url}" style="font-size:12px">View on {source} &rarr;</a></td>'
+            f'</tr></table>'
+            f'<div style="margin-top:4px">{badges_html}</div>'
             f'</div>'
         )
 

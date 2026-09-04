@@ -48,6 +48,13 @@ CENU_TIMEOUT = 15
 CENU_DELAY = 1.0  # seconds between requests (be respectful)
 
 
+def _safe_float(v, default=0.0):
+    try:
+        return float(v) if v is not None else default
+    except (TypeError, ValueError):
+        return default
+
+
 def _parse_price(text):
     """'550 €' -> 550, '55 000 €' -> 55000, '550 €/mēn.' -> 550, 'XX XXX €' -> None."""
     if not text:
@@ -336,19 +343,34 @@ def get_price_timeline(listing, history=None):
     if not entry:
         return None
 
+    current_price = _safe_float(listing.get('price_eur'))
     timeline = []
 
     # CenuMednieks data (historical)
     cenu = entry.get('cenumednieks')
     if cenu:
         if cenu.get('first_listed_date') and cenu.get('original_price'):
-            timeline.append({
-                'date': cenu['first_listed_date'],
-                'price': cenu['original_price'],
-                'source': 'CenuMednieks (original)',
-            })
-        # Previous listings from same address (context only — different ads)
+            orig = _safe_float(cenu['original_price'])
+            # Sanity check: if original_price is wildly different from the
+            # current price (>5x or <1/5), it's likely from a different deal
+            # type (e.g. a 275k sale price showing up for a 1.1k rental).
+            # Skip it rather than showing a misleading -99.6% "drop".
+            if current_price > 0 and orig > 0:
+                ratio = max(orig, current_price) / min(orig, current_price)
+                if ratio <= 5.0:
+                    timeline.append({
+                        'date': cenu['first_listed_date'],
+                        'price': cenu['original_price'],
+                        'source': 'CenuMednieks (original)',
+                    })
+        # Previous listings from same address (context only — different ads).
+        # Also filter by price ratio to exclude cross-deal-type noise.
         for prev in cenu.get('previous_listings', []):
+            prev_price = _safe_float(prev.get('price'))
+            if current_price > 0 and prev_price > 0:
+                ratio = max(prev_price, current_price) / min(prev_price, current_price)
+                if ratio > 5.0:
+                    continue
             timeline.append({
                 'date': prev['date'],
                 'price': prev['price'],
@@ -395,41 +417,59 @@ def format_price_timeline_html(listing, history=None):
     previous_ads = [t for t in timeline
                     if t['source'] == 'CenuMednieks (previous ad)']
 
-    # Build current ad timeline
+    # Build current ad timeline.
+    # If there's only one observation and the price never changed, show a
+    # compact "Listed at X EUR (date), unchanged" instead of "First: X → X".
+    # For multiple observations, skip no-op arrows (price unchanged between
+    # observations) to avoid implying movement where there is none.
     parts = []
-    for i, t in enumerate(current_timeline):
-        price = t['price']
-        date_str = t['date']
-        if i == 0:
-            parts.append(f'<span style="color:#888;font-size:11px">'
-                        f'First: <b>{price:,.0f} EUR</b> ({date_str})</span>')
-        else:
-            prev_price = current_timeline[i - 1]['price']
-            if price != prev_price:
-                pct = ((price - prev_price) / prev_price) * 100
-                color = '#e74c3c' if price > prev_price else '#27ae60'
-                arrow = '↑' if price > prev_price else '↓'
-                parts.append(f' &rarr; <span style="color:{color};font-size:11px">'
-                            f'<b>{price:,.0f} EUR</b> ({date_str}) '
-                            f'{arrow}{abs(pct):.1f}%</span>')
+    if len(current_timeline) == 1:
+        t = current_timeline[0]
+        parts.append(f'<span style="color:#888;font-size:11px">'
+                     f'Listed at <b>{t["price"]:,.0f} EUR</b> ({t["date"]}), '
+                     f'unchanged</span>')
+    else:
+        for i, t in enumerate(current_timeline):
+            price = t['price']
+            date_str = t['date']
+            if i == 0:
+                parts.append(f'<span style="color:#888;font-size:11px">'
+                            f'First: <b>{price:,.0f} EUR</b> ({date_str})</span>')
             else:
-                parts.append(f' &rarr; <span style="color:#888;font-size:11px">'
-                            f'{price:,.0f} EUR ({date_str})</span>')
+                prev_price = current_timeline[i - 1]['price']
+                if price != prev_price:
+                    pct = ((price - prev_price) / prev_price) * 100
+                    color = '#e74c3c' if price > prev_price else '#27ae60'
+                    arrow = '↑' if price > prev_price else '↓'
+                    parts.append(f' &rarr; <span style="color:{color};font-size:11px">'
+                                f'<b>{price:,.0f} EUR</b> ({date_str}) '
+                                f'{arrow}{abs(pct):.1f}%</span>')
+                # Skip no-op arrows: if price is unchanged, don't render
+                # a redundant "→ 250 EUR (date)" entry.
 
-    # Build previous ads section (if any)
+    # Build previous ads section (if any).
+    # Show only the 3 most recent; collapse older ones into "(+N earlier)".
     prev_html = ''
     if previous_ads:
+        previous_ads_sorted = sorted(previous_ads, key=lambda x: x['date'],
+                                     reverse=True)
+        shown = previous_ads_sorted[:3]
+        hidden_count = len(previous_ads_sorted) - 3
         prev_parts = []
-        for t in previous_ads:
+        for t in shown:
             prev_parts.append(
                 f'<span style="color:#aaa;font-size:10px">'
                 f'{t["price"]:,.0f} EUR ({t["date"]})</span>'
             )
+        prev_str = " &middot; ".join(prev_parts)
+        if hidden_count > 0:
+            prev_str += (f' <span style="color:#bbb;font-size:10px">'
+                         f'(+{hidden_count} earlier)</span>')
         prev_html = (f'<div style="margin:3px 0 0 0;padding-top:3px;'
                      f'border-top:1px dotted #ccc">'
                      f'<span style="color:#999;font-size:10px">'
                      f'Previous ads at this address:</span> '
-                     f'{" &middot; ".join(prev_parts)}</div>')
+                     f'{prev_str}</div>')
 
     # Add "days on market" from CenuMednieks if available
     key = _listing_key(listing)
