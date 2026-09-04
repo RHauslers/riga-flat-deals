@@ -2,96 +2,96 @@
 
 Living document. Updated after each Devin session. Read this first.
 
-## Current state (after session 2026-09-04, upgrade #5 — hardening)
+## Current state (after session 2026-09-05, upgrade #7 — SS.com fix + UI + review)
 
 **Working, tested end-to-end locally on Windows + Python 3.14.4.**
-All six hardening fixes shipped and verified. The pipeline now has:
-leakage-safe training, conflict-safe CI commits, a min-history escalation
-gate, operator failure alerts, ridge-regularised regression with cardinality
-caps, and cross-source deduplication.
+Pipeline scrapes 278 SS.com + 29 city24.lv = 307 listings daily.
 
-### Upgrade 6 (this session): price history tracking via CenuMednieks.lv
-- **CenuMednieks.lv integration**: for SS.com listings, fetches historical
-  price data from cenumednieks.lv/ad/{ss_id} — original price, current price,
-  total change, first-listed date, days on market, and previous ads from the
-  same owner going back years. This is data we could never get from our own
-  scraping because it predates our first run.
-- **Own daily tracking**: every run records the current price for all listings
-  (both sources). Over time this builds our own price timeline that
-  supplements CenuMednieks data. City24 listings get this only (CenuMednieks
-  tracks SS.lv only).
-- **Timeline display**: the digest shows a compact price timeline below each
-  deal row — "First seen: 250 EUR (2020-05-29) → 420 EUR (↑68%) → ... →
-  550 EUR (today)". Also shows "On market: N days" when available.
-- **Caching**: CenuMednieks results are cached in `data/price_history.json`
-  and refreshed weekly (`CENU_REFRESH_DAYS=7`), not daily, to minimize API
-  calls. Our own observations are appended every run.
-- **Respectful scraping**: 1s delay between CenuMednieks requests.
+### Upgrade 7 (this session): SS.com district pages + sortable tables + map sidebar + 12-issue code review fix
 
-Verified locally:
-- CenuMednieks fetch for ad `ahgbe`: original 550 EUR, 178 days on market,
-  5 previous listings from same owner (2020-2024) ✓
-- Price timeline HTML rendering with historical + current data ✓
-- Full pipeline run with price history integration ✓
-- `price_history.json` stores 26 entries (1 SS.com with CenuMednieks +
-  25 city24 with own tracking only) ✓
+**SS.com scraper overhaul:**
+- Was only scraping `/today/` page (0-2 listings at night). Now scrapes
+  district-specific pages (`/riga/imanta/hand_over/` etc.) with full
+  pagination. Result: 278 SS.com listings (was 0).
+- Fixed Sampeteris slug: `shampeteris-pleskodale` (was wrong, returned 0).
+- Fixed pagination detection: SS.com uses "Next" text, not `»` symbol.
+- `SS_COM_MAX_PAGES` raised from 5 to 15 (Imanta sale has 9+ pages).
+- Added `ad_slug` field (alphabetic ID from URL) for CenuMednieks lookups.
+- District-specific pages: first cell is street name (not District<br>Street),
+  so `forced_district` parameter skips district matching.
+- Removed redundant `/today/` page fetch (district pages include today's).
 
-### Upgrade 5 (this session): six reliability/ML hardening fixes
+**UI improvements:**
+- Sortable table headers (click to sort asc/desc, numeric vs string aware).
+- New columns: First price (original listing price), Change (% from first).
+- Floating sticky map sidebar (always visible while scrolling on desktop,
+  toggle button on mobile).
+- Top exceptional deals header (composite score: deal score + price drop +
+  days on market + price vs area median). Top 5 shown as ranked cards.
+- Timeline rows: light gray background, smaller font, visual separation
+  from data rows.
+- Previous CenuMednieks ads separated from current ad timeline.
 
-1. **History leakage fix** (`history.py`, `main.py`, `escalation.py`):
-   `load_history(exclude_today=True)` drops rows scraped today before
-   training. Previously the hourly scan (running at :05) would append
-   today's listings to `history.csv`, then the 10:00 daily run would train
-   on those same listings — a bargain would help define the average it was
-   judged against, making it look ordinary. Now both daily and hourly use
-   only pre-today rows as the training baseline, so execution order is
-   irrelevant. Verified: first-day run correctly shows 0 training rows
-   (all rows are today's), z-score fallback engages.
+**12 code review fixes:**
+1. `first_seen` field in price_history (city24 age was always 0 days).
+2. history.csv now records price changes (model was training on stale prices).
+3. Hourly escalation uses fewer pages (`SS_COM_MAX_PAGES_HOURLY=3`).
+4. Escalation alerts now include price history context.
+5. city24 `old_price`/`show_price_drop` captured in history + price tracking.
+6. `drop_pct` clamped to ±50% in exceptional score.
+7. Dead `_next_page_url` lookup removed.
+8. Redundant `/today/` fetch removed.
+9. DISTRICTS aliases normalized to lowercase.
+10. Unused `price_data` arg removed from `geocode.get_map_data`.
+11. `MIN_EXPECTED_LISTINGS` raised from 3 to 50.
+12. Change column now has numeric `data-sort` for proper sorting.
 
-2. **Git push conflict fix** (`.github/workflows/daily.yml`,
-   `.github/workflows/escalation.yml`): both workflows now share a single
-   concurrency group `flat-searcher-state` so the second run queues instead
-   of racing. The commit step is replaced with a pull-rebase-retry loop
-   (5 attempts, backoff 10–50s) that fails the job loudly with `::error::`
-   instead of silently swallowing push failures. `fetch-depth: 0` ensures
-   `git pull --rebase` has the history it needs.
+### Upgrade 6 (earlier session): price history tracking via CenuMednieks.lv
+- CenuMednieks.lv integration for SS.com listings.
+- Own daily tracking for all listings.
+- Timeline display in digest.
+- Weekly refresh caching.
+- 1s delay between CenuMednieks requests.
 
-3. **Minimum-history escalation gate** (`escalation.py`, `config.py`):
-   `ESCALATION_MIN_HISTORY=30` — escalation refuses to alert for a deal
-   type until that type has ≥30 prior-day history rows. Without this, the
-   first days could fire "HOT DEAL" emails off 7 data points. Verified:
-   with 0 history rows, escalation logs "scores not yet trustworthy,
-   escalation suppressed" and sends no alert. With 35 simulated rows and
-   a clear bargain (score 3.6 ≥ 2.333), it would alert.
+### Upgrade 5 (earlier session): six reliability/ML hardening fixes
+1. History leakage fix (`exclude_today=True`).
+2. Git push conflict fix (shared concurrency group + rebase-retry).
+3. Minimum-history escalation gate (`ESCALATION_MIN_HISTORY=30`).
+4. Operator failure alerting (total_zero, source_zero, low_volume).
+5. Ridge regression + cardinality caps.
+6. Cross-source deduplication.
 
-4. **Operator failure alerting** (`health.py`, `notifier.py`, `main.py`,
-   `escalation.py`, `config.py`): detects three failure classes and emails
-   the operator (not the recipient): `total_zero` (both scrapers dead),
-   `source_zero:<src>` (one source broken while another works),
-   `low_volume` (total < `MIN_EXPECTED_LISTINGS`). Throttled to once per
-   issue per day via `data/ops_alerts.json`. Operator address =
-   `OPS_EMAIL_TO` env, falling back to `EMAIL_FROM`. Verified: all three
-   detection cases produce correct issue keys; healthy counts produce none.
+### Known issues / things to watch
+- **SS.com zero listings at night**: the `/today/` page rolls over late at
+  night. District pages always have listings, so this is no longer a problem.
+- **CenuMednieks PRO features locked**: full historical timelines (every
+  individual price change) are behind a paywall. We get original price,
+  current price, days on market, and previous ads — enough for a useful
+  timeline. Our own daily tracking fills gaps going forward.
+- **city24 has no external history source**: price history comes only from
+  our own daily observations. First seen date and days on market are correct
+  (fixed in this session via `first_seen` field).
+- **SMTP not configured**: pipeline runs, saves digest, builds site, skips
+  email. Add SMTP secrets to enable email delivery.
+- **Scoring uses z-score fallback**: until history reaches 40 rows per deal
+  type, the regression model stays in fallback mode. History is growing.
 
-5. **Ridge regression + cardinality caps** (`scoring.py`, `config.py`):
-   plain least squares let rare one-hot categories (e.g. a city24
-   development name covering a few listings) take extreme coefficients and
-   memorise those rows, collapsing their residuals to ~0 so they could
-   never be flagged as deals. Now: `RIDGE_LAMBDA=1.0` L2 penalty
-   (intercept unpenalised), `MIN_CATEGORY_COUNT=5` buckets rare
-   categories into `__other__`, `MAX_CATEGORIES_PER_FIELD=20` caps each
-   field. Unseen categories at scoring time also fall into `__other__`.
-   Verified: regression with 50 training rows + an unseen series name
-   produces a sensible score (3.44) instead of crashing.
-
-6. **Cross-source deduplication** (`utils.py`, `main.py`, `escalation.py`,
-   `config.py`): the same flat is often on both ss.com and city24.lv under
-   different IDs. `dedupe_cross_source()` merges clusters matching on
-   (deal_type, district, rooms) with area within ±1.5 m² and price within
-   ±3%, requiring a shared street token when both have street names.
-   Survivor is chosen by `DEDUPE_SOURCE_PRIORITY` (ss.com first). Merged
-   sources recorded on survivor as `also_on`. Verified: live run merged
-   4 duplicates; survivor keeps ss.com URL with `also_on: ['city24.lv']`.
+### Key files
+- `main.py` — daily pipeline orchestrator
+- `escalation.py` — hourly hot-deal scanner
+- `config.py` — all configuration
+- `scrapers/ss_com.py`, `scrapers/city24.py` — scrapers
+- `scoring.py` — regression + z-score fallback
+- `classify.py` — new/changed/reappeared/still-active classification
+- `history.py` — persistent state (history.csv, seen_deals.json)
+- `notifier.py` — HTML digest + email + map + sortable tables
+- `exceptional.py` — composite exceptional deal scoring
+- `price_history.py` — CenuMednieks + own tracking + timeline formatter
+- `geocode.py` — Nominatim geocoding + map data
+- `health.py` — operator failure alerting
+- `website.py` — GitHub Pages site builder
+- `data/` — committed state files (history.csv, price_history.json, etc.)
+- `docs/` — generated Pages content (index.html, archive.html, unsubscribe.html)
 
 ### Upgrade 1 (earlier today): core pipeline
 A full `python -m main` run scraped 33 target-district listings
