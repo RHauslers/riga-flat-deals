@@ -348,5 +348,19 @@
     "last_shown_price": 258000.0,
     "last_shown_score": 1.5647401814162842,
     "deal_type": "sale"
+  },
+  "ss.com:57967069": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 81000.0,
+    "last_shown_score": 1.5390784397349504,
+    "deal_type": "sale"
+  },
+  "ss.com:55662878": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 115000.0,
+    "last_shown_score": 1.5231971316133197,
+    "deal_type": "sale"
   }
 }

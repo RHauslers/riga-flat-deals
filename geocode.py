@@ -193,6 +193,7 @@ def get_map_data(listings):
         popup += "</div>"
 
         markers.append({
+            "marker_id": f"{source}:{listing.get('id')}",
             "lat": lat,
             "lon": lon,
             "popup": popup,

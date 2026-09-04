@@ -124,6 +124,13 @@ def _main_row_html(item, price_data=None, row_idx=0):
     ch_color = _change_color(change_pct)
     ch_sort = _change_sort_val(change_pct)
 
+    # "map" link — only if the listing has coordinates
+    map_link = ""
+    if listing.get('lat') and listing.get('lon'):
+        marker_id = f"{listing.get('source','')}:{listing.get('id','')}"
+        map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
+                    f"return false\" style=\"font-size:11px;color:#1a5276\">map</a>")
+
     return (
         f"<tr{zebra}>"
         f"<td>{listing.get('district','')}</td>"
@@ -136,7 +143,7 @@ def _main_row_html(item, price_data=None, row_idx=0):
         f"<td>{_badge_html(badge, detail)}</td>"
         f"<td style='text-align:right;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
-        f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
+        f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a>{map_link}</td>"
         "</tr>"
         f"{timeline_row}"
     )
@@ -168,6 +175,13 @@ def _still_row_html(item, price_data=None, row_idx=0):
     ch_color = _change_color(change_pct)
     ch_sort = _change_sort_val(change_pct)
 
+    # "map" link — only if the listing has coordinates
+    map_link = ""
+    if listing.get('lat') and listing.get('lon'):
+        marker_id = f"{listing.get('source','')}:{listing.get('id','')}"
+        map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
+                    f"return false\" style=\"font-size:11px;color:#1a5276\">map</a>")
+
     return (
         f"<tr{zebra}>"
         f"<td>{listing.get('district','')}</td>"
@@ -179,7 +193,7 @@ def _still_row_html(item, price_data=None, row_idx=0):
         f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
         f"<td style='text-align:right;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
-        f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
+        f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a>{map_link}</td>"
         "</tr>"
         f"{timeline_row}"
     )
@@ -480,6 +494,7 @@ def _build_map_html(markers):
     for m in markers:
         color = "#2874a6" if m.get("deal_type") == "rent" else "#e67e22"
         js_markers.append({
+            "id": m.get("marker_id", ""),
             "lat": m["lat"],
             "lon": m["lon"],
             "popup": m["popup"],
@@ -505,6 +520,7 @@ def _build_map_html(markers):
   }}).addTo(map);
 
   var markers = {js_data};
+  var markerIndex = {{}};  // id -> Leaflet circle marker
   markers.forEach(function(m) {{
     var circle = L.circleMarker([m.lat, m.lon], {{
       radius: 8,
@@ -515,6 +531,7 @@ def _build_map_html(markers):
       fillOpacity: 0.8
     }}).addTo(map);
     circle.bindPopup(m.popup);
+    if (m.id) markerIndex[m.id] = circle;
   }});
 
   // Fit bounds to show all markers
@@ -522,7 +539,23 @@ def _build_map_html(markers):
     var bounds = L.latLngBounds(markers.map(function(m){{ return [m.lat, m.lon]; }}));
     map.fitBounds(bounds, {{padding: [30, 30]}});
   }}
+
+  // Expose for showOnMap
+  window._leafletMap = map;
+  window._markerIndex = markerIndex;
 }})();
+
+function showOnMap(markerId) {{
+  var map = window._leafletMap;
+  var marker = window._markerIndex && window._markerIndex[markerId];
+  if (!map || !marker) return;
+  var ll = marker.getLatLng();
+  map.setView(ll, 16);
+  marker.openPopup();
+  document.getElementById('map-container').scrollIntoView({{
+    behavior: 'smooth', block: 'start'
+  }});
+}}
 </script>
 """
 
