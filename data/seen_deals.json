@@ -166,5 +166,124 @@
     "last_shown_price": 200010.0,
     "last_shown_score": -0.408239010357121,
     "deal_type": "sale"
+  },
+  "ss.com:58035514": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 250.0,
+    "last_shown_score": 2.6624942997376886,
+    "deal_type": "rent"
+  },
+  "ss.com:56821674": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 1100.0,
+    "last_shown_score": 2.1014770636208797,
+    "deal_type": "rent"
+  },
+  "ss.com:57256558": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 300.0,
+    "last_shown_score": 1.933171892785837,
+    "deal_type": "rent"
+  },
+  "ss.com:58007195": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 500.0,
+    "last_shown_score": 1.820968445562475,
+    "deal_type": "rent"
+  },
+  "ss.com:57956258": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 410.0,
+    "last_shown_score": 1.7508412910478743,
+    "deal_type": "rent"
+  },
+  "ss.com:58040780": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 285.0,
+    "last_shown_score": 1.6666887056303528,
+    "deal_type": "rent"
+  },
+  "ss.com:57592884": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 520.0,
+    "last_shown_score": 1.5194216811496906,
+    "deal_type": "rent"
+  },
+  "ss.com:58036494": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 490.0,
+    "last_shown_score": 1.4773453884409296,
+    "deal_type": "rent"
+  },
+  "ss.com:58033272": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 350.0,
+    "last_shown_score": 1.4072182339263286,
+    "deal_type": "rent"
+  },
+  "ss.com:58032518": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 91000.0,
+    "last_shown_score": 2.4930843471935686,
+    "deal_type": "sale"
+  },
+  "ss.com:57940025": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 79900.0,
+    "last_shown_score": 1.5576066325435196,
+    "deal_type": "sale"
+  },
+  "ss.com:58023392": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 63000.0,
+    "last_shown_score": 1.4795235342788355,
+    "deal_type": "sale"
+  },
+  "ss.com:58029412": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 39000.0,
+    "last_shown_score": 1.4517312450659818,
+    "deal_type": "sale"
+  },
+  "ss.com:58037921": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 65000.0,
+    "last_shown_score": 1.4358499369443511,
+    "deal_type": "sale"
+  },
+  "ss.com:57926635": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 50000.0,
+    "last_shown_score": 1.3332417133853744,
+    "deal_type": "sale"
+  },
+  "ss.com:58029474": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 51000.0,
+    "last_shown_score": 1.3332417133853744,
+    "deal_type": "sale"
+  },
+  "ss.com:58026856": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 42000.0,
+    "last_shown_score": 1.30218226025396,
+    "deal_type": "sale"
   }
 }

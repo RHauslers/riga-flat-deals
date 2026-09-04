@@ -68,8 +68,13 @@ def _match_district(cell_text):
     return None
 
 
-def _row_to_listing(tr, deal_type):
-    """Convert one <tr> listing row into a unified dict, or None if unusable."""
+def _row_to_listing(tr, deal_type, forced_district=None):
+    """Convert one <tr> listing row into a unified dict, or None if unusable.
+
+    forced_district: if set (e.g. "Imanta"), skip district matching and use
+    this district directly. Used for district-specific pages where the first
+    cell is the street name, not "District<br>Street".
+    """
     tr_id = tr.get("id", "")
     m = re.match(r"tr_(\d+)", tr_id)
     if not m:
@@ -84,17 +89,26 @@ def _row_to_listing(tr, deal_type):
         return None
 
     district_cell = desc_cells[0]
-    district_text = district_cell.get_text(" ", strip=True)
-    # district cell looks like "Bolderaya Plata 8" -> first token line is district
-    # Use <br> to split district / street if present.
     district_html = district_cell.decode_contents()
     parts = re.split(r"<br\s*/?>", district_html, maxsplit=1)
-    district_name_raw = BeautifulSoup(parts[0], "lxml").get_text(strip=True)
-    street = BeautifulSoup(parts[1], "lxml").get_text(strip=True) if len(parts) > 1 else ""
 
-    district = _match_district(district_name_raw)
-    if district is None:
-        return None  # not one of our target districts
+    if forced_district:
+        # District-specific page: first cell is just the street
+        district = forced_district
+        street = BeautifulSoup(parts[0], "lxml").get_text(strip=True)
+        if len(parts) > 1:
+            # If there's a <br>, the first part might still be district
+            first_part = BeautifulSoup(parts[0], "lxml").get_text(strip=True)
+            second_part = BeautifulSoup(parts[1], "lxml").get_text(strip=True)
+            # On district pages, the cell is just "Street" (no district prefix)
+            street = first_part
+    else:
+        # "Today" page: cell is "District<br>Street"
+        district_name_raw = BeautifulSoup(parts[0], "lxml").get_text(strip=True)
+        street = BeautifulSoup(parts[1], "lxml").get_text(strip=True) if len(parts) > 1 else ""
+        district = _match_district(district_name_raw)
+        if district is None:
+            return None  # not one of our target districts
 
     rooms = _to_int(desc_cells[1].get_text(strip=True))
     area = _to_float(desc_cells[2].get_text(strip=True))
@@ -107,10 +121,15 @@ def _row_to_listing(tr, deal_type):
     # ad url + title from the message link
     a = tr.select_one("td.msg2 a.am") or tr.select_one("a[href^='/msg/']")
     url = title = ""
+    ad_slug = ""  # alphabetic ad ID used by CenuMednieks (e.g. "ahgbe")
     if a:
         href = a.get("href", "")
         url = config.SS_COM_BASE + href if href.startswith("/") else href
         title = a.get_text(" ", strip=True)
+        # Extract alphabetic ad ID from URL: /msg/.../imanta/ahgbe.html -> ahgbe
+        m = re.search(r"/([a-z]+)\.html", href)
+        if m:
+            ad_slug = m.group(1)
 
     if price is None or area is None or area <= 0:
         return None
@@ -119,6 +138,7 @@ def _row_to_listing(tr, deal_type):
         "source": "ss.com",
         "deal_type": deal_type,
         "id": list_id,
+        "ad_slug": ad_slug,  # alphabetic ID for CenuMednieks lookups
         "url": url,
         "district": district,
         "street": street,
@@ -170,27 +190,49 @@ def _next_page_url(soup, base_url):
 
 
 def scrape(deal_type):
-    """Return list of listing dicts for the given deal_type ('rent'/'sale')."""
-    if deal_type not in config.SS_COM_TODAY_URL:
+    """Return list of listing dicts for the given deal_type ('rent'/'sale').
+
+    Scrapes both the "today" page (new listings) AND district-specific pages
+    (all active listings). District pages are where CenuMednieks historical
+    data is most valuable — older listings that have been on the market for
+    weeks/months with price drop history.
+    """
+    if deal_type not in config.SS_COM_DEAL_SLUGS:
         return []
-    url = config.SS_COM_TODAY_URL[deal_type]
     results = []
-    for _ in range(config.SS_COM_MAX_PAGES):
-        try:
-            html = _fetch(url)
-        except requests.RequestException as e:
-            print(f"[ss.com] fetch failed for {url}: {e}")
-            break
-        soup = BeautifulSoup(html, "lxml")
-        rows = soup.select("tr[id^='tr_']")
-        for tr in rows:
-            item = _row_to_listing(tr, deal_type)
-            if item:
-                results.append(item)
-        nxt = _next_page_url(soup, url)
-        if not nxt or nxt == url:
-            break
-        url = nxt
+    seen_ids = set()
+
+    def _scrape_url(url, forced_district=None):
+        nonlocal seen_ids
+        for _ in range(config.SS_COM_MAX_PAGES):
+            try:
+                html = _fetch(url)
+            except requests.RequestException as e:
+                print(f"[ss.com] fetch failed for {url}: {e}")
+                break
+            soup = BeautifulSoup(html, "lxml")
+            rows = soup.select("tr[id^='tr_']")
+            for tr in rows:
+                item = _row_to_listing(tr, deal_type, forced_district)
+                if item and item["id"] not in seen_ids:
+                    seen_ids.add(item["id"])
+                    results.append(item)
+            nxt = _next_page_url(soup, url)
+            if not nxt or nxt == url:
+                break
+            url = nxt
+
+    # 1. "Today" page (new listings posted today)
+    today_url = config.SS_COM_TODAY_URL.get(deal_type, "")
+    if today_url:
+        _scrape_url(today_url)
+
+    # 2. District-specific pages (ALL active listings, not just today)
+    deal_slug = config.SS_COM_DEAL_SLUGS[deal_type]
+    for district, slug in config.SS_COM_DISTRICT_SLUGS.items():
+        district_url = f"{config.SS_COM_BASE}/en/real-estate/flats/riga/{slug}/{deal_slug}/"
+        _scrape_url(district_url, forced_district=district)
+
     print(f"[ss.com] {deal_type}: {len(results)} listings in target districts")
     return results
 

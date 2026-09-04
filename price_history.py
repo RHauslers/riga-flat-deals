@@ -199,11 +199,19 @@ def _listing_key(listing):
 
 
 def _extract_ss_id(listing):
-    """Extract the SS.com ad ID from a listing. SS.com IDs are like 'ahgbe'."""
+    """Extract the SS.com ad slug for CenuMednieks lookup.
+
+    SS.com ad URLs contain an alphabetic ID like 'ahgbe' — this is what
+    CenuMednieks uses in its URL pattern: cenumednieks.lv/ad/ahgbe
+    """
     if listing.get('source') != 'ss.com':
         return None
+    # Prefer the ad_slug field (extracted from URL by the scraper)
+    ad_slug = listing.get('ad_slug', '')
+    if ad_slug and re.match(r'^[a-z]+$', str(ad_slug)):
+        return str(ad_slug)
+    # Fall back to trying the id field (older listings may not have ad_slug)
     ad_id = listing.get('id', '')
-    # SS.com IDs are short alphanumeric strings like 'ahgbe'
     if ad_id and re.match(r'^[a-z]+$', str(ad_id)):
         return str(ad_id)
     return None

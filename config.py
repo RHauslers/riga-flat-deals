@@ -33,6 +33,18 @@ SS_COM_TODAY_URL = {
     "rent": "https://www.ss.com/en/real-estate/flats/riga/today/hand_over/",
     "sale": "https://www.ss.com/en/real-estate/flats/riga/today/sell/",
 }
+# District-specific listing pages (not just "today" — shows ALL active listings).
+# This is where CenuMednieks historical data is most valuable: older listings
+# that have been on the market for weeks/months.
+SS_COM_DISTRICT_SLUGS = {
+    "Zolitude": "zolitude",
+    "Sampeteris": "pleskodale-sampeteris",
+    "Imanta": "imanta",
+}
+SS_COM_DEAL_SLUGS = {
+    "rent": "hand_over",
+    "sale": "sell",
+}
 SS_COM_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"

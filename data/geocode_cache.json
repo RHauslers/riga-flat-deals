@@ -1,0 +1,372 @@
+{
+  "ss.com:zolitude:lejina 10": {
+    "lat": 56.9472244,
+    "lon": 24.0181285,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:biezina 4": {
+    "lat": 56.9447133,
+    "lon": 24.0205227,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:ruses 14": {
+    "lat": 56.9472328,
+    "lon": 24.0042812,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:rostokas 26": {
+    "lat": 56.9485573,
+    "lon": 24.0079739,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:liedes 28": {
+    "lat": 56.942834,
+    "lon": 24.0204014,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:rostokas 40": {
+    "lat": 56.9481088,
+    "lon": 24.0136071,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:liedes 2": {
+    "lat": 56.9444498,
+    "lon": 24.0255883,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:lejina 14": {
+    "lat": 56.9477099,
+    "lon": 24.0203303,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:priedaines 13": {
+    "lat": 56.9426156,
+    "lon": 24.0156348,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:anninmuizhas 20": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:anninmuizhas 5": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:augshzemes 5": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:anninmuizhas 13": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:anninmuizhas boule..": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:dammes 1": {
+    "lat": 56.9608492,
+    "lon": 24.0121074,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:slokas 183": {
+    "lat": 56.9624436,
+    "lon": 24.0191469,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:jurmalas g. 93": {
+    "lat": 56.9519888,
+    "lon": 24.0423133,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:slokas 191": {
+    "lat": 56.9632218,
+    "lon": 24.0177129,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kurzemes pr. 86": {
+    "lat": 56.9607965,
+    "lon": 23.9982688,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:zentenes 20": {
+    "lat": 56.9616053,
+    "lon": 24.0026034,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:imantas 1. l. 19": {
+    "lat": 56.9502861,
+    "lon": 24.0361749,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:zentenes 22": {
+    "lat": 56.9610879,
+    "lon": 24.0022793,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:dammes 23": {
+    "lat": 56.9642154,
+    "lon": 24.0092162,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:rigondas g. 7": {
+    "lat": 56.9649286,
+    "lon": 24.0193646,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kurzemes pr. 164": {
+    "lat": 56.9620298,
+    "lon": 24.0326066,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:slokas 130a": {
+    "lat": 56.9648536,
+    "lon": 24.0157495,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:slokas 138": {
+    "lat": 56.9639475,
+    "lon": 24.0059233,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:dammes 25": {
+    "lat": 56.9641386,
+    "lon": 24.0080726,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:akaciju 2d": {
+    "lat": 56.9514324,
+    "lon": 24.0038901,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kurzemes pr. 28": {
+    "lat": 56.9620298,
+    "lon": 24.0326066,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kurzemes pr. 98": {
+    "lat": 56.9607965,
+    "lon": 23.9982688,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kurzemes pr. 128": {
+    "lat": 56.9630106,
+    "lon": 24.0304394,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kleistu 18": {
+    "lat": 56.9639437,
+    "lon": 24.0251169,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kurzemes pr. 76": {
+    "lat": 56.9630106,
+    "lon": 24.0304394,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:gramzdas 19": {
+    "lat": 56.9435132,
+    "lon": 24.0076244,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:endzelina 11": {
+    "lat": 56.9477504,
+    "lon": 24.0252641,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:biezina 1": {
+    "lat": 56.9444762,
+    "lon": 24.0159276,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:lejina 22": {
+    "lat": 56.9462931,
+    "lon": 24.0222388,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:zolitudes 46a": {
+    "lat": 56.9417827,
+    "lon": 24.0059538,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:biezina 9": {
+    "lat": 56.9456022,
+    "lon": 24.0216952,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:irlavas 5": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:biezina 11": {
+    "lat": 56.9464473,
+    "lon": 24.0233665,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:anninmuizhas 7": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:biezina 7": {
+    "lat": 56.9452046,
+    "lon": 24.0198845,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:endzelina 32": {
+    "lat": 56.9439333,
+    "lon": 24.0276331,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:rostokas 36": {
+    "lat": 56.9486066,
+    "lon": 24.0123698,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:lejina 20": {
+    "lat": 56.9467905,
+    "lon": 24.021634,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:skrines 6": {
+    "lat": 56.9422074,
+    "lon": 24.024017,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:jurkalnes 87": {
+    "lat": 56.9363971,
+    "lon": 24.0175247,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:lejina 6": {
+    "lat": 56.9458992,
+    "lon": 24.0176938,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:zolitude:gramzdas 17": {
+    "lat": 56.9449086,
+    "lon": 24.008989,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:talavas g. 9": {
+    "lat": 56.9559037,
+    "lon": 23.9990213,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:imantas 3в": {
+    "lat": 56.9527715,
+    "lon": 24.0068275,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:akaciju 6": {
+    "lat": 56.9516565,
+    "lon": 24.0012536,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:zentenes 2": {
+    "lat": 56.9589555,
+    "lon": 24.0084414,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:jurmalas g. 82/2": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kurzemes pr. 36": {
+    "lat": 56.9606942,
+    "lon": 23.9979836,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:dammes 22": {
+    "lat": 56.9640578,
+    "lon": 24.0124586,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kurzemes pr. 94": {
+    "lat": 56.9606942,
+    "lon": 23.9979836,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:dammes 28": {
+    "lat": 56.9652274,
+    "lon": 24.0126735,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kurzemes pr. 46": {
+    "lat": 56.9620298,
+    "lon": 24.0326066,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kurzemes pr. 104a": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:akaciju 2f": {
+    "lat": 56.9523265,
+    "lon": 24.0080272,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kurzemes pr. 120": {
+    "lat": 56.961836,
+    "lon": 23.998965,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:jurmalas g. 82": {
+    "lat": 56.9519888,
+    "lon": 24.0423133,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:jurmalas g. 99": {
+    "lat": 56.9519888,
+    "lon": 24.0423133,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:dammes 4": {
+    "lat": 56.9617376,
+    "lon": 24.0158031,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:anninmuizhas stree..": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:jurmalas g. 74a": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kurzemes pr. 118": {
+    "lat": 56.9607965,
+    "lon": 23.9982688,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:jurmalas g. 113b": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kleistu 777": {
+    "lat": 56.9643447,
+    "lon": 24.024842,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kleistu 75": {
+    "lat": 56.9643447,
+    "lon": 24.024842,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kleistu 19": {
+    "lat": 56.9647163,
+    "lon": 24.0225371,
+    "fetched_at": "2026-09-05"
+  }
+}
