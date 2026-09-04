@@ -1,0 +1,216 @@
+{
+  "date": "2026-09-04",
+  "rent": [
+    {
+      "key": "ss.com:57353092",
+      "score": 0.0,
+      "price": 550.0,
+      "district": "Imanta",
+      "rooms": 3,
+      "area_m2": 65.0,
+      "floor": "9/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/ahgbe.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "city24.lv:2131578",
+      "score": 0.0,
+      "price": 350.0,
+      "district": "Imanta",
+      "rooms": 3,
+      "area_m2": 60.0,
+      "floor": "5/9",
+      "url": "https://www.city24.lv/real-estate/apartments-for-rent/riga-imanta-dammes-iela/6542359",
+      "source": "city24.lv"
+    },
+    {
+      "key": "ss.com:58042258",
+      "score": 0.0,
+      "price": 300.0,
+      "district": "Imanta",
+      "rooms": 1,
+      "area_m2": 33.0,
+      "floor": "1/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/cfhxpi.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:58042032",
+      "score": 0.0,
+      "price": 370.0,
+      "district": "Imanta",
+      "rooms": 1,
+      "area_m2": 36.0,
+      "floor": "7/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/edjnj.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:58041890",
+      "score": 0.0,
+      "price": 450.0,
+      "district": "Sampeteris",
+      "rooms": 2,
+      "area_m2": 60.0,
+      "floor": "2/3",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/cdjlnp.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "city24.lv:2463532",
+      "score": 0.0,
+      "price": 700.0,
+      "district": "Sampeteris",
+      "rooms": 2,
+      "area_m2": 73.0,
+      "floor": "1/4",
+      "url": "https://www.city24.lv/real-estate/apartments-for-rent/riga-pleskodale-sampeteris-zalves-iela/8473130",
+      "source": "city24.lv"
+    },
+    {
+      "key": "city24.lv:2469393",
+      "score": 0.0,
+      "price": 800.0,
+      "district": "Sampeteris",
+      "rooms": 3,
+      "area_m2": 77.6,
+      "floor": "5/5",
+      "url": "https://www.city24.lv/real-estate/apartments-for-rent/riga-pleskodale-sampeteris-stendes-iela/2928399",
+      "source": "city24.lv"
+    },
+    {
+      "key": "city24.lv:2469243",
+      "score": 0.0,
+      "price": 1000.0,
+      "district": "Sampeteris",
+      "rooms": 3,
+      "area_m2": 100.0,
+      "floor": "25/30",
+      "url": "https://www.city24.lv/real-estate/apartments-for-rent/riga-pleskodale-sampeteris-lielirbes-iela/4438511",
+      "source": "city24.lv"
+    },
+    {
+      "key": "city24.lv:1343271",
+      "score": 0.0,
+      "price": 550.0,
+      "district": "Zolitude",
+      "rooms": 2,
+      "area_m2": 55.0,
+      "floor": "1/4",
+      "url": "https://www.city24.lv/real-estate/apartments-for-rent/riga-zolitude-gramzdas-iela/1058926",
+      "source": "city24.lv"
+    }
+  ],
+  "sale": [
+    {
+      "key": "ss.com:58040465",
+      "score": 0.0,
+      "price": 97500.0,
+      "district": "Zolitude",
+      "rooms": 3,
+      "area_m2": 83.0,
+      "floor": "2/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/dnkkg.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:58002516",
+      "score": 0.0,
+      "price": 78000.0,
+      "district": "Imanta",
+      "rooms": 2,
+      "area_m2": 50.0,
+      "floor": "4/5",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/cnpnb.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "city24.lv:2468372",
+      "score": 0.0,
+      "price": 61900.0,
+      "district": "Imanta",
+      "rooms": 2,
+      "area_m2": 51.0,
+      "floor": "7/9",
+      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-imanta-viksnes-iela/8053223",
+      "source": "city24.lv"
+    },
+    {
+      "key": "city24.lv:2474304",
+      "score": 0.0,
+      "price": 105000.0,
+      "district": "Imanta",
+      "rooms": 2,
+      "area_m2": 50.0,
+      "floor": "4/5",
+      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-imanta-anninmuizas-bulvaris/2262335",
+      "source": "city24.lv"
+    },
+    {
+      "key": "city24.lv:2474190",
+      "score": 0.0,
+      "price": 141000.0,
+      "district": "Imanta",
+      "rooms": 2,
+      "area_m2": 59.5,
+      "floor": "9/9",
+      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-imanta-akaciju-iela/2803976",
+      "source": "city24.lv"
+    },
+    {
+      "key": "city24.lv:2443318",
+      "score": 0.0,
+      "price": 54000.0,
+      "district": "Imanta",
+      "rooms": 2,
+      "area_m2": 50.0,
+      "floor": "6/9",
+      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-imanta-maza-krumu-iela/8875425",
+      "source": "city24.lv"
+    },
+    {
+      "key": "city24.lv:2471958",
+      "score": 0.0,
+      "price": 55000.0,
+      "district": "Sampeteris",
+      "rooms": 2,
+      "area_m2": 42.5,
+      "floor": "5/5",
+      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-pleskodale-sampeteris-volguntes-iela/6899863",
+      "source": "city24.lv"
+    },
+    {
+      "key": "city24.lv:2461816",
+      "score": 0.0,
+      "price": 415000.0,
+      "district": "Sampeteris",
+      "rooms": 3,
+      "area_m2": 178.0,
+      "floor": "24/26",
+      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-pleskodale-sampeteris-lielirbes-iela/8708265",
+      "source": "city24.lv"
+    },
+    {
+      "key": "city24.lv:2473798",
+      "score": 0.0,
+      "price": 93000.0,
+      "district": "Sampeteris",
+      "rooms": 3,
+      "area_m2": 64.0,
+      "floor": "1/5",
+      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-pleskodale-sampeteris-zalves-iela/7670258",
+      "source": "city24.lv"
+    },
+    {
+      "key": "city24.lv:2471677",
+      "score": 0.0,
+      "price": 188000.0,
+      "district": "Sampeteris",
+      "rooms": 3,
+      "area_m2": 63.0,
+      "floor": "1/3",
+      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-pleskodale-sampeteris-skrines-iela/4973506",
+      "source": "city24.lv"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+name: Deploy unsubscribe page
+
+on:
+  push:
+    branches: [main, master]
+    paths: ['docs/**', '.github/workflows/pages.yml']
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inject token into unsubscribe page
+        env:
+          UNSUBSCRIBE_TOKEN: ${{ secrets.UNSUBSCRIBE_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          OWNER=$(echo "$REPO" | cut -d/ -f1)
+          NAME=$(echo "$REPO" | cut -d/ -f2)
+          if [ -z "$UNSUBSCRIBE_TOKEN" ] || [ "$UNSUBSCRIBE_TOKEN" = "" ]; then
+            echo "::warning::UNSUBSCRIBE_PAT secret is not set - page will deploy but unsubscribe button will not work"
+          fi
+          sed -i "s|__UNSUBSCRIBE_TOKEN__|${UNSUBSCRIBE_TOKEN}|g" docs/unsubscribe.html
+          sed -i "s|__REPO_OWNER__|${OWNER}|g" docs/unsubscribe.html
+          sed -i "s|__REPO_NAME__|${NAME}|g" docs/unsubscribe.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

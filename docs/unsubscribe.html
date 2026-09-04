@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Unsubscribe - Riga flat deals</title>
+<style>
+  body{font-family:Arial,sans-serif;color:#222;max-width:520px;margin:60px auto;padding:0 16px}
+  h1{color:#1a5276}
+  .box{background:#f7f9fb;border:1px solid #ddd;border-radius:8px;padding:20px;margin:20px 0}
+  button{background:#c0392b;color:#fff;border:none;padding:12px 24px;font-size:16px;border-radius:6px;cursor:pointer}
+  button:hover{background:#a93226}
+  button:disabled{background:#999;cursor:default}
+  .ok{color:#27ae60;font-weight:bold}
+  .err{color:#c0392b;font-weight:bold}
+  .note{color:#777;font-size:13px}
+  #email{font-weight:bold}
+</style>
+</head>
+<body>
+<h1>Unsubscribe</h1>
+<div class="box" id="main">
+  <p>Unsubscribe <span id="email"></span> from daily Riga flat deal emails?</p>
+  <p class="note">You will no longer receive the daily digest of apartments for
+  rent/sale in Zolitude, Šampēteris and Imanta. This takes effect from the next
+  scheduled run.</p>
+  <button id="btn" onclick="doUnsubscribe()">Confirm Unsubscribe</button>
+  <p id="status"></p>
+</div>
+<div class="note" id="diagnostic" style="margin-top:20px"></div>
+
+<script>
+// These placeholders are replaced by the pages.yml workflow at deploy time.
+var TOKEN = "__UNSUBSCRIBE_TOKEN__";
+var OWNER = "__REPO_OWNER__";
+var REPO  = "__REPO_NAME__";
+var FILE  = "data/unsubscribed.json";
+
+function getEmail(){
+  var p = new URLSearchParams(window.location.search);
+  return (p.get("email") || "").trim();
+}
+
+(function init(){
+  var e = getEmail();
+  var el = document.getElementById("email");
+  var btn = document.getElementById("btn");
+  if(!e){
+    el.textContent = "(no email provided)";
+    document.getElementById("status").innerHTML =
+      '<span class="err">No email address found in the link. Please use the '
+    + 'unsubscribe link from the email you received.</span>';
+    btn.disabled = true;
+    return;
+  }
+  el.textContent = e;
+  if(!TOKEN || TOKEN.indexOf("__") === 0){
+    document.getElementById("diagnostic").textContent =
+      "Note: this page is a local/preview build - the unsubscribe token has "
+    + "not been injected. Unsubscribing will not work until deployed via "
+    + "GitHub Pages with the UNSUBSCRIBE_PAT secret set.";
+    if(window.location.protocol === "file:") btn.disabled = true;
+  }
+})();
+
+function setStatus(msg, ok){
+  var s = document.getElementById("status");
+  s.innerHTML = ok ? '<span class="ok">' + msg + '</span>'
+                   : '<span class="err">' + msg + '</span>';
+}
+
+async function doUnsubscribe(){
+  var email = getEmail();
+  if(!email){ setStatus("No email address provided.", false); return; }
+  var btn = document.getElementById("btn");
+  btn.disabled = true;
+  btn.textContent = "Processing...";
+  setStatus("Working...", true);
+
+  if(!TOKEN || TOKEN.indexOf("__") === 0){
+    setStatus("Unsubscribe is not configured on this deployment. "
+              + "Please reply to the email to unsubscribe manually.", false);
+    btn.disabled = false;
+    btn.textContent = "Confirm Unsubscribe";
+    return;
+  }
+
+  var api = "https://api.github.com/repos/" + OWNER + "/" + REPO
+          + "/contents/" + encodeURIComponent(FILE);
+  var headers = {
+    "Authorization": "Bearer " + TOKEN,
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28"
+  };
+
+  try{
+    // 1. fetch current file + sha
+    var r = await fetch(api, {headers: headers});
+    var sha = null, content = "[]";
+    if(r.status === 200){
+      var data = await r.json();
+      sha = data.sha;
+      // decode base64 content
+      var raw = atob((data.content || "").replace(/\n/g, ""));
+      content = decodeURIComponent(escape(raw));
+    }
+    // 2. parse + add email if not already present
+    var list = JSON.parse(content);
+    var lower = email.toLowerCase();
+    if(!Array.isArray(list)){ list = []; }
+    if(list.map(function(x){return String(x).toLowerCase()}).indexOf(lower) === -1){
+      list.push(email);
+    } else {
+      setStatus("You are already unsubscribed.", true);
+      btn.textContent = "Done";
+      return;
+    }
+    var newContent = JSON.stringify(list, null, 2);
+    var encoded = btoa(unescape(encodeURIComponent(newContent)));
+
+    // 3. PUT updated file
+    var putBody = {
+      message: "unsubscribe " + email,
+      content: encoded
+    };
+    if(sha) putBody.sha = sha;
+    var pr = await fetch(api, {
+      method: "PUT",
+      headers: headers,
+      body: JSON.stringify(putBody)
+    });
+    if(pr.status === 200 || pr.status === 201){
+      setStatus("You've been unsubscribed. You will no longer receive "
+                + "daily deal emails. You may close this page.", true);
+      btn.textContent = "Done";
+    } else {
+      var pe = await pr.json().catch(function(){return {}});
+      setStatus("Failed to unsubscribe (HTTP " + pr.status + "): "
+                + (pe.message || "unknown error") + ". Please try again "
+                + "or reply to the email.", false);
+      btn.disabled = false;
+      btn.textContent = "Confirm Unsubscribe";
+    }
+  } catch(err){
+    setStatus("Error: " + (err && err.message ? err.message : err)
+              + ". Please try again or reply to the email.", false);
+    btn.disabled = false;
+    btn.textContent = "Confirm Unsubscribe";
+  }
+}
+</script>
+</body>
+</html>
