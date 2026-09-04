@@ -411,6 +411,23 @@ th.sort-desc::after{{content:"\\2193";font-size:10px;color:#1a5276;margin-left:4
 #map-container{{margin:20px 0;border:1px solid #ddd;border-radius:8px;overflow:hidden}}
 #map-container .map-header{{padding:10px 14px;background:#1a5276;color:#fff;font-size:14px;font-weight:bold}}
 #map-container #map{{width:100%;height:400px}}
+
+/* Info overlay modal */
+#info-overlay{{display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.5);z-index:2000;justify-content:center;align-items:center}}
+#info-overlay.show{{display:flex}}
+#info-box{{background:#fff;border-radius:10px;padding:28px;max-width:560px;
+  max-height:80vh;overflow-y:auto;margin:16px;box-shadow:0 4px 20px rgba(0,0,0,0.3)}}
+#info-box h3{{color:#1a5276;border:none;margin:0 0 12px 0;font-size:20px}}
+#info-box h4{{color:#2874a6;margin:16px 0 6px 0;font-size:14px}}
+#info-box p{{font-size:13px;line-height:1.6;margin:6px 0;color:#333}}
+#info-box ul{{font-size:13px;line-height:1.6;margin:6px 0 6px 20px;color:#333}}
+#info-close{{float:right;cursor:pointer;font-size:22px;color:#999;border:none;
+  background:none;padding:0 4px;line-height:1}}
+#info-close:hover{{color:#333}}
+#info-dont-show{{margin:16px 0 8px 0;font-size:13px;color:#666;cursor:pointer}}
+#info-dont-show input{{cursor:pointer;margin-right:6px}}
+.info-link{{color:#2874a6;cursor:pointer;text-decoration:underline;font-size:13px}}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       crossorigin=""/>
@@ -457,9 +474,30 @@ function sortTable(tableId, colIdx) {{
     }}
   }}
 }}
+// Info overlay
+function showInfo() {{
+  document.getElementById('info-overlay').classList.add('show');
+}}
+function hideInfo() {{
+  document.getElementById('info-overlay').classList.remove('show');
+  var cb = document.getElementById('info-dont-show-cb');
+  if (cb && cb.checked) {{
+    try {{ localStorage.setItem('flat_searcher_info_dismissed', '1'); }} catch(e) {{}}
+  }}
+}}
+// Auto-show on first visit (if not dismissed before)
+(function() {{
+  try {{
+    if (!localStorage.getItem('flat_searcher_info_dismissed')) {{
+      document.addEventListener('DOMContentLoaded', function() {{
+        document.getElementById('info-overlay').classList.add('show');
+      }});
+    }}
+  }} catch(e) {{}}
+}})();
 </script>
 </head><body>
-<h2>Riga flat deals - {today}</h2>
+<h2>Riga flat deals - {today} <span class="info-link" onclick="showInfo()" style="font-size:14px;font-weight:normal">About this page</span></h2>
 {browser_link}
 <p>Districts: {', '.join(config.DISTRICTS.keys())} &middot; Sources: ss.com, city24.lv</p>
 <p class="note">Scoring: {status_note}</p>
@@ -471,6 +509,74 @@ function sortTable(tableId, colIdx) {{
 expected for its size/floor/district. Always verify on the source site before
 contacting.</p>
 {unsub}
+<!-- Info overlay -->
+<div id="info-overlay" onclick="if(event.target===this)hideInfo()">
+<div id="info-box">
+<button id="info-close" onclick="hideInfo()">&times;</button>
+<h3>How this page works</h3>
+
+<h4>What is this?</h4>
+<p>This is an automated daily digest of apartment listings in three Riga
+districts: <b>Zolitude</b>, <b>Sampeteris/Pleskodale</b>, and <b>Imanta</b>.
+It scans two sources every day:</p>
+<ul>
+<li><b>ss.com</b> &mdash; Latvia's largest classifieds site (~278 listings)</li>
+<li><b>city24.lv</b> &mdash; a real-estate portal (~12-29 listings)</li>
+</ul>
+<p>After scraping, it removes duplicates (the same flat is often on both
+sites) and filters out implausible prices. Typically <b>250+ unique
+listings</b> remain.</p>
+
+<h4>Why so few listings in the tables?</h4>
+<p>The tables show only the <b>top 10 best deals per type</b> (rent and
+sale), ranked by deal score. Showing all 250+ would be overwhelming.
+The <b>map at the bottom shows every listing</b> with coordinates &mdash;
+click "map" next to any source link to jump to it.</p>
+
+<h4>What is "Deal score"?</h4>
+<p>Deal score measures how much <b>cheaper</b> a listing is compared to
+what a regression model expects for its size, floor, and district.
+Higher score = bigger bargain. The model trains on historical data
+from prior days. When there isn't enough history yet (first few weeks),
+it falls back to a simpler z-score comparison.</p>
+
+<h4>What are the badges?</h4>
+<ul>
+<li><b style="color:#27ae60">NEW</b> &mdash; first time this listing appears</li>
+<li><b style="color:#e67e22">PRICE DROP</b> &mdash; price dropped since last shown</li>
+<li><b style="color:#2980b9">REAPPEARED</b> &mdash; seen before, back after a gap</li>
+<li><b style="color:#8e44ad">SHORT-TERM/DAILY</b> &mdash; priced per day, not per month</li>
+</ul>
+
+<h4>What is the timeline under each row?</h4>
+<p>It shows the price history: the original listing price, any changes
+over time, and how many days the listing has been on the market.
+Historical data comes from <b>CenuMednieks.lv</b> (for ss.com listings)
+and our own daily tracking. "Previous ads at this address" are older
+listings at the same location &mdash; they may or may not be the same flat.</p>
+
+<h4>Top exceptional deals</h4>
+<p>The ranked cards at the top combine multiple signals: deal score,
+price drop percentage, days on market, and price vs area average.
+Short-term/daily rentals are excluded from this ranking.</p>
+
+<h4>How often does it update?</h4>
+<p>The full digest runs <b>once daily</b>. An <b>hourly scan</b> checks
+for exceptional bargains and sends an instant alert email if any listing
+scores above the threshold. The hourly scan uses fewer pages to
+avoid overloading the source sites.</p>
+
+<h4>Click column headers to sort</h4>
+<p>All tables are sortable. Click any header to sort ascending, click
+again for descending. The timeline rows stay attached to their listing
+during sorting.</p>
+
+<label id="info-dont-show">
+<input type="checkbox" id="info-dont-show-cb">
+Don't show this automatically next time
+</label>
+</div>
+</div>
 </body></html>"""
 
 
