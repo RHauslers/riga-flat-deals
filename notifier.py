@@ -113,6 +113,7 @@ def _still_row_html(item, price_data=None):
         f"<td style='text-align:right'>{_fmt_price(listing.get('price_eur'))}</td>"
         f"<td style='text-align:right'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
         f"<td style='text-align:center'>{score_str}</td>"
+        f"<td></td>"  # empty Status column (still-active rows have no badge)
         f"<td style='text-align:center;font-size:12px;color:#666'>{listed_date}</td>"
         f"<td style='text-align:center;font-size:12px;color:#666'>{days_market}</td>"
         f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a></td>"
