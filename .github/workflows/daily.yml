@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write  # needed to commit history.csv / seen_ids.json back
+  pages: write     # needed to deploy the hosted site
+  id-token: write  # needed for Pages deploy authentication
 
 concurrency:
   # Shared with escalation.yml on purpose: both jobs commit state (history.csv,
@@ -91,3 +93,43 @@ jobs:
 
           echo "::error::Failed to push state after 5 attempts (branch=$GITHUB_REF_NAME)"
           exit 1
+
+  # Deploy the updated docs/ to GitHub Pages. This runs AFTER the scrape job
+  # commits the new index.html, so the site always reflects the latest digest.
+  # We can't rely on pages.yml's push trigger because pushes made by
+  # github-actions[bot] via GITHUB_TOKEN don't trigger other workflows
+  # (GitHub prevents this to avoid infinite loops).
+  deploy-pages:
+    needs: scrape
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - name: Checkout (latest, including the scrape job's commit)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Inject token into unsubscribe page
+        env:
+          UNSUBSCRIBE_TOKEN: ${{ secrets.UNSUBSCRIBE_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          OWNER=$(echo "$REPO" | cut -d/ -f1)
+          NAME=$(echo "$REPO" | cut -d/ -f2)
+          if [ -z "$UNSUBSCRIBE_TOKEN" ] || [ "$UNSUBSCRIBE_TOKEN" = "" ]; then
+            echo "::warning::UNSUBSCRIBE_PAT secret is not set - unsubscribe button will not work"
+          fi
+          sed -i "s|__UNSUBSCRIBE_TOKEN__|${UNSUBSCRIBE_TOKEN}|g" docs/unsubscribe.html
+          sed -i "s|__REPO_OWNER__|${OWNER}|g" docs/unsubscribe.html
+          sed -i "s|__REPO_NAME__|${NAME}|g" docs/unsubscribe.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
