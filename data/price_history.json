@@ -12186,5 +12186,30 @@
       }
     ],
     "first_seen": "2026-09-05"
+  },
+  "ss.com:57792034": {
+    "cenumednieks": {
+      "original_price": 125000,
+      "current_price": 125000,
+      "total_change": 0,
+      "first_listed_date": "2026-06-23",
+      "days_on_market": 74,
+      "previous_listings": [
+        {
+          "date": "2025-11-03",
+          "price": 55000,
+          "original_price": 55000
+        }
+      ],
+      "fetched_at": "2026-09-05",
+      "source_url": "https://cenumednieks.lv/ad/hcngg"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-05",
+        "price": 125000.0
+      }
+    ],
+    "first_seen": "2026-09-05"
   }
 }
