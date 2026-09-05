@@ -362,5 +362,19 @@
     "last_shown_price": 115000.0,
     "last_shown_score": 1.5231971316133197,
     "deal_type": "sale"
+  },
+  "ss.com:58042455": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 450.0,
+    "last_shown_score": 2.269782234455923,
+    "deal_type": "rent"
+  },
+  "ss.com:58042595": {
+    "first_shown_date": "2026-09-05",
+    "last_shown_date": "2026-09-05",
+    "last_shown_price": 450.0,
+    "last_shown_score": 2.2206932262957015,
+    "deal_type": "rent"
   }
 }

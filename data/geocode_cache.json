@@ -798,5 +798,15 @@
     "lat": 56.9632858,
     "lon": 24.0104343,
     "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:kleistu 6": {
+    "lat": 56.9603664,
+    "lon": 24.0237867,
+    "fetched_at": "2026-09-05"
+  },
+  "ss.com:imanta:m. krūmu 20": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-05"
   }
 }

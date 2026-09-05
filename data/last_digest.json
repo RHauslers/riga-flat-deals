@@ -24,6 +24,17 @@
       "source": "ss.com"
     },
     {
+      "key": "ss.com:58042455",
+      "score": 2.269782234455923,
+      "price": 450.0,
+      "district": "Zolitude",
+      "rooms": 3,
+      "area_m2": 78.0,
+      "floor": "7/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/gngjf.html",
+      "source": "ss.com"
+    },
+    {
       "key": "city24.lv:2131578",
       "score": 2.227705941747162,
       "price": 350.0,
@@ -33,6 +44,17 @@
       "floor": "5/9",
       "url": "https://www.city24.lv/real-estate/apartments-for-rent/riga-imanta-dammes-iela/6542359",
       "source": "city24.lv"
+    },
+    {
+      "key": "ss.com:58042595",
+      "score": 2.2206932262957015,
+      "price": 450.0,
+      "district": "Imanta",
+      "rooms": 4,
+      "area_m2": 77.0,
+      "floor": "9/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/cgolxp.html",
+      "source": "ss.com"
     },
     {
       "key": "ss.com:58005118",
@@ -79,17 +101,6 @@
       "source": "ss.com"
     },
     {
-      "key": "ss.com:58007195",
-      "score": 1.820968445562475,
-      "price": 500.0,
-      "district": "Zolitude",
-      "rooms": 3,
-      "area_m2": 78.0,
-      "floor": "2/9",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/cpklx.html",
-      "source": "ss.com"
-    },
-    {
       "key": "ss.com:57956258",
       "score": 1.7508412910478743,
       "price": 410.0,
@@ -98,17 +109,6 @@
       "area_m2": 63.0,
       "floor": "8/9",
       "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/ainlx.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:58040780",
-      "score": 1.6666887056303528,
-      "price": 285.0,
-      "district": "Zolitude",
-      "rooms": 1,
-      "area_m2": 43.0,
-      "floor": "6/9",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/gicdj.html",
       "source": "ss.com"
     }
   ],
