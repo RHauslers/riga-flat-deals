@@ -10362,7 +10362,7 @@
     },
     "our_tracking": [
       {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "price": 56900.0
       }
     ],
@@ -10996,7 +10996,7 @@
     },
     "our_tracking": [
       {
-        "date": "2026-09-05",
+        "date": "2026-09-06",
         "price": 220000.0
       }
     ],
@@ -12397,6 +12397,31 @@
       {
         "date": "2026-09-06",
         "price": 59000.0
+      }
+    ],
+    "first_seen": "2026-09-06"
+  },
+  "ss.com:57847599": {
+    "cenumednieks": {
+      "original_price": 82000,
+      "current_price": 75500,
+      "total_change": 6500,
+      "first_listed_date": "2026-09-06",
+      "days_on_market": 0,
+      "previous_listings": [
+        {
+          "date": "2025-10-14",
+          "price": 65000,
+          "original_price": 67000
+        }
+      ],
+      "fetched_at": "2026-09-06",
+      "source_url": "https://cenumednieks.lv/ad/fgxgc"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-06",
+        "price": 75500.0
       }
     ],
     "first_seen": "2026-09-06"
