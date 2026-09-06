@@ -12624,5 +12624,24 @@
       }
     ],
     "first_seen": "2026-09-06"
+  },
+  "ss.com:56328183": {
+    "cenumednieks": {
+      "original_price": 58000,
+      "current_price": 58000,
+      "total_change": 0,
+      "first_listed_date": "2026-07-28",
+      "days_on_market": 40,
+      "previous_listings": [],
+      "fetched_at": "2026-09-06",
+      "source_url": "https://cenumednieks.lv/ad/adnei"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-06",
+        "price": 58000.0
+      }
+    ],
+    "first_seen": "2026-09-06"
   }
 }
