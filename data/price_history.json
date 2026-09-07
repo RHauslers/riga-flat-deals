@@ -13557,5 +13557,30 @@
       }
     ],
     "first_seen": "2026-09-07"
+  },
+  "ss.com:58052372": {
+    "cenumednieks": {
+      "original_price": 97000,
+      "current_price": 97000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-07",
+      "days_on_market": 0,
+      "previous_listings": [
+        {
+          "date": "2026-02-10",
+          "price": 135000,
+          "original_price": 130000
+        }
+      ],
+      "fetched_at": "2026-09-07",
+      "source_url": "https://cenumednieks.lv/ad/ejnoi"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-07",
+        "price": 97000.0
+      }
+    ],
+    "first_seen": "2026-09-07"
   }
 }
