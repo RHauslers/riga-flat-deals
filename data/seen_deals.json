@@ -8,9 +8,9 @@
   },
   "city24.lv:2131578": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 350.0,
-    "last_shown_score": 1.4416316659600186,
+    "last_shown_score": 1.45196150862454,
     "deal_type": "rent"
   },
   "ss.com:58042258": {
@@ -99,9 +99,9 @@
   },
   "city24.lv:2443318": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 54000.0,
-    "last_shown_score": 1.4110375590057789,
+    "last_shown_score": 1.446889784334539,
     "deal_type": "sale"
   },
   "city24.lv:2471958": {
@@ -141,9 +141,9 @@
   },
   "city24.lv:2452034": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 88000.0,
-    "last_shown_score": 1.7057555766561454,
+    "last_shown_score": 1.7124667181581315,
     "deal_type": "sale"
   },
   "city24.lv:2449129": {
@@ -176,9 +176,9 @@
   },
   "ss.com:56821674": {
     "first_shown_date": "2026-09-05",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 1100.0,
-    "last_shown_score": 1.9943270272006355,
+    "last_shown_score": 1.9860841059152026,
     "deal_type": "rent"
   },
   "ss.com:57256558": {
@@ -288,9 +288,9 @@
   },
   "ss.com:57863899": {
     "first_shown_date": "2026-09-05",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 60.0,
-    "last_shown_score": 2.4243061377475543,
+    "last_shown_score": 2.450567258143174,
     "deal_type": "rent"
   },
   "ss.com:58005118": {
@@ -358,9 +358,9 @@
   },
   "ss.com:55662878": {
     "first_shown_date": "2026-09-05",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 115000.0,
-    "last_shown_score": 2.209153719553703,
+    "last_shown_score": 2.1808117253512966,
     "deal_type": "sale"
   },
   "ss.com:58042455": {
@@ -386,44 +386,44 @@
   },
   "ss.com:58005092": {
     "first_shown_date": "2026-09-06",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 800.0,
-    "last_shown_score": 1.7160440861552233,
+    "last_shown_score": 1.7257189579570256,
     "deal_type": "rent"
   },
   "ss.com:57979199": {
     "first_shown_date": "2026-09-06",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 700.0,
-    "last_shown_score": 1.4285114736425066,
+    "last_shown_score": 1.4464245473294512,
     "deal_type": "rent"
   },
   "ss.com:58012448": {
     "first_shown_date": "2026-09-06",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 730.0,
-    "last_shown_score": 1.3863829382451496,
+    "last_shown_score": 1.3893953454630175,
     "deal_type": "rent"
   },
   "ss.com:57959424": {
     "first_shown_date": "2026-09-06",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 700.0,
-    "last_shown_score": 1.3577000690971486,
+    "last_shown_score": 1.3735353028690918,
     "deal_type": "rent"
   },
   "ss.com:57929059": {
     "first_shown_date": "2026-09-06",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 550.0,
-    "last_shown_score": 1.3561411208818734,
+    "last_shown_score": 1.3617919859628744,
     "deal_type": "rent"
   },
   "ss.com:57994494": {
     "first_shown_date": "2026-09-06",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 164000.0,
-    "last_shown_score": 2.09664105659962,
+    "last_shown_score": 2.076930753973497,
     "deal_type": "sale"
   },
   "city24.lv:2215354": {
@@ -435,30 +435,58 @@
   },
   "ss.com:57792034": {
     "first_shown_date": "2026-09-06",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 125000.0,
-    "last_shown_score": 1.6037578068696747,
+    "last_shown_score": 1.6040108399355475,
     "deal_type": "sale"
   },
   "ss.com:57701790": {
     "first_shown_date": "2026-09-06",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 140000.0,
-    "last_shown_score": 1.4199051883573612,
+    "last_shown_score": 1.4222358155902808,
     "deal_type": "sale"
   },
   "ss.com:57886413": {
     "first_shown_date": "2026-09-06",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 169000.0,
-    "last_shown_score": 1.3819353352579362,
+    "last_shown_score": 1.4097024131662763,
     "deal_type": "sale"
   },
   "ss.com:58024442": {
     "first_shown_date": "2026-09-06",
-    "last_shown_date": "2026-09-06",
+    "last_shown_date": "2026-09-07",
     "last_shown_price": 188000.0,
-    "last_shown_score": 1.3696672672316066,
+    "last_shown_score": 1.3904157166423043,
+    "deal_type": "sale"
+  },
+  "ss.com:57349763": {
+    "first_shown_date": "2026-09-07",
+    "last_shown_date": "2026-09-07",
+    "last_shown_price": 400.0,
+    "last_shown_score": 2.313083721260776,
+    "deal_type": "rent"
+  },
+  "ss.com:57968452": {
+    "first_shown_date": "2026-09-07",
+    "last_shown_date": "2026-09-07",
+    "last_shown_price": 345.0,
+    "last_shown_score": 1.2911461819584327,
+    "deal_type": "rent"
+  },
+  "ss.com:56126650": {
+    "first_shown_date": "2026-09-07",
+    "last_shown_date": "2026-09-07",
+    "last_shown_price": 240000.0,
+    "last_shown_score": 2.04299240221042,
+    "deal_type": "sale"
+  },
+  "ss.com:53239156": {
+    "first_shown_date": "2026-09-07",
+    "last_shown_date": "2026-09-07",
+    "last_shown_price": 255000.0,
+    "last_shown_score": 1.3230535968407835,
     "deal_type": "sale"
   }
 }
