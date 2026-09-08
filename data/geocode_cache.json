@@ -928,5 +928,25 @@
     "lat": null,
     "lon": null,
     "fetched_at": "2026-09-08"
+  },
+  "ss.com:sampeteris:stendes 1 k-6": {
+    "lat": 56.9403411,
+    "lon": 24.0407437,
+    "fetched_at": "2026-09-08"
+  },
+  "ss.com:sampeteris:pleskodales 1a": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-08"
+  },
+  "ss.com:imanta:imantas 3. l. 11": {
+    "lat": 56.9527715,
+    "lon": 24.0068275,
+    "fetched_at": "2026-09-08"
+  },
+  "ss.com:sampeteris:kalnciema 101": {
+    "lat": 56.9371048,
+    "lon": 24.0427384,
+    "fetched_at": "2026-09-08"
   }
 }

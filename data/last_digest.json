@@ -13,50 +13,6 @@
       "source": "ss.com"
     },
     {
-      "key": "ss.com:57349763",
-      "score": 2.0706891482920193,
-      "price": 400.0,
-      "district": "Imanta",
-      "rooms": 2,
-      "area_m2": 60.0,
-      "floor": "13/17",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/fenmg.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:56821674",
-      "score": 1.945651964570665,
-      "price": 1100.0,
-      "district": "Zolitude",
-      "rooms": 4,
-      "area_m2": 183.0,
-      "floor": "11/12",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/amllj.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:58005092",
-      "score": 1.7683122114954368,
-      "price": 800.0,
-      "district": "Sampeteris",
-      "rooms": 3,
-      "area_m2": 90.0,
-      "floor": "6/30",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/fdchi.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:57979199",
-      "score": 1.4520370258223607,
-      "price": 700.0,
-      "district": "Sampeteris",
-      "rooms": 2,
-      "area_m2": 69.0,
-      "floor": "6/30",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/bmompd.html",
-      "source": "ss.com"
-    },
-    {
       "key": "city24.lv:2131578",
       "score": 1.401238592102132,
       "price": 350.0,
@@ -66,17 +22,6 @@
       "floor": "5/9",
       "url": "https://www.city24.lv/real-estate/apartments-for-rent/riga-imanta-dammes-iela/6542359",
       "source": "city24.lv"
-    },
-    {
-      "key": "ss.com:57959424",
-      "score": 1.378753297226583,
-      "price": 700.0,
-      "district": "Sampeteris",
-      "rooms": 2,
-      "area_m2": 67.0,
-      "floor": "6/30",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/bnxxcc.html",
-      "source": "ss.com"
     },
     {
       "key": "ss.com:57968452",
@@ -90,17 +35,6 @@
       "source": "ss.com"
     },
     {
-      "key": "ss.com:58012448",
-      "score": 1.3278631580266405,
-      "price": 730.0,
-      "district": "Imanta",
-      "rooms": 3,
-      "area_m2": 96.0,
-      "floor": "4/24",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/benxx.html",
-      "source": "ss.com"
-    },
-    {
       "key": "ss.com:58005118",
       "score": 1.3113683528379914,
       "price": 195.0,
@@ -110,12 +44,122 @@
       "floor": "2/2",
       "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/acgih.html",
       "source": "ss.com"
+    },
+    {
+      "key": "ss.com:58042595",
+      "score": 1.1075457202331636,
+      "price": 450.0,
+      "district": "Imanta",
+      "rooms": 4,
+      "area_m2": 77.0,
+      "floor": "9/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/cgolxp.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:58040101",
+      "score": 1.074917757390804,
+      "price": 200.0,
+      "district": "Sampeteris",
+      "rooms": 1,
+      "area_m2": 22.0,
+      "floor": "1/2",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/cemcpd.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:58035514",
+      "score": 0.9150004072358453,
+      "price": 250.0,
+      "district": "Imanta",
+      "rooms": 2,
+      "area_m2": 48.0,
+      "floor": "6/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/aebjk.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:58042455",
+      "score": 0.8682185619599186,
+      "price": 450.0,
+      "district": "Zolitude",
+      "rooms": 3,
+      "area_m2": 78.0,
+      "floor": "7/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/gngjf.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:58004723",
+      "score": 0.7693381307724273,
+      "price": 380.0,
+      "district": "Imanta",
+      "rooms": 3,
+      "area_m2": 64.0,
+      "floor": "2/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/ebohf.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:57968553",
+      "score": 0.7099259158482192,
+      "price": 340.0,
+      "district": "Sampeteris",
+      "rooms": 1,
+      "area_m2": 40.0,
+      "floor": "2/3",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/bmnkfk.html",
+      "source": "ss.com"
     }
   ],
   "sale": [
     {
+      "key": "ss.com:57940025",
+      "score": 1.4151546090522484,
+      "price": 79900.0,
+      "district": "Zolitude",
+      "rooms": 3,
+      "area_m2": 82.0,
+      "floor": "7/10",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/bmdeg.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:57967069",
+      "score": 1.382953270028092,
+      "price": 81000.0,
+      "district": "Zolitude",
+      "rooms": 3,
+      "area_m2": 82.0,
+      "floor": "4/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/ejkcb.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:57847599",
+      "score": 1.3701160916092558,
+      "price": 75500.0,
+      "district": "Zolitude",
+      "rooms": 3,
+      "area_m2": 78.0,
+      "floor": "4/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/fgxgc.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:57943969",
+      "score": 1.2510579005120899,
+      "price": 78499.0,
+      "district": "Zolitude",
+      "rooms": 3,
+      "area_m2": 78.0,
+      "floor": "3/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/ajeon.html",
+      "source": "ss.com"
+    },
+    {
       "key": "ss.com:58053422",
-      "score": 2.4641174750165376,
+      "score": 1.2320587375082688,
       "price": 35000.0,
       "district": "Sampeteris",
       "rooms": 3,
@@ -125,102 +169,58 @@
       "source": "ss.com"
     },
     {
-      "key": "ss.com:55662878",
-      "score": 2.100411635309313,
-      "price": 115000.0,
-      "district": "Sampeteris",
-      "rooms": 5,
-      "area_m2": 115.0,
+      "key": "ss.com:58023392",
+      "score": 1.1380108161510896,
+      "price": 63000.0,
+      "district": "Zolitude",
+      "rooms": 2,
+      "area_m2": 61.0,
+      "floor": "9/10",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/cbjhi.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:57680184",
+      "score": 1.1131259743860484,
+      "price": 79900.0,
+      "district": "Zolitude",
+      "rooms": 3,
+      "area_m2": 75.0,
+      "floor": "8/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/cdoch.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:58037921",
+      "score": 1.0968997054528833,
+      "price": 65000.0,
+      "district": "Zolitude",
+      "rooms": 2,
+      "area_m2": 61.0,
+      "floor": "9/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/gjige.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:57970570",
+      "score": 0.8900645801903915,
+      "price": 37800.0,
+      "district": "Zolitude",
+      "rooms": 2,
+      "area_m2": 43.0,
       "floor": "1/2",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/bbxedg.html",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/achlb.html",
       "source": "ss.com"
-    },
-    {
-      "key": "ss.com:57994494",
-      "score": 1.9444899044767985,
-      "price": 164000.0,
-      "district": "Sampeteris",
-      "rooms": 4,
-      "area_m2": 98.0,
-      "floor": "2/3",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/bxncn.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:56126650",
-      "score": 1.8364864250280228,
-      "price": 240000.0,
-      "district": "Sampeteris",
-      "rooms": 5,
-      "area_m2": 158.0,
-      "floor": "1/1",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/bbhnn.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "city24.lv:2452034",
-      "score": 1.7859356082566262,
-      "price": 88000.0,
-      "district": "Imanta",
-      "rooms": 4,
-      "area_m2": 76.0,
-      "floor": "1/9",
-      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-imanta-slokas-iela/2401544",
-      "source": "city24.lv"
-    },
-    {
-      "key": "ss.com:57792034",
-      "score": 1.666544989445378,
-      "price": 125000.0,
-      "district": "Sampeteris",
-      "rooms": 2,
-      "area_m2": 68.0,
-      "floor": "7/25",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/hcngg.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "city24.lv:2443318",
-      "score": 1.5243043967470244,
-      "price": 54000.0,
-      "district": "Imanta",
-      "rooms": 2,
-      "area_m2": 50.0,
-      "floor": "6/9",
-      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-imanta-maza-krumu-iela/8875425",
-      "source": "city24.lv"
     },
     {
       "key": "ss.com:58054305",
-      "score": 1.4911323788906787,
+      "score": 0.8785904427376567,
       "price": 34000.0,
       "district": "Sampeteris",
       "rooms": 2,
       "area_m2": 45.0,
       "floor": "1/2",
       "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/ghilc.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:57886413",
-      "score": 1.4477261462753526,
-      "price": 169000.0,
-      "district": "Imanta",
-      "rooms": 3,
-      "area_m2": 102.0,
-      "floor": "5/18",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/bfpohi.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:58024442",
-      "score": 1.3816177651112158,
-      "price": 188000.0,
-      "district": "Zolitude",
-      "rooms": 4,
-      "area_m2": 131.0,
-      "floor": "8/10",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/bcibnp.html",
       "source": "ss.com"
     }
   ]

@@ -96,10 +96,11 @@
     "cenumednieks": null,
     "our_tracking": [
       {
-        "date": "2026-09-05",
+        "date": "2026-09-08",
         "price": 700.0
       }
-    ]
+    ],
+    "first_seen": "2026-09-08"
   },
   "city24.lv:2471958": {
     "cenumednieks": null,
@@ -14443,6 +14444,120 @@
       {
         "date": "2026-09-08",
         "price": 340.0
+      }
+    ],
+    "first_seen": "2026-09-08"
+  },
+  "ss.com:58055536": {
+    "cenumednieks": {
+      "original_price": 340,
+      "current_price": 340,
+      "total_change": 0,
+      "first_listed_date": "2026-09-08",
+      "days_on_market": 0,
+      "previous_listings": [
+        {
+          "date": "2026-03-02",
+          "price": 300,
+          "original_price": 300
+        },
+        {
+          "date": "2025-08-03",
+          "price": 350,
+          "original_price": 350
+        }
+      ],
+      "fetched_at": "2026-09-08",
+      "source_url": "https://cenumednieks.lv/ad/ceoie"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-08",
+        "price": 340.0
+      }
+    ],
+    "first_seen": "2026-09-08"
+  },
+  "ss.com:58054836": {
+    "cenumednieks": {
+      "original_price": 380,
+      "current_price": 350,
+      "total_change": 30,
+      "first_listed_date": "2026-09-08",
+      "days_on_market": 0,
+      "previous_listings": [
+        {
+          "date": "2026-01-30",
+          "price": 300,
+          "original_price": 340
+        }
+      ],
+      "fetched_at": "2026-09-08",
+      "source_url": "https://cenumednieks.lv/ad/aocbi"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-08",
+        "price": 350.0
+      }
+    ],
+    "first_seen": "2026-09-08"
+  },
+  "ss.com:58054958": {
+    "cenumednieks": {
+      "original_price": 420,
+      "current_price": 420,
+      "total_change": 0,
+      "first_listed_date": "2026-09-08",
+      "days_on_market": 0,
+      "previous_listings": [
+        {
+          "date": "2025-08-14",
+          "price": 700,
+          "original_price": 700
+        },
+        {
+          "date": "2024-05-27",
+          "price": 420,
+          "original_price": 420
+        },
+        {
+          "date": "2022-11-12",
+          "price": 300,
+          "original_price": 300
+        },
+        {
+          "date": "2020-11-04",
+          "price": 190,
+          "original_price": 200
+        }
+      ],
+      "fetched_at": "2026-09-08",
+      "source_url": "https://cenumednieks.lv/ad/bifxk"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-08",
+        "price": 420.0
+      }
+    ],
+    "first_seen": "2026-09-08"
+  },
+  "ss.com:58055421": {
+    "cenumednieks": {
+      "original_price": 45000,
+      "current_price": 45000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-08",
+      "days_on_market": 0,
+      "previous_listings": [],
+      "fetched_at": "2026-09-08",
+      "source_url": "https://cenumednieks.lv/ad/bxbbfx"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-08",
+        "price": 45000.0
       }
     ],
     "first_seen": "2026-09-08"
