@@ -19,9 +19,10 @@ DISTRICTS = {
 }
 
 # ----------------------------------------------------------------------------
-# 2. DEAL TYPES  ("rent" and/or "sale")
+# 2. DEAL TYPES  — sales only. The buyer is purchasing a flat near the school
+#    for their daughters; rentals are out of scope.
 # ----------------------------------------------------------------------------
-DEAL_TYPES = ["rent", "sale"]
+DEAL_TYPES = ["sale"]
 
 # ----------------------------------------------------------------------------
 # 3. ss.com settings

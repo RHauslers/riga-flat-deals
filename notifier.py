@@ -587,8 +587,8 @@ function sortTable(tableId, colIdx) {{
 <p>Districts: {', '.join(config.DISTRICTS.keys())} &middot; Sources: ss.com, city24.lv</p>
 <p class="note">Scoring: {status_note}</p>
 <p class="note">Sale ranking: 50% deal score + 50% walking distance to
-{config.SCHOOL_NAME} (shown in the Distance column). Rent ranking: deal
-score only. New builds excluded.</p>
+{config.SCHOOL_NAME} (shown in the Distance column). New builds excluded.
+Sales only — rentals are out of scope.</p>
 {comparison_html}
 {newest_html}
 {body_sections}
