@@ -2,12 +2,67 @@
 
 Living document. Updated after each Devin session. Read this first.
 
-## Current state (after session 2026-09-05, upgrade #9 — daily rental detection + map fix)
+## Current state (after session 2026-09-08, upgrade #10 — school proximity + new-build exclusion)
 
 **Working, tested end-to-end locally on Windows + Python 3.14.4.**
-Pipeline scrapes 278 SS.com + 29 city24.lv = 307 listings daily.
+Pipeline scrapes 296 SS.com + 19 city24.lv = 315 listings daily.
+After filters: 147 listings (123 price-capped, 36 new-builds excluded, 9 deduped).
+Regression model active: 89 rent rows, 186 sale rows.
 
-### Upgrade 9 (this session): daily rental detection + map coverage fix
+### Upgrade 10 (this session): school proximity ranking + new-build exclusion
+
+**School proximity (sale only):**
+- Target school: Rīgas Ziemeļvalstu ģimnāzija, Paula Lejiņa iela 12, Zolitūde
+  (lat 56.9464, lon 24.0207, geocoded once via Nominatim, hardcoded in config).
+- Sale listings are ranked by a 50/50 blend:
+  `final = 0.5 * deal_score + 0.5 * proximity_score`
+- Proximity score: linear from +2.0 (next door) to -1.5 (3.5 km+ away).
+  0 km → +2.0 ; 1 km → +1.0 ; 2 km → 0.0 ; 3 km → -1.0.
+  Listings without coordinates get 0.0 (neutral, no penalty).
+- Rent listings are ranked by deal score alone (unchanged).
+- Implemented in scoring.py `score_and_rank()` — blend applied after
+  regression/z-score, only when deal_type == "sale".
+- geocode.py: `haversine_km()`, `distance_to_school()`, `proximity_score()`.
+- main.py and escalation.py compute `_school_km` for every listing after
+  geocoding (escalation.py now also geocodes, which it didn't before).
+
+**Distance column in digest:**
+- New sortable "Distance" column in all main + still-active tables
+  (12 columns now, was 11).
+- Sale rows show "0.8 km" (walking distance to school); rent rows show "-".
+- Sortable via data-sort attribute (9999 = no coords, sorts last).
+
+**School marker on map:**
+- Red marker (radius 12, white border, "School" tooltip label) at the
+  school's coordinates, inserted first in the marker list.
+- Map header: "Map (124 listings + school)".
+- Listed in geocode.py `get_school_marker()`.
+
+**New-build exclusion:**
+- SS.com marks new builds with series = "New" (87 listings in history).
+- City24 checked for new-build keywords in series/title ("new project",
+  "new development", "jaunprojekts", etc.).
+- utils.py: `is_new_build()`, `filter_new_builds()` — used by both
+  main.py and escalation.py.
+- 36 new-build listings excluded in the 2026-09-08 run.
+
+**Flexible price cap (sale):**
+- MIN_SALE_PRICE_EUR = 5000 (floor, unchanged)
+- MAX_SALE_PRICE_EUR = 75000 (target budget)
+- MAX_SALE_PRICE_EUR_EXCEPTIONAL = 85000 (hard ceiling)
+- Listings 75K-85K are kept — scoring ranks them naturally: a genuinely
+  great 81K flat next to the school still surfaces; an overpriced 80K
+  flat doesn't. The hard ceiling drops everything above 85K.
+- 123 listings dropped by price filters in the 2026-09-08 run (mostly
+  sales above 85K).
+
+**Digest header notes:**
+- Sale section subtitle explains the 50/50 blend.
+- Page header note: "Sale ranking: 50% deal score + 50% walking distance
+  to Rīgas Ziemeļvalstu ģimnāzija (shown in the Distance column). Rent
+  ranking: deal score only. New builds excluded."
+
+### Upgrade 9: daily rental detection + map coverage fix
 
 **Daily rental detection:**
 - SS.com price text shows "EUR/day" for daily rentals and "EUR/mon." for

@@ -35,6 +35,37 @@ def slugify(text):
 
 
 # ---------------------------------------------------------------------------
+# New-build exclusion
+# ---------------------------------------------------------------------------
+def is_new_build(listing):
+    """True if the listing is in a newly built development.
+
+    SS.com marks new builds with series = "New" (exact value).
+    City24's series is a free-text project name, so we check for common
+    new-build keywords there as well.
+    """
+    if not config.EXCLUDE_NEW_BUILDS:
+        return False
+    series = strip_diacritics(listing.get("series") or "").strip().lower()
+    if series in [s.lower() for s in config.NEW_BUILD_SERIES]:
+        return True
+    text = " ".join([
+        strip_diacritics(listing.get("series") or ""),
+        strip_diacritics(listing.get("title") or ""),
+    ]).lower()
+    return any(kw in text for kw in config.NEW_BUILD_KEYWORDS)
+
+
+def filter_new_builds(listings):
+    """Remove new-build listings. Returns (filtered, n_removed)."""
+    if not config.EXCLUDE_NEW_BUILDS:
+        return listings, 0
+    kept = [l for l in listings if not is_new_build(l)]
+    removed = len(listings) - len(kept)
+    return kept, removed
+
+
+# ---------------------------------------------------------------------------
 # Cross-source deduplication
 # ---------------------------------------------------------------------------
 def _street_tokens(street):

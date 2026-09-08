@@ -204,7 +204,13 @@ def score_and_rank(new_listings, history):
     prices are not comparable to monthly rents. They are still scored (using
     the fallback z-score against monthly listings) so they appear in the
     digest with a SHORT-TERM badge, but they won't dominate the ranking.
+
+    SALE listings are ranked by a 50/50 blend of deal score and proximity
+    to the target school (Rīgas Ziemeļvalstu ģimnāzija) — see geocode.py.
+    Rent listings are ranked by deal score alone.
     """
+    import geocode as _geo
+
     by_type = {}
     for l in new_listings:
         by_type.setdefault(l.get("deal_type"), []).append(l)
@@ -224,6 +230,18 @@ def score_and_rank(new_listings, history):
                 scored = None
         if scored is None:
             scored = _fallback_scores(items, hist_dt)
+
+        # Blend proximity into SALE scores (50/50). Rent scores unchanged.
+        if dt == "sale" and config.PROXIMITY_WEIGHT > 0:
+            blended = []
+            for listing, score, method in scored:
+                prox = _geo.proximity_score(listing)
+                blended_score = (
+                    (1 - config.PROXIMITY_WEIGHT) * score
+                    + config.PROXIMITY_WEIGHT * prox
+                )
+                blended.append((listing, blended_score, method + "+prox"))
+            scored = blended
 
         scored.sort(key=lambda t: t[1], reverse=True)
         result[dt] = scored[: config.TOP_N_PER_TYPE]

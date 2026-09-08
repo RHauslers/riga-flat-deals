@@ -101,7 +101,37 @@ MAX_CATEGORIES_PER_FIELD = 20
 # Sanity filters: drop listings with implausible prices (city24 occasionally
 # returns garbage like 189 EUR for a sale listing). These are minimums only.
 MIN_SALE_PRICE_EUR = 5000    # below this, a sale listing is likely erroneous
+MAX_SALE_PRICE_EUR = 75000   # target budget cap for the buyer
+# Soft cap: allow up to this price if the deal score is genuinely great
+MAX_SALE_PRICE_EUR_EXCEPTIONAL = 85000
 MIN_RENT_PRICE_EUR = 50      # below this, a rent listing is likely erroneous
+
+# ----------------------------------------------------------------------------
+# 5a2. SCHOOL PROXIMITY (Rīgas Ziemeļvalstu ģimnāzija)
+#      The buyer's daughters attend this school. Sale listings are ranked by
+#      a 50/50 blend of deal score (cheap vs model) and proximity (walking
+#      distance to the school). Rent listings are unaffected.
+# ----------------------------------------------------------------------------
+SCHOOL_NAME = "Rīgas Ziemeļvalstu ģimnāzija"
+SCHOOL_ADDRESS = "Paula Lejiņa iela 12, Zolitūde, Riga"
+SCHOOL_LAT = 56.9464128
+SCHOOL_LON = 24.0207296
+# Proximity score: linear from +2.0 (next door) to -1.5 (far edge).
+# 0km -> +2.0 ; 1km -> +1.0 ; 2km -> 0.0 ; 3km -> -1.0 ; 3.5km+ -> -1.5
+PROXIMITY_WEIGHT = 0.5      # blend weight (0.5 = 50% deal score + 50% proximity)
+PROXIMITY_MAX_KM = 3.5      # beyond this, proximity penalty floors at -1.5
+
+# ----------------------------------------------------------------------------
+# 5a3. NEW BUILD EXCLUSION
+#      The buyer explicitly does not want newly built apartments. SS.com marks
+#      these with series = "New". City24's project names are free text, so we
+#      also check for common new-build keywords there.
+# ----------------------------------------------------------------------------
+EXCLUDE_NEW_BUILDS = True
+NEW_BUILD_SERIES = ["new"]  # lowercase SS.com series values to exclude
+NEW_BUILD_KEYWORDS = [      # keywords in city24 series/title to exclude
+    "new project", "new development", "jaunprojekts", "jaunā projekta",
+]
 
 # 5b. ESCALATION (hourly hot-deal alerts)
 #    A lightweight hourly scan scores all current listings. If any deal's

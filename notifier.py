@@ -91,10 +91,18 @@ def _change_sort_val(change_pct):
     return float(m.group(1)) if m else 0.0
 
 
-# Column layout (11 columns after merging Listed+Days and First price+Change):
-#  0 District  1 Rooms  2 m²  3 Floor  4 Price  5 EUR/m²  6 Deal score
-#  7 Status   8 Listed (days)   9 First / change   10 Source
-NUM_COLS = 11
+# Column layout (12 columns; Distance added for school proximity):
+#  0 District  1 Distance  2 Rooms  3 m²  4 Floor  5 Price  6 EUR/m²
+#  7 Deal score  8 Status  9 Listed (days)  10 First / change  11 Source
+NUM_COLS = 12
+
+
+def _fmt_distance(listing):
+    """'0.8 km' for sale listings with coords, '-' otherwise."""
+    km = listing.get("_school_km")
+    if km is None or listing.get("deal_type") != "sale":
+        return "-"
+    return f"{km:.1f} km"
 
 
 def _main_row_html(item, price_data=None, row_idx=0):
@@ -123,6 +131,8 @@ def _main_row_html(item, price_data=None, row_idx=0):
         first_change = f"{first_price} {change_pct}" if first_price else change_pct
     ch_color = _change_color(change_pct)
     ch_sort = _change_sort_val(change_pct)
+    dist_str = _fmt_distance(listing)
+    dist_sort = listing.get("_school_km") if listing.get("_school_km") is not None else 9999
 
     # "map" link — only if the listing has coordinates
     map_link = ""
@@ -134,6 +144,7 @@ def _main_row_html(item, price_data=None, row_idx=0):
     return (
         f"<tr{zebra}>"
         f"<td>{listing.get('district','')}</td>"
+        f"<td style='text-align:right;font-size:12px' data-sort='{dist_sort}'>{dist_str}</td>"
         f"<td style='text-align:right' data-sort='{listing.get('rooms',0) or 0}'>{listing.get('rooms','')}</td>"
         f"<td style='text-align:right' data-sort='{listing.get('area_m2',0) or 0}'>{listing.get('area_m2','')}</td>"
         f"<td style='text-align:right'>{listing.get('floor','')}</td>"
@@ -174,6 +185,8 @@ def _still_row_html(item, price_data=None, row_idx=0):
         first_change = f"{first_price} {change_pct}" if first_price else change_pct
     ch_color = _change_color(change_pct)
     ch_sort = _change_sort_val(change_pct)
+    dist_str = _fmt_distance(listing)
+    dist_sort = listing.get("_school_km") if listing.get("_school_km") is not None else 9999
 
     # "map" link — only if the listing has coordinates
     map_link = ""
@@ -185,6 +198,7 @@ def _still_row_html(item, price_data=None, row_idx=0):
     return (
         f"<tr{zebra}>"
         f"<td>{listing.get('district','')}</td>"
+        f"<td style='text-align:right;font-size:12px' data-sort='{dist_sort}'>{dist_str}</td>"
         f"<td style='text-align:right' data-sort='{listing.get('rooms',0) or 0}'>{listing.get('rooms','')}</td>"
         f"<td style='text-align:right' data-sort='{listing.get('area_m2',0) or 0}'>{listing.get('area_m2','')}</td>"
         f"<td style='text-align:right'>{listing.get('floor','')}</td>"
@@ -292,21 +306,22 @@ def _table_header(sortable_id="", has_status=True):
         sort_attr = ""
     cols = (
         f"<th style='text-align:left'{sort_attr.format(col=0)}>District</th>"
-        f"<th{sort_attr.format(col=1)}>Rooms</th>"
-        f"<th{sort_attr.format(col=2)}>m²</th>"
-        f"<th{sort_attr.format(col=3)}>Floor</th>"
-        f"<th style='text-align:right'{sort_attr.format(col=4)}>Price</th>"
-        f"<th style='text-align:right'{sort_attr.format(col=5)}>EUR/m²</th>"
-        f"<th style='text-align:right'{sort_attr.format(col=6)}>Deal score</th>"
+        f"<th style='text-align:right'{sort_attr.format(col=1)}>Distance</th>"
+        f"<th{sort_attr.format(col=2)}>Rooms</th>"
+        f"<th{sort_attr.format(col=3)}>m²</th>"
+        f"<th{sort_attr.format(col=4)}>Floor</th>"
+        f"<th style='text-align:right'{sort_attr.format(col=5)}>Price</th>"
+        f"<th style='text-align:right'{sort_attr.format(col=6)}>EUR/m²</th>"
+        f"<th style='text-align:right'{sort_attr.format(col=7)}>Deal score</th>"
     )
     if has_status:
-        cols += f"<th{sort_attr.format(col=7)}>Status</th>"
-        cols += (f"<th style='text-align:right'{sort_attr.format(col=8)}>Listed</th>"
-                 f"<th style='text-align:right'{sort_attr.format(col=9)}>First / change</th>"
+        cols += f"<th{sort_attr.format(col=8)}>Status</th>"
+        cols += (f"<th style='text-align:right'{sort_attr.format(col=9)}>Listed</th>"
+                 f"<th style='text-align:right'{sort_attr.format(col=10)}>First / change</th>"
                  f"<th>Source</th>")
     else:
-        cols += (f"<th style='text-align:right'{sort_attr.format(col=7)}>Listed</th>"
-                 f"<th style='text-align:right'{sort_attr.format(col=8)}>First / change</th>"
+        cols += (f"<th style='text-align:right'{sort_attr.format(col=8)}>Listed</th>"
+                 f"<th style='text-align:right'{sort_attr.format(col=9)}>First / change</th>"
                  f"<th>Source</th>")
     return (
         f"<table id='{sortable_id}' style='border-collapse:collapse;width:100%;font-size:14px' "
@@ -465,10 +480,17 @@ def build_html(main_deals, still_active, comparison_html, status_note,
 
     for dt in config.DEAL_TYPES:
         items = main_deals.get(dt, [])
-        subtitle = (f"Top {len(items)} {'new / changed' if items else ''} "
-                    f"{dt} deals ranked best-first. Deal score = how much "
-                    f"cheaper than the model expects (higher = better deal). "
-                    f"Click column headers to sort.")
+        if dt == "sale":
+            subtitle = (f"Top {len(items)} {'new / changed' if items else ''} "
+                        f"{dt} deals ranked best-first. Score = 50% value "
+                        f"(cheaper than expected) + 50% proximity to "
+                        f"{config.SCHOOL_NAME} (see Distance column). "
+                        f"Click column headers to sort.")
+        else:
+            subtitle = (f"Top {len(items)} {'new / changed' if items else ''} "
+                        f"{dt} deals ranked best-first. Deal score = how much "
+                        f"cheaper than the model expects (higher = better deal). "
+                        f"Click column headers to sort.")
         sections.append(_main_section_html(dt.upper(), items, subtitle,
                                             price_data, f"tbl_main_{dt}"))
 
@@ -510,6 +532,8 @@ th.sort-desc::after{{content:"\\2193";font-size:10px;color:#1a5276;margin-left:4
 #map-container{{margin:20px 0;border:1px solid #ddd;border-radius:8px;overflow:hidden}}
 #map-container .map-header{{padding:10px 14px;background:#1a5276;color:#fff;font-size:14px;font-weight:bold}}
 #map-container #map{{width:100%;height:400px}}
+.school-label{{background:none;border:none;color:#c0392b;font-weight:bold;
+  font-size:12px;text-shadow:0 1px 2px #fff, 0 -1px 2px #fff, 1px 0 2px #fff, -1px 0 2px #fff}}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       crossorigin=""/>
@@ -562,6 +586,9 @@ function sortTable(tableId, colIdx) {{
 {browser_link}
 <p>Districts: {', '.join(config.DISTRICTS.keys())} &middot; Sources: ss.com, city24.lv</p>
 <p class="note">Scoring: {status_note}</p>
+<p class="note">Sale ranking: 50% deal score + 50% walking distance to
+{config.SCHOOL_NAME} (shown in the Distance column). Rent ranking: deal
+score only. New builds excluded.</p>
 {comparison_html}
 {newest_html}
 {body_sections}
@@ -591,7 +618,9 @@ def _build_map_html(markers):
 
     js_markers = []
     for m in markers:
-        color = "#2874a6" if m.get("deal_type") == "rent" else "#e67e22"
+        is_school = m.get("deal_type") == "school"
+        color = "#c0392b" if is_school else (
+            "#2874a6" if m.get("deal_type") == "rent" else "#e67e22")
         js_markers.append({
             "id": m.get("marker_id", ""),
             "lat": m["lat"],
@@ -599,6 +628,7 @@ def _build_map_html(markers):
             "popup": m["popup"],
             "color": color,
             "deal_type": m.get("deal_type", ""),
+            "school": is_school,
         })
 
     js_data = _json.dumps(js_markers, ensure_ascii=False)
@@ -607,7 +637,7 @@ def _build_map_html(markers):
     return f"""
 <!-- Inline map at bottom -->
 <div id="map-container">
-  <div class="map-header">Map ({n_markers} listings)</div>
+  <div class="map-header">Map ({n_markers - 1} listings + school)</div>
   <div id="map"></div>
 </div>
 <script>
@@ -621,16 +651,21 @@ def _build_map_html(markers):
   var markers = {js_data};
   var markerIndex = {{}};  // id -> Leaflet circle marker
   markers.forEach(function(m) {{
+    var isSchool = m.deal_type === 'school';
     var circle = L.circleMarker([m.lat, m.lon], {{
-      radius: 8,
+      radius: isSchool ? 12 : 8,
       fillColor: m.color,
-      color: '#fff',
-      weight: 2,
+      color: isSchool ? '#fff' : '#fff',
+      weight: isSchool ? 3 : 2,
       opacity: 1,
-      fillOpacity: 0.8
+      fillOpacity: isSchool ? 1.0 : 0.8
     }}).addTo(map);
     circle.bindPopup(m.popup);
     if (m.id) markerIndex[m.id] = circle;
+    if (isSchool) {{
+      circle.bindTooltip('School', {{permanent: true, direction: 'top',
+        className: 'school-label'}});
+    }}
   }});
 
   // Fit bounds to show all markers

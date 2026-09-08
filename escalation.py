@@ -86,19 +86,27 @@ def run():
     print(f"[escalation] total scraped (target districts): {len(all_listings)} "
           f"per source: {source_counts}")
 
-    # 2. Sanity filter (same as main.py)
+    # 2. Sanity filter (same as main.py, incl. flexible sale price cap)
     min_price = {"sale": config.MIN_SALE_PRICE_EUR, "rent": config.MIN_RENT_PRICE_EUR}
+    max_price = {"sale": config.MAX_SALE_PRICE_EUR_EXCEPTIONAL, "rent": float('inf')}
     before = len(all_listings)
     all_listings = [l for l in all_listings
-                    if l.get("price_eur") and l["price_eur"] >= min_price.get(l.get("deal_type"), 0)]
+                    if l.get("price_eur")
+                    and l["price_eur"] >= min_price.get(l.get("deal_type"), 0)
+                    and l["price_eur"] <= max_price.get(l.get("deal_type"), float('inf'))]
     dropped = before - len(all_listings)
     if dropped:
         print(f"[escalation] dropped {dropped} listing(s) with implausible prices")
 
-    # 2b. Merge the same flat listed on multiple portals
+    # 2b. Exclude newly built apartments (buyer's explicit requirement)
+    all_listings, n_new_builds = utils.filter_new_builds(all_listings)
+    if n_new_builds:
+        print(f"[escalation] excluded {n_new_builds} new-build listing(s)")
+
+    # 2c. Merge the same flat listed on multiple portals
     all_listings, _n_merged = utils.dedupe_cross_source(all_listings)
 
-    # 2c. Health check -> alerts the OPERATOR if a scraper looks broken
+    # 2d. Health check -> alerts the OPERATOR if a scraper looks broken
     health.check_and_alert(source_counts, len(all_listings), context="hourly")
 
     if not all_listings:
@@ -114,6 +122,12 @@ def run():
     # 3b. Update price history (CenuMednieks + our own tracking) so hot-deal
     #     alert emails include price drop context and days on market.
     price_data = price_history.update_price_history(all_listings)
+
+    # 3c. Geocode + compute school distance (needed for sale proximity scoring)
+    if config.GEOCODE_ENABLED:
+        all_listings = geocode.enrich_coordinates(all_listings)
+    for l in all_listings:
+        l["_school_km"] = geocode.distance_to_school(l)
 
     # 4. Score ALL current listings
     all_scored = scoring.score_and_rank(all_listings, hist_rows)

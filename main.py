@@ -71,14 +71,26 @@ def run():
     print(f"[main] total scraped (target districts): {len(all_listings)} "
           f"per source: {source_counts}")
 
-    # 1b. Sanity filter: drop listings with implausible prices
+    # 1b. Sanity filter: drop listings with implausible or out-of-budget prices
+    #     Flexible cap: sales up to MAX_SALE_PRICE_EUR are the target budget;
+    #     above that we keep listings only up to MAX_SALE_PRICE_EUR_EXCEPTIONAL.
+    #     The scoring then ranks naturally — an 80K flat that is genuinely
+    #     exceptional value still surfaces, an overpriced 80K flat does not.
     min_price = {"sale": config.MIN_SALE_PRICE_EUR, "rent": config.MIN_RENT_PRICE_EUR}
+    max_price = {"sale": config.MAX_SALE_PRICE_EUR_EXCEPTIONAL, "rent": float('inf')}
     before = len(all_listings)
     all_listings = [l for l in all_listings
-                    if l.get("price_eur") and l["price_eur"] >= min_price.get(l.get("deal_type"), 0)]
+                    if l.get("price_eur")
+                    and l["price_eur"] >= min_price.get(l.get("deal_type"), 0)
+                    and l["price_eur"] <= max_price.get(l.get("deal_type"), float('inf'))]
     dropped = before - len(all_listings)
     if dropped:
-        print(f"[main] dropped {dropped} listing(s) with implausible prices")
+        print(f"[main] dropped {dropped} listing(s) with implausible/out-of-budget prices")
+
+    # 1b2. Exclude newly built apartments (buyer's explicit requirement)
+    all_listings, n_new_builds = utils.filter_new_builds(all_listings)
+    if n_new_builds:
+        print(f"[main] excluded {n_new_builds} new-build listing(s)")
 
     # 1c. Merge the same flat listed on multiple portals (before history/scoring
     #     so it is not double-counted in the training baseline)
@@ -90,6 +102,11 @@ def run():
     # 1e. Geocode listings (city24 has coords from API, SS.com via Nominatim)
     if config.GEOCODE_ENABLED:
         all_listings = geocode.enrich_coordinates(all_listings)
+
+    # 1e2. Compute distance to school for each listing (used in sale scoring
+    #      and shown as a Distance column in the digest)
+    for l in all_listings:
+        l["_school_km"] = geocode.distance_to_school(l)
 
     # 1f. Health check -> alerts the OPERATOR if a scraper looks broken
     health.check_and_alert(source_counts, len(all_listings), context="daily")
@@ -146,8 +163,10 @@ def run():
             key = f"{listing.get('source')}:{listing.get('id')}"
             listing["_score"] = score_map.get(key)
         map_markers = geocode.get_map_data(all_listings)
+        # School marker (rendered distinctly on the map as the reference point)
+        map_markers.insert(0, geocode.get_school_marker())
         print(f"[main] map: {len(map_markers)} markers with coordinates "
-              f"(of {len(all_listings)} total listings)")
+              f"(of {len(all_listings)} total listings + 1 school)")
 
     # 6c. Build "Newest listings today" section (listings with NEW badge,
     #     ranked by deal score). This replaces the old "exceptional deals"

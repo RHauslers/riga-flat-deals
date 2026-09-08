@@ -13,6 +13,7 @@ Results are cached in data/geocode_cache.json so we only geocode each
 address once (streets don't move).
 """
 import json
+import math
 import os
 import time
 from datetime import date
@@ -27,6 +28,42 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 NOMINATIM_USER_AGENT = "FlatSearcher/1.0 (riga-flat-deals)"
 NOMINATIM_TIMEOUT = 10
 NOMINATIM_DELAY = 1.1  # seconds between requests (rate limit: 1/sec)
+
+
+# ---------------------------------------------------------------------------
+# School proximity (Rīgas Ziemeļvalstu ģimnāzija)
+# ---------------------------------------------------------------------------
+def haversine_km(lat1, lon1, lat2, lon2):
+    """Great-circle distance between two points in kilometres."""
+    r = 6371.0  # Earth radius km
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def distance_to_school(listing):
+    """Distance in km from a listing to the school, or None if no coords."""
+    lat = listing.get("lat")
+    lon = listing.get("lon")
+    if lat is None or lon is None:
+        return None
+    return haversine_km(lat, lon, config.SCHOOL_LAT, config.SCHOOL_LON)
+
+
+def proximity_score(listing):
+    """Proximity z-equivalent score for a listing (sale ranking only).
+
+    Linear from +2.0 (next door) to -1.5 (far edge of PROXIMITY_MAX_KM).
+    Returns 0.0 when coordinates are missing (neutral, no penalty — the
+    listing might still be close, we just can't tell).
+    """
+    d = distance_to_school(listing)
+    if d is None:
+        return 0.0
+    # +2.0 at 0km, decreasing by ~1.0 per km, floor at -1.5
+    return max(-1.5, 2.0 - d)
 
 
 def _read_json(path, default):
@@ -203,3 +240,23 @@ def get_map_data(listings):
         })
 
     return markers
+
+
+def get_school_marker():
+    """A special marker for the school, rendered distinctly on the map."""
+    popup = (
+        f"<div style='font-family:Arial,sans-serif;font-size:13px;min-width:200px'>"
+        f"<b>{config.SCHOOL_NAME}</b><br>"
+        f"{config.SCHOOL_ADDRESS}<br>"
+        f"<span style='color:#666'>Reference point for proximity ranking</span>"
+        f"</div>"
+    )
+    return {
+        "marker_id": "school:zvg",
+        "lat": config.SCHOOL_LAT,
+        "lon": config.SCHOOL_LON,
+        "popup": popup,
+        "deal_type": "school",
+        "price": 0,
+        "source": "school",
+    }
