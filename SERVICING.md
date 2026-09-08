@@ -2,14 +2,34 @@
 
 Living document. Updated after each Devin session. Read this first.
 
-## Current state (after session 2026-09-08, upgrade #10 — school proximity + new-build exclusion)
+## Current state (after session 2026-09-08, upgrade #10 — school proximity + sales-only)
 
-**Working, tested end-to-end locally on Windows + Python 3.14.4.**
-Pipeline scrapes 296 SS.com + 19 city24.lv = 315 listings daily.
-After filters: 147 listings (123 price-capped, 36 new-builds excluded, 9 deduped).
-Regression model active: 89 rent rows, 186 sale rows.
+**Working, tested end-to-end locally on Windows + Python 3.14.4.
+The end recipient has reviewed the solution and is happy with it.**
 
-### Upgrade 10 (this session): school proximity ranking + new-build exclusion
+Pipeline scope: SALES ONLY (DEAL_TYPES = ["sale"]; rentals removed —
+the buyer is purchasing a flat near the school for their daughters).
+Scrapes 195 SS.com + ~13 city24.lv sale listings daily; after filters
+typically ~84 remain (105 price-capped, 36 new-builds excluded, ~6 deduped).
+Regression model active on 220+ sale history rows.
+
+Schedule: daily full digest at 07:00 UTC (10:00 Riga summer / 09:00 winter),
+hourly escalation scan at :05 UTC. Both commit state back with a shared
+concurrency group; both now scrape/score sales only automatically.
+
+**Sales-only scope (end of session):**
+- DEAL_TYPES = ["sale"] — rentals no longer scraped, scored, or shown.
+- Digest has only sale tables; Distance column populated on every row.
+- Runs faster (~100 fewer SS.com requests per scan).
+- Header note: "Sales only - rentals are out of scope."
+- Rent history rows remain in history.csv (unused, harmless).
+
+**Known transient (not a bug):** city24.lv occasionally returns 0 listings
+for one run (Playwright/network hiccup). The health check flags it as
+source_zero:city24.lv, the digest still goes out on SS.com data, and the
+next hourly scan recovers automatically. Verified working via probe.
+
+### Upgrade 10: school proximity ranking + new-build exclusion
 
 **School proximity (sale only):**
 - Target school: Rīgas Ziemeļvalstu ģimnāzija, Paula Lejiņa iela 12, Zolitūde
