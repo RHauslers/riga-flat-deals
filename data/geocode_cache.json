@@ -948,5 +948,10 @@
     "lat": 56.9371048,
     "lon": 24.0427384,
     "fetched_at": "2026-09-08"
+  },
+  "ss.com:sampeteris:kalnciema 114": {
+    "lat": 56.9359329,
+    "lon": 24.0420854,
+    "fetched_at": "2026-09-08"
   }
 }
