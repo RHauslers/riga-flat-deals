@@ -470,11 +470,112 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
 
 
 # ---------------------------------------------------------------------------
+# "Walking distance to school" section
+# ---------------------------------------------------------------------------
+def build_near_school_html(all_listings):
+    """Every in-budget sale listing within NEAR_SCHOOL_RADIUS_KM of the
+    school, sorted by distance (closest first).
+
+    This section exists so that fairly-priced flats near the school are
+    never hidden by the bargain ranking: a flat priced at market rate
+    scores ~0 on value and can fall below the top-N cutoff even though
+    it is exactly what the buyer needs (affordable, walking distance).
+    """
+    near = [l for l in all_listings
+            if l.get("deal_type") == "sale"
+            and l.get("_school_km") is not None
+            and l["_school_km"] <= config.NEAR_SCHOOL_RADIUS_KM]
+    near.sort(key=lambda l: l["_school_km"])
+
+    radius = config.NEAR_SCHOOL_RADIUS_KM
+    if not near:
+        return (
+            '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
+            'padding:16px;margin:16px 0">'
+            '<h3 style="color:#1a5276;border:none;margin:0 0 8px 0">'
+            f'Walking distance to school (within {radius:.0f} km)</h3>'
+            '<p style="color:#666;font-size:12px;margin:0">'
+            'No in-budget listings within walking distance right now.</p>'
+            '</div>'
+        )
+
+    hidden = max(0, len(near) - config.NEAR_SCHOOL_MAX_ROWS)
+    shown = near[:config.NEAR_SCHOOL_MAX_ROWS]
+
+    rows = []
+    for idx, l in enumerate(shown):
+        km = l["_school_km"]
+        score = l.get("_score")
+        score_str = f"{score:+.2f}" if score is not None else "-"
+        score_val = score if score is not None else -999
+        price_val = l.get('price_eur', 0) or 0
+        ppu_val = l.get('price_per_m2', 0) or 0
+        source = l.get('source', '')
+
+        map_link = ""
+        if l.get('lat') and l.get('lon'):
+            marker_id = f"{source}:{l.get('id','')}"
+            map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
+                        f"return false\" style=\"font-size:11px;color:#1a5276\">map</a>")
+
+        zebra = ' style="background:#fafafa"' if idx % 2 else ''
+        rows.append(
+            f'<tr{zebra}>'
+            f"<td style='text-align:right;font-weight:bold' data-sort='{km:.3f}'>{km:.2f} km</td>"
+            f"<td>{l.get('district','')}</td>"
+            f"<td style='font-size:12px'>{l.get('street','')}</td>"
+            f"<td style='text-align:right' data-sort='{l.get('rooms',0) or 0}'>{l.get('rooms','')}</td>"
+            f"<td style='text-align:right' data-sort='{l.get('area_m2',0) or 0}'>{l.get('area_m2','')}</td>"
+            f"<td style='text-align:right'>{l.get('floor','')}</td>"
+            f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(l.get('price_eur'), l.get('price_unit'))}</td>"
+            f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(l.get('price_per_m2'))}</td>"
+            f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
+            f"<td><a href='{l.get('url','')}'>{source}</a>{map_link}</td>"
+            '</tr>'
+        )
+
+    rows_html = "".join(rows)
+    n = len(near)
+    more_note = (f' <span style="color:#999;font-size:11px">'
+                 f'(+{hidden} more within {radius:.0f} km)</span>') if hidden else ''
+    tid = "tbl_near_school"
+    return (
+        '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
+        'padding:16px;margin:16px 0">'
+        '<h3 style="color:#1a5276;border:none;margin:0 0 8px 0">'
+        f'Walking distance to school ({n} within {radius:.0f} km){more_note}</h3>'
+        '<p style="color:#666;font-size:12px;margin:0 0 10px 0">'
+        'Every in-budget listing within walking distance of '
+        f'{config.SCHOOL_NAME}, closest first. A flat here is fairly priced '
+        'for its size even when its deal score is near zero &mdash; the '
+        'bargain ranking above the top-N cutoff does not apply to this '
+        'section. Click column headers to sort.</p>'
+        f"<table id='{tid}' style='border-collapse:collapse;width:100%;font-size:14px' "
+        f"data-sortable='1'>"
+        f"<tr style='background:#f0f0f0'>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',0)\">Distance</th>"
+        f"<th style='text-align:left'>District</th>"
+        f"<th style='text-align:left'>Street</th>"
+        f"<th class='sort-th' onclick=\"sortTable('{tid}',3)\">Rooms</th>"
+        f"<th class='sort-th' onclick=\"sortTable('{tid}',4)\">m²</th>"
+        f"<th>Floor</th>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',6)\">Price</th>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',7)\">EUR/m²</th>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',8)\">Deal score</th>"
+        f"<th>Source</th>"
+        f"</tr>"
+        f"{rows_html}"
+        f"</table>"
+        f'</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
 # build the full HTML digest
 # ---------------------------------------------------------------------------
 def build_html(main_deals, still_active, comparison_html, status_note,
                recipient="", price_data=None, map_markers=None,
-               newest_html=""):
+               newest_html="", near_school_html=""):
     today = date.today().isoformat()
     sections = []
 
@@ -590,9 +691,10 @@ function sortTable(tableId, colIdx) {{
 {config.SCHOOL_NAME} (shown in the Distance column). New builds excluded.
 Sales only — rentals are out of scope.</p>
 {comparison_html}
+{map_html}
+{near_school_html}
 {newest_html}
 {body_sections}
-{map_html}
 <hr><p class="note">Generated by Flat_Searcher. Higher deal score = cheaper than
 expected for its size/floor/district. Always verify on the source site before
 contacting.</p>
@@ -732,7 +834,8 @@ def _plain_summary(main_deals, still_active, comparison_html):
 # send
 # ---------------------------------------------------------------------------
 def send(main_deals, still_active, comparison_html, status_note,
-         price_data=None, map_markers=None, newest_html=""):
+         price_data=None, map_markers=None, newest_html="",
+         near_school_html=""):
     """Send the digest email. Returns (sent:bool, info:str)."""
     host = os.environ.get("SMTP_HOST")
     port = os.environ.get("SMTP_PORT")
@@ -743,7 +846,8 @@ def send(main_deals, still_active, comparison_html, status_note,
 
     # always save the HTML digest first (for audit / no-SMTP fallback)
     html = build_html(main_deals, still_active, comparison_html, status_note,
-                      recipient, price_data, map_markers, newest_html)
+                      recipient, price_data, map_markers, newest_html,
+                      near_school_html)
     today = date.today().isoformat()
     digest_path = os.path.join(config.DIGEST_DIR, f"digest_{today}.html")
     os.makedirs(config.DIGEST_DIR, exist_ok=True)

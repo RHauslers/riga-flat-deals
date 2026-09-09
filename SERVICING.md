@@ -2,20 +2,51 @@
 
 Living document. Updated after each Devin session. Read this first.
 
-## Current state (after session 2026-09-08, upgrade #10 — school proximity + sales-only)
+## Current state (after session 2026-09-09, upgrade #11 — near-school section + visibility fixes)
 
 **Working, tested end-to-end locally on Windows + Python 3.14.4.
 The end recipient has reviewed the solution and is happy with it.**
 
 Pipeline scope: SALES ONLY (DEAL_TYPES = ["sale"]; rentals removed —
 the buyer is purchasing a flat near the school for their daughters).
-Scrapes 195 SS.com + ~13 city24.lv sale listings daily; after filters
-typically ~84 remain (105 price-capped, 36 new-builds excluded, ~6 deduped).
-Regression model active on 220+ sale history rows.
+Scrapes ~195 SS.com + ~14 city24.lv sale listings daily; after filters
+typically ~86 remain. Regression model active on 230+ sale history rows.
 
-Schedule: daily full digest at 07:00 UTC (10:00 Riga summer / 09:00 winter),
-hourly escalation scan at :05 UTC. Both commit state back with a shared
-concurrency group; both now scrape/score sales only automatically.
+### Upgrade 11 (this session): near-school section + top-25 + map at top
+
+**Problem found:** a 55K one-room flat at Lejina 6 (0.19 km from school)
+never appeared in the digest. Root cause: its value score was -0.19 (55K
+is market rate for a 1-room — comparable 1-rooms: 50K/30m², 53K/43m²,
+55.5K/36m²), so blended score +0.81 fell below the old top-10 cutoff
+(~+1.00). Structural bias: the value z-score compares within size class,
+and larger flats achieve bigger absolute deviations, so the top-10 filled
+with 75-81K 3-room flats. For the buyer's use case (kids need a place to
+wait after school), "affordable + 200m away" is exactly right even when
+it is not a statistical bargain.
+
+**Fixes:**
+1. "Walking distance to school" section: every in-budget listing within
+   NEAR_SCHOOL_RADIUS_KM (1.0 km) of the school, sorted by distance,
+   closest first. NO deal-score cutoff — guarantees near-school flats are
+   always visible. Capped at NEAR_SCHOOL_MAX_ROWS (25) with "+N more".
+   Columns: Distance, District, Street, Rooms, m², Floor, Price,
+   EUR/m², Deal score, Source. Sortable. The 55K Lejina 6 flat now shows
+   as row 9 (0.19 km).
+2. TOP_N_PER_TYPE raised 10 -> 25 (main tables show more context).
+3. Map moved to the TOP of the page (was at the bottom), right after
+   the comparison header — first thing the recipient sees.
+4. Street column added to the near-school section so buildings are
+   distinguishable (Lejina 6 vs Lejina 22 are different buildings).
+
+**Layout order now:** title/notes -> vs yesterday -> MAP ->
+walking-distance section -> newest listings -> main tables (top 25) ->
+still active -> footer.
+
+**Schedule:** daily full digest at 07:00 UTC (10:00 Riga summer /
+09:00 winter), hourly escalation scan at :05 UTC. Both commit state
+back with a shared concurrency group.
+
+### Upgrade 10: school proximity ranking + new-build exclusion
 
 **Sales-only scope (end of session):**
 - DEAL_TYPES = ["sale"] — rentals no longer scraped, scored, or shown.

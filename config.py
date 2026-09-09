@@ -82,7 +82,7 @@ CITY24_USER_AGENT = (
 #    Falls back to a per-bucket €/m² z-score when history is too small.
 # ----------------------------------------------------------------------------
 MIN_TRAIN_ROWS = 40        # below this -> use z-score fallback
-TOP_N_PER_TYPE = 10        # how many best deals to show per deal type in email
+TOP_N_PER_TYPE = 25        # how many best deals to show per deal type in email
 PRICE_OUTLIER_Z = 4.0      # drop training rows whose price is > 4 std from mean
 
 # Ridge regularisation. Plain least squares lets a rare one-hot category (e.g.
@@ -121,6 +121,12 @@ SCHOOL_LON = 24.0207296
 # 0km -> +2.0 ; 1km -> +1.0 ; 2km -> 0.0 ; 3km -> -1.0 ; 3.5km+ -> -1.5
 PROXIMITY_WEIGHT = 0.5      # blend weight (0.5 = 50% deal score + 50% proximity)
 PROXIMITY_MAX_KM = 3.5      # beyond this, proximity penalty floors at -1.5
+
+# "Walking distance to school" section: every in-budget listing within this
+# radius is listed (sorted by distance) so that fairly-priced flats near the
+# school are never hidden by the bargain ranking.
+NEAR_SCHOOL_RADIUS_KM = 1.0
+NEAR_SCHOOL_MAX_ROWS = 25   # cap the section; "+N more" note beyond this
 
 # ----------------------------------------------------------------------------
 # 5a3. NEW BUILD EXCLUSION

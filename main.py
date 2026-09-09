@@ -176,10 +176,18 @@ def run():
     newest_html = notifier.build_newest_html(main_deals, price_data)
     print(f"[main] newest listings section built")
 
-    # 7. Notify (pass price history + map markers + newest section)
+    # 6d. Build "Walking distance to school" section: every in-budget
+    #     listing within NEAR_SCHOOL_RADIUS_KM, sorted by distance. A
+    #     fairly-priced flat scores ~0 on value and falls below the top-N
+    #     cutoff even when it is exactly what the buyer needs (affordable,
+    #     close to the school). This section guarantees visibility.
+    near_school_html = notifier.build_near_school_html(all_listings)
+    print(f"[main] near-school section built")
+
+    # 7. Notify (pass price history + map markers + sections)
     sent, info = notifier.send(main_deals, still_active, comparison_html,
                                status_note, price_data, map_markers,
-                               newest_html)
+                               newest_html, near_school_html)
 
     # 8. Build hosted site (latest digest -> docs/index.html + archive)
     website.build()
