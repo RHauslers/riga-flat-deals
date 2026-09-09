@@ -106,7 +106,7 @@
     "cenumednieks": null,
     "our_tracking": [
       {
-        "date": "2026-09-07",
+        "date": "2026-09-09",
         "price": 55000.0
       }
     ],
@@ -153,7 +153,7 @@
     "cenumednieks": null,
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-09",
         "price": 54000.0
       }
     ],
@@ -14584,5 +14584,25 @@
       }
     ],
     "first_seen": "2026-09-08"
+  },
+  "city24.lv:2476363": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-09",
+        "price": 75000.0
+      }
+    ],
+    "first_seen": "2026-09-09"
+  },
+  "city24.lv:2474863": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-09",
+        "price": 69990.0
+      }
+    ],
+    "first_seen": "2026-09-09"
   }
 }
