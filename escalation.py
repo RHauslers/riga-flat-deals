@@ -23,6 +23,7 @@ The hourly scan:
 
 Run: python -m escalation
 """
+import os
 import sys
 import traceback
 from datetime import date, datetime
@@ -61,6 +62,19 @@ def run():
     if not config.ESCALATION_ENABLED:
         print("[escalation] disabled in config — skipping")
         return "escalation disabled"
+
+    # SMTP guard: the hourly scan's entire purpose is the instant alert
+    # email. Without SMTP configured there is no output at all — the runs
+    # would just hammer ss.com/city24 ~24x/day (IP-block risk), burn CI
+    # minutes, and commit state that races with manual pushes. Skip clean;
+    # this auto-enables once the SMTP secrets are configured.
+    smtp_ready = all(os.environ.get(k) for k in
+                     ("SMTP_HOST", "SMTP_USER", "EMAIL_FROM", "EMAIL_TO"))
+    if not smtp_ready:
+        print("[escalation] SMTP not configured — hourly alerts cannot be "
+              "sent, skipping the scan. Configure the SMTP secrets to "
+              "enable hourly alerts.")
+        return "skipped: SMTP not configured"
 
     # 1. Scrape (tracking per-source counts for health checks)
     #    Use fewer pages for SS.com to limit request volume (hourly runs

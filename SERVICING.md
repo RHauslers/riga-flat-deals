@@ -98,6 +98,17 @@ still active -> footer.
 09:00 winter), hourly escalation scan at :05 UTC. Both commit state
 back with a shared concurrency group.
 
+**Hourly scan SMTP guard (2026-09-09):** the hourly escalation now
+checks the SMTP env vars FIRST and skips the entire scan (exit 0, one
+log line) when they are not configured. Rationale: without email the
+scan produces no output at all — it only hammered ss.com/city24 ~24x/day
+(IP-block risk) and its state commits raced with manual pushes, causing
+workflow failures (seen 2026-09-09: the run failed on the git
+pull-rebase step after data-file conflicts; the Python code itself ran
+clean locally). The guard auto-enables hourly alerts the moment the
+SMTP secrets are set in the repo. Daily digest is unaffected (it has a
+no-SMTP fallback: saves the HTML digest).
+
 ### Upgrade 10: school proximity ranking + new-build exclusion
 
 **Sales-only scope (end of session):**
