@@ -233,6 +233,23 @@ STILL_ACTIVE_MAX_DAYS = 7   # don't show "still active" for deals shown > N days
 CHAT_INJECT_ENABLED = True
 
 # ----------------------------------------------------------------------------
+# 9. STATE / BAILIFF AUCTIONS (izsoles.ta.gov.lv)
+#     The State Land Service e-auction site lists forced-sale auctions run by
+#     bailiffs (zvērināti tiesu izpildītāji) plus state and municipal property.
+#     Starting prices are often well below market because the goal is debt
+#     recovery. Riga apartment auctions get their own digest section — they
+#     are NOT mixed into the deal ranking (different purchase process:
+#     registration, deposit, bidding; prices aren't comparable to regular
+#     listings). Sorted by distance to the school.
+# ----------------------------------------------------------------------------
+IZSOLES_ENABLED = True
+IZSOLES_BASE = "https://izsoles.ta.gov.lv"
+IZSOLES_TIMEOUT = 30       # seconds per request
+IZSOLES_DELAY = 1.0        # seconds between detail-page fetches (be polite)
+IZSOLES_MAX_PAGES = 5      # pagination cap (path-based: /2, /3, ...)
+IZSOLES_MAX_DETAILS = 30   # safety cap on detail pages fetched per run
+
+# ----------------------------------------------------------------------------
 # 8. FILE PATHS (data dir is committed so history persists across CI runs)
 # ----------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

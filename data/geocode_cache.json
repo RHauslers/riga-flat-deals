@@ -953,5 +953,150 @@
     "lat": 56.9359329,
     "lon": 24.0420854,
     "fetched_at": "2026-09-08"
+  },
+  "ss.com:sampeteris:volguntes 19": {
+    "lat": 56.9383848,
+    "lon": 24.0429986,
+    "fetched_at": "2026-09-09"
+  },
+  "ss.com:imanta:dammes 33": {
+    "lat": 56.9647216,
+    "lon": 24.006589,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:zalves iela 44a": {
+    "lat": 56.9396721,
+    "lon": 24.0385642,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:glūdas iela 1b": {
+    "lat": 56.9126389,
+    "lon": 24.1719817,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:daugavgrīvas iela 74a": {
+    "lat": 56.9584545,
+    "lon": 24.0693965,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:plostu iela 12": {
+    "lat": 56.9048576,
+    "lon": 24.1963724,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:viestura prospekts 33": {
+    "lat": 57.0001685,
+    "lon": 24.1293329,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:latgales iela 425": {
+    "lat": 56.8985114,
+    "lon": 24.208728,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:džutas iela 13a": {
+    "lat": 56.9820521,
+    "lon": 24.1844112,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:stūres iela 2": {
+    "lat": 56.9692203,
+    "lon": 24.0694937,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:gobas iela 8": {
+    "lat": 57.0342026,
+    "lon": 24.0472556,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:priežu iela 12": {
+    "lat": 56.9932691,
+    "lon": 24.1275109,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:viestura prospekts 7": {
+    "lat": 56.9968577,
+    "lon": 24.131398,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:vienības gatve 126": {
+    "lat": 56.9138359,
+    "lon": 24.0875276,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:ventspils iela 20": {
+    "lat": 56.932427,
+    "lon": 24.0616541,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:ropažu iela 98a": {
+    "lat": 56.9830927,
+    "lon": 24.1900976,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:rītupes iela 16": {
+    "lat": 56.9294602,
+    "lon": 24.170865,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:priežu iela 6": {
+    "lat": 56.9938776,
+    "lon": 24.1265229,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:lavīzes iela 1": {
+    "lat": 56.9411262,
+    "lon": 24.0743444,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:kuldīgas iela 45a": {
+    "lat": 56.9452129,
+    "lon": 24.0558636,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:hāpsalas iela 26": {
+    "lat": 57.0017955,
+    "lon": 24.1217061,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:ģertrūdes iela 86": {
+    "lat": 56.9493205,
+    "lon": 24.1362139,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:gulbju iela 1b": {
+    "lat": 56.9137129,
+    "lon": 24.1410925,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:emmas iela 1a": {
+    "lat": 57.0270787,
+    "lon": 24.1051213,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:daugavgrīvas šoseja 1c": {
+    "lat": 56.9799016,
+    "lon": 24.0855122,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:daudzeses iela 2": {
+    "lat": 56.9218647,
+    "lon": 24.0942765,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:darba iela 11": {
+    "lat": 56.9437598,
+    "lon": 24.0518167,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:dagdas iela 4-1a": {
+    "lat": 56.9414629,
+    "lon": 24.129382,
+    "fetched_at": "2026-09-09"
+  },
+  "izsoles.ta.gov.lv:riga:brūžu iela 4": {
+    "lat": 57.0371049,
+    "lon": 24.0476265,
+    "fetched_at": "2026-09-09"
   }
 }

@@ -31,7 +31,7 @@ import health
 import utils
 import price_history
 import geocode
-from scrapers import ss_com, city24
+from scrapers import ss_com, city24, izsoles
 
 
 def _inject_chat(message):
@@ -108,6 +108,34 @@ def run():
     for l in all_listings:
         l["_school_km"] = geocode.distance_to_school(l)
 
+    # 1e3. State/bailiff auctions (izsoles.ta.gov.lv) — separate section,
+    #      NOT part of the main ranking. Budget filter applies to the
+    #      current bid (or start price when nobody has bid yet), then
+    #      geocoded for distance to school + map markers.
+    auctions = []
+    if config.IZSOLES_ENABLED:
+        try:
+            auctions = izsoles.scrape()
+        except Exception as e:
+            print(f"[main] izsoles auction scrape failed: {e}")
+            traceback.print_exc()
+        before_a = len(auctions)
+        auctions = [a for a in auctions
+                    if a.get("price_eur")
+                    and config.MIN_SALE_PRICE_EUR
+                    <= a["price_eur"]
+                    <= config.MAX_SALE_PRICE_EUR_EXCEPTIONAL]
+        if before_a and len(auctions) != before_a:
+            print(f"[main] auctions: dropped {before_a - len(auctions)} "
+                  f"out-of-budget auction(s)")
+        if auctions and config.GEOCODE_ENABLED:
+            auctions = geocode.enrich_coordinates(auctions)
+        for a in auctions:
+            a["_school_km"] = geocode.distance_to_school(a)
+        if auctions:
+            print(f"[main] auctions: {len(auctions)} in-budget active "
+                  f"auction(s) after filters")
+
     # 1f. Health check -> alerts the OPERATOR if a scraper looks broken
     health.check_and_alert(source_counts, len(all_listings), context="daily")
 
@@ -165,8 +193,12 @@ def run():
         map_markers = geocode.get_map_data(all_listings)
         # School marker (rendered distinctly on the map as the reference point)
         map_markers.insert(0, geocode.get_school_marker())
+        # Auction markers (purple — state/bailiff auctions)
+        if auctions:
+            map_markers.extend(geocode.get_map_data(auctions))
         print(f"[main] map: {len(map_markers)} markers with coordinates "
-              f"(of {len(all_listings)} total listings + 1 school)")
+              f"(of {len(all_listings)} total listings + 1 school "
+              f"+ {len(auctions)} auctions)")
 
     # 6c. Build "Newest listings today" section (listings with NEW badge,
     #     ranked by deal score). This replaces the old "exceptional deals"
@@ -181,13 +213,21 @@ def run():
     #     fairly-priced flat scores ~0 on value and falls below the top-N
     #     cutoff even when it is exactly what the buyer needs (affordable,
     #     close to the school). This section guarantees visibility.
-    near_school_html = notifier.build_near_school_html(all_listings)
+    #     Auctions within walking distance are included too — they are
+    #     sales with coordinates like any other.
+    near_school_html = notifier.build_near_school_html(all_listings + auctions)
     print(f"[main] near-school section built")
+
+    # 6e. Build "State & bailiff auctions" section (izsoles.ta.gov.lv):
+    #     sorted by distance, budget-filtered, with start price / current
+    #     bid / end date. Not part of the deal-score ranking.
+    auctions_html = notifier.build_auctions_html(auctions)
+    print(f"[main] auctions section built")
 
     # 7. Notify (pass price history + map markers + sections)
     sent, info = notifier.send(main_deals, still_active, comparison_html,
                                status_note, price_data, map_markers,
-                               newest_html, near_school_html)
+                               newest_html, near_school_html, auctions_html)
 
     # 8. Build hosted site (latest digest -> docs/index.html + archive)
     website.build()

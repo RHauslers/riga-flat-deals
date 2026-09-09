@@ -2,17 +2,69 @@
 
 Living document. Updated after each Devin session. Read this first.
 
-## Current state (after session 2026-09-09, upgrade #11 — near-school section + visibility fixes)
+## Current state (after session 2026-09-09, upgrade #12 — state auction integration)
 
 **Working, tested end-to-end locally on Windows + Python 3.14.4.
 The end recipient has reviewed the solution and is happy with it.**
 
-Pipeline scope: SALES ONLY (DEAL_TYPES = ["sale"]; rentals removed —
-the buyer is purchasing a flat near the school for their daughters).
-Scrapes ~195 SS.com + ~14 city24.lv sale listings daily; after filters
-typically ~86 remain. Regression model active on 230+ sale history rows.
+Pipeline scope: SALES ONLY (DEAL_TYPES = ["sale"]). Three sources:
+~196 SS.com + ~12 city24.lv regular listings + ~30 izsoles.ta.gov.lv
+auctions daily. After filters typically ~86 regular listings +
+~27 in-budget auctions. Regression model active on 230+ sale history rows.
 
-### Upgrade 11 (this session): near-school section + top-25 + map at top
+### Upgrade 12 (this session): state/bailiff auction integration
+
+**New source: izsoles.ta.gov.lv** (State Land Service e-auction site —
+bailiff forced sales + state/municipal property; starting prices often
+well below market).
+
+**Scraping (scrapers/izsoles.py):**
+- Site search is a POST form; the submit button `init-search=on` MUST be
+  included or the server silently ignores all filters.
+- Filters: ownership_type=owner (property rights), region=7 (Rīga),
+  type=1 (real estate), category=3 (apartments).
+- Pagination is path-based (/2, /3...) — filters are session-scoped,
+  fetched on the same session. Riga apartments currently fit on 1 page.
+- Detail pages (/izsole/{uuid}) have info-parameter/info-value div pairs:
+  starting price, current bid, deposit, auction end date.
+- Rooms/area live only inside the legal text. Two word orders occur:
+  "platību 50,1 m2" and "45,56 m2 platībā" — both matched; area filtered
+  to 10-500 m² to skip land parcels. Rooms matched as "2-istabu" digits
+  or Latvian word forms ("divistabu"). Many announcements state neither
+  (shown as "?"). Some detail pages have no description in HTML at all
+  (likely PDF attachments) — rooms/area stay None.
+- Ended auctions filtered out (end date < today).
+
+**Display decisions (per site specifics):**
+- Auctions get their OWN section, NOT mixed into the deal-score ranking:
+  the regression model trains on regular sales and auction dynamics
+  (bids, deadlines, deposits) are not comparable.
+- Section: "State & bailiff auctions — Riga apartments", sorted by
+  distance to school, capped at 15 rows with "+N more".
+- Columns: Distance, Address, Rooms, m², Start price, Current bid,
+  Appraisal (often unavailable — "-"), Ends, Source.
+- Budget filter: current bid (or start price if no bids) must be within
+  MIN_SALE_PRICE_EUR..MAX_SALE_PRICE_EUR_EXCEPTIONAL (3 dropped today).
+- Purple (#8e44ad) markers on the map with auction popups
+  (start price, current bid, end date).
+- Auctions within 1 km of the school WOULD also appear in the
+  walking-distance section (none today — closest is 1.32 km).
+- Page header now lists izsoles.ta.gov.lv as a source.
+
+**Where auctions are deliberately EXCLUDED:**
+- Not in the regression training data or deal-score ranking.
+- Not in history.csv / seen_deals / price_history (auction bids change
+  daily but the auction lifecycle is weeks — daily snapshot is enough).
+- Not in the hourly escalation scan (auctions move slowly; daily digest
+  is sufficient).
+- Not in cross-source dedupe (auction addresses are city-level "Riga",
+  wouldn't match district-keyed dedupe anyway).
+- Not in health.py source_counts (0 Riga auctions is legitimate).
+
+**Config:** IZSOLES_ENABLED, IZSOLES_BASE, IZSOLES_TIMEOUT=30,
+IZSOLES_DELAY=1.0, IZSOLES_MAX_PAGES=5, IZSOLES_MAX_DETAILS=30.
+
+### Upgrade 11: near-school section + top-25 + map at top
 
 **Problem found:** a 55K one-room flat at Lejina 6 (0.19 km from school)
 never appeared in the digest. Root cause: its value score was -0.19 (55K

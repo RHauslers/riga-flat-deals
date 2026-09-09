@@ -571,11 +571,118 @@ def build_near_school_html(all_listings):
 
 
 # ---------------------------------------------------------------------------
+# "State & bailiff auctions" section (izsoles.ta.gov.lv)
+# ---------------------------------------------------------------------------
+def build_auctions_html(auctions, top_n=15):
+    """State/bailiff auction listings from izsoles.ta.gov.lv.
+
+    Kept separate from the main deal ranking on purpose: auctions have a
+    different purchase process (registration, deposit, bidding) and prices
+    that are not comparable to regular listings. Sorted by distance to
+    the school, closest first.
+    """
+    if not auctions:
+        return (
+            '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
+            'padding:16px;margin:16px 0">'
+            '<h3 style="color:#8e44ad;border:none;margin:0 0 8px 0">'
+            'State & bailiff auctions (Riga apartments)</h3>'
+            '<p style="color:#666;font-size:12px;margin:0">'
+            'No in-budget active auctions right now.</p>'
+            '</div>'
+        )
+
+    def sort_key(a):
+        km = a.get("_school_km")
+        return (km is None, km if km is not None else 0.0)
+
+    items = sorted(auctions, key=sort_key)
+    hidden = max(0, len(items) - top_n)
+    shown = items[:top_n]
+
+    rows = []
+    for idx, a in enumerate(shown):
+        km = a.get("_school_km")
+        dist = f"{km:.2f} km" if km is not None else "-"
+        dist_sort = km if km is not None else 9999
+        rooms = a.get("rooms")
+        rooms_disp = rooms if rooms is not None else "?"
+        area = a.get("area_m2")
+        area_disp = f"{area:.0f}" if area is not None else "?"
+        sp = a.get("auction_start_price")
+        sp_disp = _fmt_price(sp) if sp else "-"
+        cb = a.get("auction_current_bid")
+        cb_disp = (_fmt_price(cb) if cb else "no bids")
+        cb_style = "font-weight:bold" if cb else "color:#999"
+        ap = a.get("auction_appraisal")
+        ap_disp = _fmt_price(ap) if ap else "-"
+        end = a.get("auction_end") or "-"
+        source = a.get("source", "")
+
+        map_link = ""
+        if a.get("lat") and a.get("lon"):
+            marker_id = f"{source}:{a.get('id', '')}"
+            map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
+                        f"return false\" style=\"font-size:11px;color:#8e44ad\">map</a>")
+
+        zebra = ' style="background:#fafafa"' if idx % 2 else ''
+        rows.append(
+            f'<tr{zebra}>'
+            f"<td style='text-align:right;font-weight:bold' data-sort='{dist_sort:.3f}'>{dist}</td>"
+            f"<td style='font-size:12px'>{a.get('title','')}</td>"
+            f"<td style='text-align:right' data-sort='{rooms if rooms is not None else 0}'>{rooms_disp}</td>"
+            f"<td style='text-align:right' data-sort='{area if area is not None else 0}'>{area_disp}</td>"
+            f"<td style='text-align:right' data-sort='{sp or 0}'>{sp_disp}</td>"
+            f"<td style='text-align:right;{cb_style}' data-sort='{cb or 0}'>{cb_disp}</td>"
+            f"<td style='text-align:right' data-sort='{ap or 0}'>{ap_disp}</td>"
+            f"<td style='text-align:right;font-size:12px'>{end}</td>"
+            f"<td><a href='{a.get('url','')}'>izsoles.ta.gov.lv</a>{map_link}</td>"
+            '</tr>'
+        )
+
+    rows_html = "".join(rows)
+    n = len(auctions)
+    more_note = (f' <span style="color:#999;font-size:11px">'
+                 f'(+{hidden} more)</span>') if hidden else ''
+    tid = "tbl_auctions"
+    return (
+        '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
+        'padding:16px;margin:16px 0">'
+        '<h3 style="color:#8e44ad;border:none;margin:0 0 8px 0">'
+        f'State & bailiff auctions — Riga apartments ({n}){more_note}</h3>'
+        '<p style="color:#666;font-size:12px;margin:0 0 10px 0">'
+        'Forced-sale and state property auctions from '
+        '<a href="https://izsoles.ta.gov.lv">izsoles.ta.gov.lv</a>. Starting '
+        'prices are often well below market. The purchase process differs '
+        'from a regular sale: you must register on the site, pay a deposit, '
+        'and bid before the end date. Prices shown: start price and current '
+        'bid. Sorted by distance to '
+        f'{config.SCHOOL_NAME}. Always read the full auction terms.</p>'
+        f"<table id='{tid}' style='border-collapse:collapse;width:100%;font-size:14px' "
+        f"data-sortable='1'>"
+        f"<tr style='background:#f0f0f0'>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',0)\">Distance</th>"
+        f"<th style='text-align:left'>Address</th>"
+        f"<th class='sort-th' onclick=\"sortTable('{tid}',2)\">Rooms</th>"
+        f"<th class='sort-th' onclick=\"sortTable('{tid}',3)\">m²</th>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',4)\">Start price</th>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',5)\">Current bid</th>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',6)\">Appraisal</th>"
+        f"<th style='text-align:right'>Ends</th>"
+        f"<th>Source</th>"
+        f"</tr>"
+        f"{rows_html}"
+        f"</table>"
+        f'</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
 # build the full HTML digest
 # ---------------------------------------------------------------------------
 def build_html(main_deals, still_active, comparison_html, status_note,
                recipient="", price_data=None, map_markers=None,
-               newest_html="", near_school_html=""):
+               newest_html="", near_school_html="", auctions_html=""):
     today = date.today().isoformat()
     sections = []
 
@@ -685,7 +792,8 @@ function sortTable(tableId, colIdx) {{
 </head><body>
 <h2>Riga flat deals - {today}</h2>
 {browser_link}
-<p>Districts: {', '.join(config.DISTRICTS.keys())} &middot; Sources: ss.com, city24.lv</p>
+<p>Districts: {', '.join(config.DISTRICTS.keys())} &middot; Sources:
+ss.com, city24.lv{', izsoles.ta.gov.lv (auctions)' if config.IZSOLES_ENABLED else ''}</p>
 <p class="note">Scoring: {status_note}</p>
 <p class="note">Sale ranking: 50% deal score + 50% walking distance to
 {config.SCHOOL_NAME} (shown in the Distance column). New builds excluded.
@@ -693,6 +801,7 @@ Sales only — rentals are out of scope.</p>
 {comparison_html}
 {map_html}
 {near_school_html}
+{auctions_html}
 {newest_html}
 {body_sections}
 <hr><p class="note">Generated by Flat_Searcher. Higher deal score = cheaper than
@@ -721,8 +830,13 @@ def _build_map_html(markers):
     js_markers = []
     for m in markers:
         is_school = m.get("deal_type") == "school"
-        color = "#c0392b" if is_school else (
-            "#2874a6" if m.get("deal_type") == "rent" else "#e67e22")
+        is_auction = m.get("series") == "Auction"
+        if is_school:
+            color = "#c0392b"
+        elif is_auction:
+            color = "#8e44ad"  # purple — state/bailiff auction
+        else:
+            color = "#2874a6" if m.get("deal_type") == "rent" else "#e67e22"
         js_markers.append({
             "id": m.get("marker_id", ""),
             "lat": m["lat"],
@@ -835,7 +949,7 @@ def _plain_summary(main_deals, still_active, comparison_html):
 # ---------------------------------------------------------------------------
 def send(main_deals, still_active, comparison_html, status_note,
          price_data=None, map_markers=None, newest_html="",
-         near_school_html=""):
+         near_school_html="", auctions_html=""):
     """Send the digest email. Returns (sent:bool, info:str)."""
     host = os.environ.get("SMTP_HOST")
     port = os.environ.get("SMTP_PORT")
@@ -847,7 +961,7 @@ def send(main_deals, still_active, comparison_html, status_note,
     # always save the HTML digest first (for audit / no-SMTP fallback)
     html = build_html(main_deals, still_active, comparison_html, status_note,
                       recipient, price_data, map_markers, newest_html,
-                      near_school_html)
+                      near_school_html, auctions_html)
     today = date.today().isoformat()
     digest_path = os.path.join(config.DIGEST_DIR, f"digest_{today}.html")
     os.makedirs(config.DIGEST_DIR, exist_ok=True)

@@ -215,16 +215,29 @@ def get_map_data(listings):
         floor = listing.get("floor", "?")
 
         # Build popup HTML
+        rooms_disp = rooms if rooms is not None else "?"
+        area_disp = area if area is not None else "?"
+        floor_disp = floor if floor not in (None, "") else "?"
         popup = (
             f"<div style='font-family:Arial,sans-serif;font-size:13px;min-width:200px'>"
             f"<b>{district}</b> &middot; {deal_type}<br>"
-            f"{rooms} rooms &middot; {area} m² &middot; floor {floor}<br>"
+            f"{rooms_disp} rooms &middot; {area_disp} m² &middot; floor {floor_disp}<br>"
             f"<b style='font-size:15px'>{price:,.0f} EUR</b>"
         )
         if listing.get("price_per_m2"):
             popup += f" <span style='color:#666'>({listing['price_per_m2']:.0f} EUR/m²)</span>"
         if score is not None:
             popup += f"<br>Deal score: <b>{score:+.2f}</b>"
+        if listing.get("series") == "Auction":
+            popup += "<br><b style='color:#8e44ad'>State/bailiff auction</b>"
+            if listing.get("auction_start_price"):
+                popup += (f"<br>Start: "
+                          f"{listing['auction_start_price']:,.0f} EUR")
+            if listing.get("auction_current_bid"):
+                popup += (f"<br>Current bid: "
+                          f"{listing['auction_current_bid']:,.0f} EUR")
+            if listing.get("auction_end"):
+                popup += f"<br>Ends: {listing['auction_end']}"
         if url:
             popup += f"<br><a href='{url}' target='_blank'>View on {source} &rarr;</a>"
         popup += "</div>"
@@ -237,6 +250,7 @@ def get_map_data(listings):
             "deal_type": deal_type,
             "price": price,
             "source": source,
+            "series": listing.get("series", ""),
         })
 
     return markers
