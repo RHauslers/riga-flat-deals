@@ -119,9 +119,16 @@ it is not a statistical bargain.
 walking-distance section -> newest listings -> main tables (top 25) ->
 still active -> footer.
 
-**Schedule:** daily full digest at 07:00 UTC (10:00 Riga summer /
-09:00 winter), hourly escalation scan at :05 UTC. Both commit state
-back with a shared concurrency group.
+**Schedule:** daily full digest now at 06:23 UTC = 09:23 Riga (moved
+2026-09-10 from 07:00 UTC / 10:00 Riga — GitHub's round-hour 07:00 UTC
+cron slot is the most contended of the day and the run was observed
+delivering ~5h late, updating the site ~15:08-15:15 Riga on both
+2026-09-09 and 2026-09-10, breaking the promised 10:00 update. The new
+off-peak minute + 37-min buffer targets an on-time ~10:00 site update).
+Hourly escalation scan at :05 UTC. Both commit state back with a shared
+concurrency group. NOTE: GitHub cron remains best-effort — the digest
+header timestamp (added 2026-09-10) always shows the true generation
+time, and the Rescrape button lets anyone force a fresh run anytime.
 
 **Rescrape button + timestamp header (2026-09-10):**
 - Digest header now shows date AND time in Riga timezone
