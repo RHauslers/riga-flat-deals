@@ -99,9 +99,10 @@ jobs:
         with:
           ref: main
 
-      - name: Inject token into unsubscribe page
+      - name: Inject tokens into pages
         env:
           UNSUBSCRIBE_TOKEN: ${{ secrets.UNSUBSCRIBE_PAT }}
+          TRIGGER_TOKEN: ${{ secrets.TRIGGER_PAT }}
           REPO: ${{ github.repository }}
         run: |
           OWNER=$(echo "$REPO" | cut -d/ -f1)
@@ -112,6 +113,14 @@ jobs:
           sed -i "s|__UNSUBSCRIBE_TOKEN__|${UNSUBSCRIBE_TOKEN}|g" docs/unsubscribe.html
           sed -i "s|__REPO_OWNER__|${OWNER}|g" docs/unsubscribe.html
           sed -i "s|__REPO_NAME__|${NAME}|g" docs/unsubscribe.html
+          # Rescrape button token: TRIGGER_PAT if set, else UNSUBSCRIBE_PAT
+          TT="${TRIGGER_TOKEN:-$UNSUBSCRIBE_TOKEN}"
+          for f in docs/index.html docs/archive/*.html; do
+            [ -f "$f" ] || continue
+            sed -i "s|__TRIGGER_TOKEN__|${TT}|g" "$f"
+            sed -i "s|__REPO_OWNER__|${OWNER}|g" "$f"
+            sed -i "s|__REPO_NAME__|${NAME}|g" "$f"
+          done
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

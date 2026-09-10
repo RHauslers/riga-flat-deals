@@ -2,6 +2,31 @@
 
 Living document. Updated after each Devin session. Read this first.
 
+## Session 2026-09-10 (system diagnostics, no repo changes)
+
+No code changes this session. Session was used to diagnose why the PC
+woke at 5 AM with fans spinning: Windows Update Orchestrator
+("Schedule Wake To Work" task) woke the PC at 05:10, installed
+KB5124008 (2026-09 cumulative, build 26200.9445) + KB5126052 (.NET),
+auto-rebooted twice (~05:14-05:16). Fix options given to user:
+disable WU wake via `HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU`
+`AUPowerManagement=0` (targeted, keeps the user's 09:00
+DailyTasksWakeAndShow wake task working) or disable all wake timers
+via `powercfg /setacvalueindex SCHEME_CURRENT SUB_SLEEP RTCWAKE 0`.
+Note: user has a personal task `\DailyTasksWakeAndShow` (09:00 daily,
+runs `C:\Users\rudol\CascadeProjects\work_stuff\DailyTasks.exe`) that
+intentionally wakes the PC — don't disable it blindly.
+
+Also ran a full "weird process" sweep same session: clean. No processes
+outside C:\Windows / Program Files except Devin itself; network
+connections all accounted for; non-Microsoft scheduled tasks all
+identified (Acer OEM UpgradeTool, NitroSense fan control, Chrome
+platform_experience_helper, user's own tasks). The `\SoftLanding\*`
+COM-handler tasks that look fileless/malware-like are LEGIT Windows 11
+content-delivery (tips/Spotlight) — CLSID resolves via
+HKCR\PackagedCom to Microsoft-signed SoftLandingTask.exe in
+SystemApps\MicrosoftWindows.Client.CBS; don't flag them next time.
+
 ## Current state (after session 2026-09-09, upgrade #12 — state auction integration)
 
 **Working, tested end-to-end locally on Windows + Python 3.14.4.
@@ -97,6 +122,31 @@ still active -> footer.
 **Schedule:** daily full digest at 07:00 UTC (10:00 Riga summer /
 09:00 winter), hourly escalation scan at :05 UTC. Both commit state
 back with a shared concurrency group.
+
+**Rescrape button + timestamp header (2026-09-10):**
+- Digest header now shows date AND time in Riga timezone
+  ("Riga flat deals - 2026-09-10 12:15 (Riga time)") via zoneinfo
+  (tzdata added to requirements.txt for Windows).
+- "Rescrape now" button on the site below the header: triggers the
+  daily workflow via the GitHub API workflow_dispatch endpoint
+  (POST /repos/{owner}/{repo}/actions/workflows/daily.yml/dispatches).
+  Same pattern as the unsubscribe page: placeholders
+  (__TRIGGER_TOKEN__/__REPO_OWNER__/__REPO_NAME__) are injected at
+  deploy time by sed in ALL THREE workflows (pages.yml, daily.yml,
+  escalation.yml) into docs/index.html and docs/archive/*.html.
+- Token source: TRIGGER_PAT secret if set, falls back to
+  UNSUBSCRIBE_PAT. If the button returns 403/422 the PAT lacks
+  Actions-write permission — regenerate it with workflow dispatch
+  rights or create TRIGGER_PAT.
+- Client-side cooldown: 1 hour via localStorage (fs_last_trigger).
+  NOTE: the token is visible in the public page source (same trust
+  model as the unsubscribe button) and the cooldown is client-side
+  only — anyone could extract it and trigger scrapes. Acceptable for
+  this personal tool; the workflow's concurrency group serializes
+  queued runs.
+- In email clients the button is inert (no JS) — same as the map.
+- Local/preview builds (placeholders not injected) show a "not
+  available in this build" note instead.
 
 **Hourly scan SMTP guard (2026-09-09):** the hourly escalation now
 checks the SMTP env vars FIRST and skips the entire scan (exit 0, one

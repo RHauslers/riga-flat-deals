@@ -19,7 +19,7 @@ If the recipient has unsubscribed (data/unsubscribed.json), the email is skipped
 """
 import os
 import smtplib
-from datetime import date
+from datetime import date, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from urllib.parse import quote
@@ -27,6 +27,19 @@ from urllib.parse import quote
 import config
 import history
 import price_history
+
+try:
+    from zoneinfo import ZoneInfo
+    _RIGA_TZ = ZoneInfo("Europe/Riga")  # needs tzdata pkg on Windows
+except Exception:
+    _RIGA_TZ = None
+
+
+def _now_header_str():
+    """Digest header timestamp: date + time in Riga (falls back to UTC)."""
+    if _RIGA_TZ:
+        return datetime.now(_RIGA_TZ).strftime("%Y-%m-%d %H:%M") + " (Riga time)"
+    return datetime.utcnow().strftime("%Y-%m-%d %H:%M") + " (UTC)"
 
 
 # ---------------------------------------------------------------------------
@@ -684,6 +697,7 @@ def build_html(main_deals, still_active, comparison_html, status_note,
                recipient="", price_data=None, map_markers=None,
                newest_html="", near_school_html="", auctions_html=""):
     today = date.today().isoformat()
+    run_time = _now_header_str()
     sections = []
 
     for dt in config.DEAL_TYPES:
@@ -788,10 +802,69 @@ function sortTable(tableId, colIdx) {{
     }}
   }}
 }}
+
+// Rescrape button: triggers the daily workflow via the GitHub API.
+// The placeholders are injected at deploy time by the workflows' sed
+// steps (TRIGGER_PAT secret, falling back to UNSUBSCRIBE_PAT).
+var TRIGGER_TOKEN = "__TRIGGER_TOKEN__";
+var REPO_OWNER = "__REPO_OWNER__";
+var REPO_NAME = "__REPO_NAME__";
+function rescrapeConfigured() {{
+  return TRIGGER_TOKEN && TRIGGER_TOKEN.indexOf("__") !== 0;
+}}
+async function triggerScrape() {{
+  var btn = document.getElementById("btn-rescrape");
+  var st = document.getElementById("rescrape-status");
+  if (!rescrapeConfigured()) {{
+    st.textContent = "Not available in this build (no trigger token injected).";
+    return;
+  }}
+  var last = parseInt(localStorage.getItem("fs_last_trigger") || "0", 10);
+  var elapsed = Date.now() - last;
+  if (elapsed < 3600000) {{
+    var mins = Math.ceil((3600000 - elapsed) / 60000);
+    st.textContent = "Already triggered recently - available again in ~" + mins + " min.";
+    return;
+  }}
+  if (!confirm("Trigger a fresh scrape now? The page updates in ~5-10 minutes.")) return;
+  btn.disabled = true;
+  btn.textContent = "Triggering...";
+  try {{
+    var r = await fetch("https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME
+      + "/actions/workflows/daily.yml/dispatches", {{
+      method: "POST",
+      headers: {{
+        "Authorization": "Bearer " + TRIGGER_TOKEN,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+      }},
+      body: JSON.stringify({{ref: "main"}})
+    }});
+    if (r.status === 204) {{
+      localStorage.setItem("fs_last_trigger", String(Date.now()));
+      st.textContent = "Scrape triggered. Fresh data in ~5-10 minutes - reload then.";
+      btn.textContent = "Triggered";
+    }} else {{
+      var e = await r.json().catch(function() {{ return {{}}; }});
+      st.textContent = "Failed (HTTP " + r.status + "): " + (e.message || "unknown error")
+        + ". If this is a permissions error, the site token needs Actions write access.";
+      btn.disabled = false;
+      btn.textContent = "Rescrape now";
+    }}
+  }} catch (err) {{
+    st.textContent = "Error: " + (err && err.message ? err.message : err);
+    btn.disabled = false;
+    btn.textContent = "Rescrape now";
+  }}
+}}
 </script>
 </head><body>
-<h2>Riga flat deals - {today}</h2>
+<h2>Riga flat deals - {run_time}</h2>
 {browser_link}
+<p style="font-size:13px;margin:6px 0">
+<button id="btn-rescrape" onclick="triggerScrape()" style="background:#2874a6;color:#fff;border:none;padding:6px 14px;font-size:12px;border-radius:4px;cursor:pointer">Rescrape now</button>
+<span id="rescrape-status" style="font-size:12px;color:#666;margin-left:8px"></span>
+</p>
 <p>Districts: {', '.join(config.DISTRICTS.keys())} &middot; Sources:
 ss.com, city24.lv{', izsoles.ta.gov.lv (auctions)' if config.IZSOLES_ENABLED else ''}</p>
 <p class="note">Scoring: {status_note}</p>

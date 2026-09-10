@@ -1,9 +1,9 @@
 {
-  "date": "2026-09-09",
+  "date": "2026-09-10",
   "sale": [
     {
       "key": "ss.com:57940025",
-      "score": 1.4221945487433745,
+      "score": 1.4283332937860687,
       "price": 79900.0,
       "district": "Zolitude",
       "rooms": 3,
@@ -14,7 +14,7 @@
     },
     {
       "key": "ss.com:57967069",
-      "score": 1.3932943080501445,
+      "score": 1.3970136998365519,
       "price": 81000.0,
       "district": "Zolitude",
       "rooms": 3,
@@ -25,7 +25,7 @@
     },
     {
       "key": "ss.com:57847599",
-      "score": 1.37799908359166,
+      "score": 1.382037570897449,
       "price": 75500.0,
       "district": "Zolitude",
       "rooms": 3,
@@ -36,7 +36,7 @@
     },
     {
       "key": "ss.com:57943969",
-      "score": 1.2599826180971885,
+      "score": 1.2623964792333966,
       "price": 78499.0,
       "district": "Zolitude",
       "rooms": 3,
@@ -47,7 +47,7 @@
     },
     {
       "key": "ss.com:58023392",
-      "score": 1.1319317889723186,
+      "score": 1.1346553160389206,
       "price": 63000.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -58,7 +58,7 @@
     },
     {
       "key": "ss.com:57680184",
-      "score": 1.1054664895812403,
+      "score": 1.1106772617698086,
       "price": 79900.0,
       "district": "Zolitude",
       "rooms": 3,
@@ -69,7 +69,7 @@
     },
     {
       "key": "ss.com:58037921",
-      "score": 1.086399426249723,
+      "score": 1.0888932934129407,
       "price": 65000.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -80,7 +80,7 @@
     },
     {
       "key": "ss.com:57970570",
-      "score": 0.9920079479231573,
+      "score": 0.9805435184898044,
       "price": 37800.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -91,7 +91,7 @@
     },
     {
       "key": "ss.com:58028933",
-      "score": 0.8652852079579803,
+      "score": 0.8638771377908867,
       "price": 72000.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -102,7 +102,7 @@
     },
     {
       "key": "city24.lv:2443318",
-      "score": 0.8544381281016608,
+      "score": 0.8165866802942953,
       "price": 54000.0,
       "district": "Imanta",
       "rooms": 2,
@@ -113,7 +113,7 @@
     },
     {
       "key": "ss.com:57813122",
-      "score": 0.8110407912771636,
+      "score": 0.804826600984816,
       "price": 55000.0,
       "district": "Zolitude",
       "rooms": 1,
@@ -124,7 +124,7 @@
     },
     {
       "key": "ss.com:57843757",
-      "score": 0.7965458371288416,
+      "score": 0.7920024399943346,
       "price": 73000.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -135,7 +135,7 @@
     },
     {
       "key": "ss.com:58039053",
-      "score": 0.7681145351802849,
+      "score": 0.7629581729609445,
       "price": 78000.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -145,30 +145,8 @@
       "source": "ss.com"
     },
     {
-      "key": "ss.com:57859624",
-      "score": 0.7529530707187849,
-      "price": 49900.0,
-      "district": "Zolitude",
-      "rooms": 1,
-      "area_m2": 43.0,
-      "floor": "2/9",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/edfxb.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:57942304",
-      "score": 0.744611121812119,
-      "price": 70000.0,
-      "district": "Zolitude",
-      "rooms": 2,
-      "area_m2": 51.0,
-      "floor": "1/9",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/agjhd.html",
-      "source": "ss.com"
-    },
-    {
       "key": "ss.com:58053422",
-      "score": 0.7434869320079249,
+      "score": 0.7517800174034919,
       "price": 35000.0,
       "district": "Sampeteris",
       "rooms": 3,
@@ -178,8 +156,19 @@
       "source": "ss.com"
     },
     {
+      "key": "ss.com:57942304",
+      "score": 0.736327411716823,
+      "price": 70000.0,
+      "district": "Zolitude",
+      "rooms": 2,
+      "area_m2": 51.0,
+      "floor": "1/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/agjhd.html",
+      "source": "ss.com"
+    },
+    {
       "key": "ss.com:58045708",
-      "score": 0.7288136892606938,
+      "score": 0.7297687640409298,
       "price": 59000.0,
       "district": "Sampeteris",
       "rooms": 2,
@@ -189,19 +178,8 @@
       "source": "ss.com"
     },
     {
-      "key": "ss.com:57885293",
-      "score": 0.7161347076108471,
-      "price": 53000.0,
-      "district": "Zolitude",
-      "rooms": 1,
-      "area_m2": 43.0,
-      "floor": "9/9",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/aelhc.html",
-      "source": "ss.com"
-    },
-    {
       "key": "ss.com:57954900",
-      "score": 0.7119229822997825,
+      "score": 0.7274013531600729,
       "price": 78000.0,
       "district": "Imanta",
       "rooms": 3,
@@ -211,8 +189,19 @@
       "source": "ss.com"
     },
     {
+      "key": "ss.com:57885293",
+      "score": 0.7131413230909683,
+      "price": 53000.0,
+      "district": "Zolitude",
+      "rooms": 1,
+      "area_m2": 43.0,
+      "floor": "9/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/aelhc.html",
+      "source": "ss.com"
+    },
+    {
       "key": "ss.com:57986721",
-      "score": 0.6934143338749217,
+      "score": 0.7081837426032489,
       "price": 75000.0,
       "district": "Imanta",
       "rooms": 3,
@@ -223,7 +212,7 @@
     },
     {
       "key": "ss.com:56946042",
-      "score": 0.6553814551838859,
+      "score": 0.6670350274815978,
       "price": 84000.0,
       "district": "Imanta",
       "rooms": 3,
@@ -234,7 +223,7 @@
     },
     {
       "key": "ss.com:58005179",
-      "score": 0.6481922665873483,
+      "score": 0.6649661803115176,
       "price": 63000.0,
       "district": "Imanta",
       "rooms": 3,
@@ -245,7 +234,7 @@
     },
     {
       "key": "ss.com:57960556",
-      "score": 0.6199334042617365,
+      "score": 0.6313123121122988,
       "price": 77500.0,
       "district": "Zolitude",
       "rooms": 4,
@@ -256,7 +245,7 @@
     },
     {
       "key": "ss.com:58043539",
-      "score": 0.5689760641258229,
+      "score": 0.5587287635485456,
       "price": 47000.0,
       "district": "Sampeteris",
       "rooms": 1,
@@ -267,13 +256,24 @@
     },
     {
       "key": "ss.com:58024489",
-      "score": 0.5609852093676531,
+      "score": 0.5561341348716444,
       "price": 69990.0,
       "district": "Zolitude",
       "rooms": 2,
       "area_m2": 61.0,
       "floor": "2/10",
       "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/hfpmp.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:58053475",
+      "score": 0.5509272196549622,
+      "price": 53000.0,
+      "district": "Sampeteris",
+      "rooms": 2,
+      "area_m2": 48.0,
+      "floor": "4/6",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/bbcfin.html",
       "source": "ss.com"
     }
   ]
