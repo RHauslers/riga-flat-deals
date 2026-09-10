@@ -1103,5 +1103,25 @@
     "lat": 56.958656,
     "lon": 24.006696,
     "fetched_at": "2026-09-10"
+  },
+  "izsoles.ta.gov.lv:riga:bauskas iela 61": {
+    "lat": 56.9164994,
+    "lon": 24.1074647,
+    "fetched_at": "2026-09-10"
+  },
+  "izsoles.ta.gov.lv:riga:artilērijas iela 66": {
+    "lat": 56.9550724,
+    "lon": 24.1466969,
+    "fetched_at": "2026-09-10"
+  },
+  "izsoles.ta.gov.lv:riga:stagaru iela 4": {
+    "lat": 57.0296419,
+    "lon": 24.035965,
+    "fetched_at": "2026-09-10"
+  },
+  "izsoles.ta.gov.lv:riga:zeltiņu iela 61": {
+    "lat": 56.9459278,
+    "lon": 24.1778654,
+    "fetched_at": "2026-09-10"
   }
 }

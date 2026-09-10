@@ -3,7 +3,7 @@
   "sale": [
     {
       "key": "ss.com:57940025",
-      "score": 1.4283332937860687,
+      "score": 1.42833329378607,
       "price": 79900.0,
       "district": "Zolitude",
       "rooms": 3,
@@ -14,7 +14,7 @@
     },
     {
       "key": "ss.com:57967069",
-      "score": 1.3970136998365519,
+      "score": 1.3970136998365517,
       "price": 81000.0,
       "district": "Zolitude",
       "rooms": 3,
@@ -25,7 +25,7 @@
     },
     {
       "key": "ss.com:57847599",
-      "score": 1.382037570897449,
+      "score": 1.3820375708974493,
       "price": 75500.0,
       "district": "Zolitude",
       "rooms": 3,
@@ -36,7 +36,7 @@
     },
     {
       "key": "ss.com:57943969",
-      "score": 1.2623964792333966,
+      "score": 1.2623964792333964,
       "price": 78499.0,
       "district": "Zolitude",
       "rooms": 3,
@@ -47,7 +47,7 @@
     },
     {
       "key": "ss.com:58023392",
-      "score": 1.1346553160389206,
+      "score": 1.1346553160389223,
       "price": 63000.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -58,7 +58,7 @@
     },
     {
       "key": "ss.com:57680184",
-      "score": 1.1106772617698086,
+      "score": 1.1106772617698115,
       "price": 79900.0,
       "district": "Zolitude",
       "rooms": 3,
@@ -69,7 +69,7 @@
     },
     {
       "key": "ss.com:58037921",
-      "score": 1.0888932934129407,
+      "score": 1.088893293412943,
       "price": 65000.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -80,7 +80,7 @@
     },
     {
       "key": "ss.com:57970570",
-      "score": 0.9805435184898044,
+      "score": 0.9805435184898077,
       "price": 37800.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -91,7 +91,7 @@
     },
     {
       "key": "ss.com:58028933",
-      "score": 0.8638771377908867,
+      "score": 0.8638771377908885,
       "price": 72000.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -101,19 +101,8 @@
       "source": "ss.com"
     },
     {
-      "key": "city24.lv:2443318",
-      "score": 0.8165866802942953,
-      "price": 54000.0,
-      "district": "Imanta",
-      "rooms": 2,
-      "area_m2": 50.0,
-      "floor": "6/9",
-      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-imanta-maza-krumu-iela/8875425",
-      "source": "city24.lv"
-    },
-    {
       "key": "ss.com:57813122",
-      "score": 0.804826600984816,
+      "score": 0.8048266009848142,
       "price": 55000.0,
       "district": "Zolitude",
       "rooms": 1,
@@ -124,7 +113,7 @@
     },
     {
       "key": "ss.com:57843757",
-      "score": 0.7920024399943346,
+      "score": 0.7920024399943337,
       "price": 73000.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -135,7 +124,7 @@
     },
     {
       "key": "ss.com:58039053",
-      "score": 0.7629581729609445,
+      "score": 0.7629581729609454,
       "price": 78000.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -145,19 +134,8 @@
       "source": "ss.com"
     },
     {
-      "key": "ss.com:58053422",
-      "score": 0.7517800174034919,
-      "price": 35000.0,
-      "district": "Sampeteris",
-      "rooms": 3,
-      "area_m2": 62.0,
-      "floor": "2/2",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/exfik.html",
-      "source": "ss.com"
-    },
-    {
       "key": "ss.com:57942304",
-      "score": 0.736327411716823,
+      "score": 0.7363274117168223,
       "price": 70000.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -168,7 +146,7 @@
     },
     {
       "key": "ss.com:58045708",
-      "score": 0.7297687640409298,
+      "score": 0.7297687640409347,
       "price": 59000.0,
       "district": "Sampeteris",
       "rooms": 2,
@@ -179,7 +157,7 @@
     },
     {
       "key": "ss.com:57954900",
-      "score": 0.7274013531600729,
+      "score": 0.7274013531600735,
       "price": 78000.0,
       "district": "Imanta",
       "rooms": 3,
@@ -190,7 +168,7 @@
     },
     {
       "key": "ss.com:57885293",
-      "score": 0.7131413230909683,
+      "score": 0.7131413230909693,
       "price": 53000.0,
       "district": "Zolitude",
       "rooms": 1,
@@ -201,7 +179,7 @@
     },
     {
       "key": "ss.com:57986721",
-      "score": 0.7081837426032489,
+      "score": 0.7081837426032493,
       "price": 75000.0,
       "district": "Imanta",
       "rooms": 3,
@@ -212,7 +190,7 @@
     },
     {
       "key": "ss.com:56946042",
-      "score": 0.6670350274815978,
+      "score": 0.6670350274815965,
       "price": 84000.0,
       "district": "Imanta",
       "rooms": 3,
@@ -223,7 +201,7 @@
     },
     {
       "key": "ss.com:58005179",
-      "score": 0.6649661803115176,
+      "score": 0.6649661803115209,
       "price": 63000.0,
       "district": "Imanta",
       "rooms": 3,
@@ -234,7 +212,7 @@
     },
     {
       "key": "ss.com:57960556",
-      "score": 0.6313123121122988,
+      "score": 0.6313123121123045,
       "price": 77500.0,
       "district": "Zolitude",
       "rooms": 4,
@@ -245,7 +223,7 @@
     },
     {
       "key": "ss.com:58043539",
-      "score": 0.5587287635485456,
+      "score": 0.5587287635485472,
       "price": 47000.0,
       "district": "Sampeteris",
       "rooms": 1,
@@ -256,7 +234,7 @@
     },
     {
       "key": "ss.com:58024489",
-      "score": 0.5561341348716444,
+      "score": 0.5561341348716426,
       "price": 69990.0,
       "district": "Zolitude",
       "rooms": 2,
@@ -267,13 +245,35 @@
     },
     {
       "key": "ss.com:58053475",
-      "score": 0.5509272196549622,
+      "score": 0.5509272196549664,
       "price": 53000.0,
       "district": "Sampeteris",
       "rooms": 2,
       "area_m2": 48.0,
       "floor": "4/6",
       "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/bbcfin.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:58052490",
+      "score": 0.5507482152450629,
+      "price": 84900.0,
+      "district": "Zolitude",
+      "rooms": 2,
+      "area_m2": 62.0,
+      "floor": "5/8",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/bhkcd.html",
+      "source": "ss.com"
+    },
+    {
+      "key": "ss.com:57676101",
+      "score": 0.5223273619571054,
+      "price": 52000.0,
+      "district": "Imanta",
+      "rooms": 2,
+      "area_m2": 50.0,
+      "floor": "1/5",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/bkxlo.html",
       "source": "ss.com"
     }
   ]
