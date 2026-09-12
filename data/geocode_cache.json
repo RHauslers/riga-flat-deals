@@ -67,7 +67,7 @@
   "ss.com:imanta:anninmuizhas boule..": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-11"
+    "fetched_at": "2026-09-12"
   },
   "ss.com:imanta:dammes 1": {
     "lat": 56.9608492,
@@ -307,7 +307,7 @@
   "ss.com:imanta:kurzemes pr. 104a": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-11"
+    "fetched_at": "2026-09-12"
   },
   "ss.com:imanta:akaciju 2f": {
     "lat": 56.9523265,
@@ -522,7 +522,7 @@
   "ss.com:zolitude:anninmuizhas 4": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-11"
+    "fetched_at": "2026-09-12"
   },
   "ss.com:zolitude:rostokas 42": {
     "lat": 56.9479237,
@@ -547,7 +547,7 @@
   "ss.com:zolitude:imantas 16. l. 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-11"
+    "fetched_at": "2026-09-12"
   },
   "ss.com:zolitude:apuzes 41": {
     "lat": 56.9395614,
@@ -587,7 +587,7 @@
   "ss.com:sampeteris:shampetera 23": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-11"
+    "fetched_at": "2026-09-12"
   },
   "ss.com:sampeteris:stendes 10": {
     "lat": 56.9403708,
@@ -697,7 +697,7 @@
   "ss.com:imanta:m. krūmu 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-11"
+    "fetched_at": "2026-09-12"
   },
   "ss.com:imanta:kleistu 21": {
     "lat": 56.9645798,
@@ -712,7 +712,7 @@
   "ss.com:imanta:m. krūmu 9": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-11"
+    "fetched_at": "2026-09-12"
   },
   "ss.com:imanta:jurmalas g. 101": {
     "lat": 56.9533673,
@@ -727,7 +727,7 @@
   "ss.com:imanta:m. krūmu 10": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-11"
+    "fetched_at": "2026-09-12"
   },
   "ss.com:imanta:rigondas g. 3": {
     "lat": 56.9649286,
@@ -807,7 +807,7 @@
   "ss.com:imanta:m. krūmu 20": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-11"
+    "fetched_at": "2026-09-12"
   },
   "ss.com:zolitude:rostokas 20": {
     "lat": 56.9481208,
@@ -1138,5 +1138,10 @@
     "lat": 56.9483734,
     "lon": 24.1449735,
     "fetched_at": "2026-09-11"
+  },
+  "ss.com:sampeteris:ventspils 65a": {
+    "lat": 56.9353784,
+    "lon": 24.0425101,
+    "fetched_at": "2026-09-12"
   }
 }
