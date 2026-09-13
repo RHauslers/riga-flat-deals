@@ -125,10 +125,21 @@ cron slot is the most contended of the day and the run was observed
 delivering ~5h late, updating the site ~15:08-15:15 Riga on both
 2026-09-09 and 2026-09-10, breaking the promised 10:00 update. The new
 off-peak minute + 37-min buffer targets an on-time ~10:00 site update).
-Hourly escalation scan at :05 UTC. Both commit state back with a shared
-concurrency group. NOTE: GitHub cron remains best-effort — the digest
-header timestamp (added 2026-09-10) always shows the true generation
-time, and the Rescrape button lets anyone force a fresh run anytime.
+NOTE: GitHub cron remains best-effort — the digest header timestamp
+(added 2026-09-10) always shows the true generation time, and the
+Rescrape button lets anyone force a fresh run anytime.
+
+**Hourly scan DISABLED (2026-09-13):** the hourly schedule was removed
+from escalation.yml entirely. Rationale: without SMTP configured the
+scan is pointless (its only output is the alert email), and even with
+the Python-level SMTP guard (2026-09-09) each hourly run still burned
+checkout + pip install + Playwright browser install (~3 min) plus an
+identical Pages redeploy, 24x/day. The workflow is now manual-only
+(workflow_dispatch); escalation.py keeps its SMTP guard as
+defense-in-depth. TO RE-ENABLE hourly alerts when SMTP secrets are
+configured: restore the schedule trigger in escalation.yml (commented
+template at the top of the file, e.g. cron "13 * * * *" — off the :00/:05
+rush). The daily digest and the Rescrape button are unaffected.
 
 **Rescrape button + timestamp header (2026-09-10):**
 - Digest header now shows date AND time in Riga timezone
