@@ -67,7 +67,7 @@
   "ss.com:imanta:anninmuizhas boule..": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-13"
+    "fetched_at": "2026-09-14"
   },
   "ss.com:imanta:dammes 1": {
     "lat": 56.9608492,
@@ -307,7 +307,7 @@
   "ss.com:imanta:kurzemes pr. 104a": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-13"
+    "fetched_at": "2026-09-14"
   },
   "ss.com:imanta:akaciju 2f": {
     "lat": 56.9523265,
@@ -522,7 +522,7 @@
   "ss.com:zolitude:anninmuizhas 4": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-13"
+    "fetched_at": "2026-09-14"
   },
   "ss.com:zolitude:rostokas 42": {
     "lat": 56.9479237,
@@ -547,7 +547,7 @@
   "ss.com:zolitude:imantas 16. l. 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-13"
+    "fetched_at": "2026-09-14"
   },
   "ss.com:zolitude:apuzes 41": {
     "lat": 56.9395614,
@@ -587,7 +587,7 @@
   "ss.com:sampeteris:shampetera 23": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-13"
+    "fetched_at": "2026-09-14"
   },
   "ss.com:sampeteris:stendes 10": {
     "lat": 56.9403708,
@@ -697,7 +697,7 @@
   "ss.com:imanta:m. krūmu 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-13"
+    "fetched_at": "2026-09-14"
   },
   "ss.com:imanta:kleistu 21": {
     "lat": 56.9645798,
@@ -807,7 +807,7 @@
   "ss.com:imanta:m. krūmu 20": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-13"
+    "fetched_at": "2026-09-14"
   },
   "ss.com:zolitude:rostokas 20": {
     "lat": 56.9481208,
@@ -1143,5 +1143,20 @@
     "lat": 56.9353784,
     "lon": 24.0425101,
     "fetched_at": "2026-09-12"
+  },
+  "ss.com:sampeteris:volguntes 17a": {
+    "lat": 56.9388032,
+    "lon": 24.0438409,
+    "fetched_at": "2026-09-14"
+  },
+  "izsoles.ta.gov.lv:riga:tapešu iela 46": {
+    "lat": 56.9562192,
+    "lon": 24.0469784,
+    "fetched_at": "2026-09-14"
+  },
+  "izsoles.ta.gov.lv:riga:1/2 domājamā daļa no višķu iela 11": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-14"
   }
 }
