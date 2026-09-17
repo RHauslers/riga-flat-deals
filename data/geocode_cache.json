@@ -67,7 +67,7 @@
   "ss.com:imanta:anninmuizhas boule..": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-16"
+    "fetched_at": "2026-09-17"
   },
   "ss.com:imanta:dammes 1": {
     "lat": 56.9608492,
@@ -307,7 +307,7 @@
   "ss.com:imanta:kurzemes pr. 104a": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-16"
+    "fetched_at": "2026-09-17"
   },
   "ss.com:imanta:akaciju 2f": {
     "lat": 56.9523265,
@@ -547,7 +547,7 @@
   "ss.com:zolitude:imantas 16. l. 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-16"
+    "fetched_at": "2026-09-17"
   },
   "ss.com:zolitude:apuzes 41": {
     "lat": 56.9395614,
@@ -697,7 +697,7 @@
   "ss.com:imanta:m. krūmu 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-16"
+    "fetched_at": "2026-09-17"
   },
   "ss.com:imanta:kleistu 21": {
     "lat": 56.9645798,
@@ -807,7 +807,7 @@
   "ss.com:imanta:m. krūmu 20": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-16"
+    "fetched_at": "2026-09-17"
   },
   "ss.com:zolitude:rostokas 20": {
     "lat": 56.9481208,
@@ -1157,7 +1157,7 @@
   "izsoles.ta.gov.lv:riga:1/2 domājamā daļa no višķu iela 11": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-16"
+    "fetched_at": "2026-09-17"
   },
   "ss.com:imanta:dubultu 20": {
     "lat": 56.9584181,
@@ -1178,5 +1178,50 @@
     "lat": 56.9050604,
     "lon": 24.1005757,
     "fetched_at": "2026-09-16"
+  },
+  "ss.com:sampeteris:zalves 33": {
+    "lat": 56.938426,
+    "lon": 24.0366098,
+    "fetched_at": "2026-09-17"
+  },
+  "ss.com:imanta:slokas 179": {
+    "lat": 56.9612657,
+    "lon": 24.0241146,
+    "fetched_at": "2026-09-17"
+  },
+  "izsoles.ta.gov.lv:riga:ludzas iela 56": {
+    "lat": 56.940738,
+    "lon": 24.1486755,
+    "fetched_at": "2026-09-17"
+  },
+  "izsoles.ta.gov.lv:riga:raunas iela 50 k-2": {
+    "lat": 56.9684495,
+    "lon": 24.1842001,
+    "fetched_at": "2026-09-17"
+  },
+  "izsoles.ta.gov.lv:riga:kurzemes prospekts 152": {
+    "lat": 56.9576243,
+    "lon": 23.9998934,
+    "fetched_at": "2026-09-17"
+  },
+  "izsoles.ta.gov.lv:riga:186/1000 dom. daļas no lāčplēša iela 62": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-17"
+  },
+  "izsoles.ta.gov.lv:riga:vilhelma kreslera iela 1": {
+    "lat": 56.9633791,
+    "lon": 24.0651286,
+    "fetched_at": "2026-09-17"
+  },
+  "izsoles.ta.gov.lv:riga:vizmas belševicas iela 5": {
+    "lat": 56.9489166,
+    "lon": 24.1949591,
+    "fetched_at": "2026-09-17"
+  },
+  "izsoles.ta.gov.lv:riga:ezera iela 23": {
+    "lat": 57.022072,
+    "lon": 24.1313525,
+    "fetched_at": "2026-09-17"
   }
 }
