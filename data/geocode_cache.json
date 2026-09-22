@@ -67,7 +67,7 @@
   "ss.com:imanta:anninmuizhas boule..": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-21"
+    "fetched_at": "2026-09-22"
   },
   "ss.com:imanta:dammes 1": {
     "lat": 56.9608492,
@@ -547,7 +547,7 @@
   "ss.com:zolitude:imantas 16. l. 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-21"
+    "fetched_at": "2026-09-22"
   },
   "ss.com:zolitude:apuzes 41": {
     "lat": 56.9395614,
@@ -697,7 +697,7 @@
   "ss.com:imanta:m. krūmu 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-21"
+    "fetched_at": "2026-09-22"
   },
   "ss.com:imanta:kleistu 21": {
     "lat": 56.9645798,
@@ -807,7 +807,7 @@
   "ss.com:imanta:m. krūmu 20": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-21"
+    "fetched_at": "2026-09-22"
   },
   "ss.com:zolitude:rostokas 20": {
     "lat": 56.9481208,
@@ -1157,7 +1157,7 @@
   "izsoles.ta.gov.lv:riga:1/2 domājamā daļa no višķu iela 11": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-21"
+    "fetched_at": "2026-09-22"
   },
   "ss.com:imanta:dubultu 20": {
     "lat": 56.9584181,
@@ -1268,5 +1268,20 @@
     "lat": 56.9500968,
     "lon": 24.1490217,
     "fetched_at": "2026-09-21"
+  },
+  "ss.com:sampeteris:zalves 42": {
+    "lat": 56.9397366,
+    "lon": 24.0392032,
+    "fetched_at": "2026-09-22"
+  },
+  "ss.com:imanta:dammes 32": {
+    "lat": 56.9648494,
+    "lon": 24.0114596,
+    "fetched_at": "2026-09-22"
+  },
+  "ss.com:imanta:kurzemes pr. 96": {
+    "lat": 56.9607965,
+    "lon": 23.9982688,
+    "fetched_at": "2026-09-22"
   }
 }
