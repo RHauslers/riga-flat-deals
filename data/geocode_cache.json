@@ -67,7 +67,7 @@
   "ss.com:imanta:anninmuizhas boule..": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-24"
+    "fetched_at": "2026-09-25"
   },
   "ss.com:imanta:dammes 1": {
     "lat": 56.9608492,
@@ -547,7 +547,7 @@
   "ss.com:zolitude:imantas 16. l. 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-24"
+    "fetched_at": "2026-09-25"
   },
   "ss.com:zolitude:apuzes 41": {
     "lat": 56.9395614,
@@ -807,7 +807,7 @@
   "ss.com:imanta:m. krūmu 20": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-24"
+    "fetched_at": "2026-09-25"
   },
   "ss.com:zolitude:rostokas 20": {
     "lat": 56.9481208,
@@ -1293,5 +1293,15 @@
     "lat": 56.9617934,
     "lon": 24.0107065,
     "fetched_at": "2026-09-24"
+  },
+  "ss.com:zolitude:zolitudes 46/2": {
+    "lat": 56.9427212,
+    "lon": 24.0168378,
+    "fetched_at": "2026-09-25"
+  },
+  "izsoles.ta.gov.lv:riga:katrīnas dambis 26": {
+    "lat": 56.9747089,
+    "lon": 24.1048681,
+    "fetched_at": "2026-09-25"
   }
 }
