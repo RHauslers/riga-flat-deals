@@ -105,6 +105,66 @@ class TestSSDiscoveryAndPagination(unittest.TestCase):
         self.assertEqual({l["id"] for l in results},
                          {"1", "2", "3", "4", "5", "6"})
 
+    def test_scrape_deep_scans_every_observed_model(self):
+        makes_index = ('<a href="/lv/transport/cars/volkswagen/sell/">VW</a>'
+                       '<a href="/lv/transport/cars/skoda/sell/">Skoda</a>')
+        base_vw = "https://www.ss.com/lv/transport/cars/volkswagen/sell/"
+        base_sk = "https://www.ss.com/lv/transport/cars/skoda/sell/"
+        skoda_row = _ss_row(3).replace("cars/volkswagen/", "cars/skoda/")
+        pages = {
+            config.CAR_SS_MAKES_URL: makes_index,
+            base_vw: f"<table>{_ss_row(1)}{_ss_row(2)}</table>",
+            base_sk: f"<table>{skoda_row}</table>",
+            "https://www.ss.com/lv/transport/cars/volkswagen/passat/sell/":
+                f"<table>{_ss_row(4)}</table>",
+            "https://www.ss.com/lv/transport/cars/skoda/passat/sell/":
+                f"<table>{_ss_row(5).replace('cars/volkswagen/', 'cars/skoda/')}</table>",
+        }
+        fetched = []
+
+        def fake_fetch(url):
+            fetched.append(url)
+            return pages[url]
+
+        with mock.patch.object(car_ss, "_fetch", side_effect=fake_fetch):
+            results = car_ss.scrape(max_pages_per_make=1,
+                                    max_pages_per_model=1, max_models=10)
+        self.assertIn("https://www.ss.com/lv/transport/cars/volkswagen/passat/sell/",
+                      fetched)
+        self.assertIn("https://www.ss.com/lv/transport/cars/skoda/passat/sell/",
+                      fetched)
+        self.assertEqual({l["id"] for l in results}, {"1", "2", "3", "4", "5"})
+        self.assertFalse(any("page=" in u for u in fetched))
+
+    def test_model_deep_scan_caps_by_observed_volume(self):
+        makes_index = '<a href="/lv/transport/cars/volkswagen/sell/">VW</a>'
+        base = "https://www.ss.com/lv/transport/cars/volkswagen/sell/"
+
+        def row_for(lid, model):
+            return _ss_row(lid).replace("cars/volkswagen/passat/",
+                                        f"cars/volkswagen/{model}/")
+
+        pages = {
+            config.CAR_SS_MAKES_URL: makes_index,
+            base: f"<table>{row_for(1, 'golf-5')}{row_for(2, 'golf-5')}"
+                  f"{row_for(3, 'polo')}</table>",
+            "https://www.ss.com/lv/transport/cars/volkswagen/golf-5/sell/":
+                f"<table>{row_for(4, 'golf-5')}</table>",
+        }
+        fetched = []
+
+        def fake_fetch(url):
+            fetched.append(url)
+            return pages[url]
+
+        with mock.patch.object(car_ss, "_fetch", side_effect=fake_fetch):
+            car_ss.scrape(max_pages_per_make=1, max_pages_per_model=1,
+                          max_models=1)
+        self.assertIn("https://www.ss.com/lv/transport/cars/volkswagen/golf-5/sell/",
+                      fetched)
+        self.assertNotIn("https://www.ss.com/lv/transport/cars/volkswagen/polo/sell/",
+                         fetched)
+
 
 class TestSSParsing(unittest.TestCase):
     def test_row_parses_verified_structure(self):
@@ -254,7 +314,7 @@ class TestCarScoring(unittest.TestCase):
     def _peers(self, prices, prefix="p"):
         return [_car("pp.lv", f"{prefix}{i}", p) for i, p in enumerate(prices)]
 
-    def test_3000_vs_peers_scores_100_and_qualifies(self):
+    def test_3000_vs_peers_scores_82_and_qualifies(self):
         cand = _car("ss.com", "c1", 3000)
         listings = [cand] + self._peers([4200, 4300, 4500, 4700])
         qualified, assessed = car_value.score_and_rank(listings)
@@ -262,7 +322,7 @@ class TestCarScoring(unittest.TestCase):
                       if l["source"] == "ss.com" and l["id"] == "c1")
         self.assertEqual(scored["_median"], 4400)
         self.assertEqual(scored["_comps"], 4)
-        self.assertEqual(scored["_score"], 100)
+        self.assertEqual(scored["_score"], 82)
         self.assertTrue(scored["_good"])
         self.assertIn(scored, qualified)
 
@@ -285,6 +345,19 @@ class TestCarScoring(unittest.TestCase):
         self.assertIsNone(scored["_score"])
         self.assertFalse(scored["_good"])
         self.assertEqual(qualified, [])
+
+    def test_low_mileage_and_newer_year_lift_score(self):
+        # identical 13.6% discount vs the same peers; only condition differs
+        fresh = _car("ss.com", "fresh", 3800, mileage=170000, year=2014)
+        worn = _car("ss.com", "worn", 3800, mileage=290000, year=2010)
+        peers = self._peers([4200, 4300, 4500, 4700], "m")
+        qualified, assessed = car_value.score_and_rank([fresh, worn] + peers)
+        by_id = {l["id"]: l for l in assessed}
+        self.assertEqual(by_id["fresh"]["_pool_year"], 2012)
+        self.assertEqual(by_id["fresh"]["_pool_mileage"], 230000)
+        self.assertEqual(by_id["fresh"]["_score"], 80)
+        self.assertEqual(by_id["worn"]["_score"], 48)
+        self.assertGreater(by_id["fresh"]["_score"], by_id["worn"]["_score"])
 
 
 class TestBadges(unittest.TestCase):
@@ -595,21 +668,19 @@ class TestDigestOutput(unittest.TestCase):
             self.assertIn(f"/x/{l['id']}", html_text)
         self.assertNotIn("⚠", html_text)
 
-    def test_b7_watch_sorted_by_reference_distance(self):
-        far = _car("pp.lv", "far", 4000, mileage=350000)
-        close = _car("pp.lv", "close", 4500, mileage=210000)
-        for l in (far, close):
-            l.update({"_score": None, "_median": None, "_comps": 0,
-                      "_savings": None, "_discount_pct": None})
-        html_text = car_digest.build_html([], [far, close], {}, {}, {},
-                                          "2026-09-26")
-        self.assertLess(html_text.index("/x/close"), html_text.index("/x/far"))
-        self.assertIn("cannot be appraised", html_text)
-        self.assertIn("6,500", html_text)
-
-    def test_b7_reference_note_shown_with_empty_watch(self):
+    def test_no_model_specific_watch_section(self):
         html_text = car_digest.build_html([], [], {}, {}, {}, "2026-09-26")
-        self.assertIn("cannot be appraised", html_text)
+        self.assertNotIn("Passat B7 watch", html_text)
+        self.assertNotIn("cannot be appraised", html_text)
+
+    def test_pool_context_shown_under_median(self):
+        good = _car("ss.com", "q1", 3000)
+        good.update({"_score": 90, "_median": 4000, "_comps": 5,
+                     "_savings": 1000, "_discount_pct": 25.0,
+                     "_pool_year": 2012, "_pool_mileage": 240000})
+        html_text = car_digest.build_html([good], [good], {}, {}, {},
+                                          "2026-09-26")
+        self.assertIn("pool ~2012 · ~240k km", html_text)
 
     def test_inspection_cautions_displayed(self):
         old_high_km = _car("ss.com", "old", 3000, mileage=379000, year=2011)

@@ -92,6 +92,21 @@ def _listing_links(l):
     return key_html
 
 
+def _pool_note(l):
+    """Small grey line under the median ask showing the comparable pool's
+    own median year/mileage, so the score's condition adjustments (low
+    mileage / newer year vs peers) are visible to the reader."""
+    year, mileage = l.get("_pool_year"), l.get("_pool_mileage")
+    if year is None or mileage is None:
+        return ""
+    try:
+        km = int(round(float(mileage) / 1000))
+    except (TypeError, ValueError):
+        return ""
+    return (f"<br><span style='color:#777;font-size:11px'>"
+            f"pool ~{_e(year)} · ~{km}k km</span>")
+
+
 def _row(l, badges):
     key = f"{l.get('source')}:{l.get('id')}"
     title = l.get("title") or f"{l.get('make', '')} {l.get('model', '')}"
@@ -113,7 +128,7 @@ def _row(l, badges):
         f"<span style='color:#777;font-size:12px'>{_e(l.get('make'))} {_e(l.get('model'))} — {_spec_text(l)}</span><br>"
         f"{_badge_html(key, badges)} {_listing_links(l)}{caution_html}</td>",
         f"<td style='padding:6px;text-align:right'><b>{_fmt_eur(l.get('price_eur'))}</b></td>",
-        f"<td style='padding:6px;text-align:right'>{_fmt_eur(l.get('_median'))}</td>",
+        f"<td style='padding:6px;text-align:right'>{_fmt_eur(l.get('_median'))}{_pool_note(l)}</td>",
         f"<td style='padding:6px;text-align:center'>{_fmt(l.get('_comps'))}</td>",
         f"<td style='padding:6px;text-align:right'>{_fmt_eur(l.get('_savings'))}</td>",
         f"<td style='padding:6px;text-align:right'>{_fmt(l.get('_discount_pct'), '%')}</td>",
@@ -154,16 +169,6 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
     both_failed = source_errors and all(
         name in source_errors for name in ("ss.com", "pp.lv"))
 
-    qualified_keys = {f"{l.get('source')}:{l.get('id')}" for l in qualified}
-    b7_watch = sorted(
-        (l for l in assessed
-         if l.get("model") == "passat-b7"
-         and f"{l.get('source')}:{l.get('id')}" not in qualified_keys),
-        key=lambda l: (abs((l.get("mileage_km") or 0)
-                           - config.CAR_PASSAT_REFERENCE_MILEAGE_KM),
-                       l.get("price_eur") or 0)
-    )[:config.CAR_B7_WATCH_N]
-
     if both_failed:
         top_html = (
             "<h2 style='color:#c0392b'>Warning: no current data — both sources failed</h2>"
@@ -194,38 +199,6 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "<th style='padding:6px'>Score</th></tr>"
             f"{rows}</table>")
 
-    if b7_watch:
-        brows = "".join(_row(l, badges) for l in b7_watch)
-        b7_table = (
-            "<table><tr style='background:#f0f0f0'>"
-            "<th style='text-align:left;padding:6px'>Listing</th>"
-            "<th style='padding:6px'>Asking</th>"
-            "<th style='padding:6px'>Median ask</th>"
-            "<th style='padding:6px'>Comps</th>"
-            "<th style='padding:6px'>Discount €</th>"
-            "<th style='padding:6px'>Discount %</th>"
-            "<th style='padding:6px'>Score</th></tr>"
-            f"{brows}</table>")
-    else:
-        b7_table = ("<p class='note'>No additional in-budget Passat B7 "
-                    "listings met the minimum data requirements in today's "
-                    "sample.</p>")
-    b7_html = (
-        "<h2>Passat B7 watch — context, not vetted deals</h2>"
-        "<p class='note'>Assessed Passat B7s outside the qualifying-deals "
-        "list (closest to the reference mileage first), including unrated "
-        "ones — when fewer than four comparable ads are available. These "
-        "are shown for context only — they have <b>not</b> passed the deal "
-        "test.</p>"
-        f"<p class='note'>The acquaintance's B7 "
-        f"(~{_fmt_eur(config.CAR_PASSAT_REFERENCE_PRICE_EUR)}, "
-        f"~{config.CAR_PASSAT_REFERENCE_MILEAGE_KM // 1000}k km) sits above "
-        f"the provisional {_fmt_eur(config.CAR_PRICE_CEILING_EUR)} cap and "
-        "<b>cannot be appraised</b> without its exact year, engine, fuel, "
-        "gearbox and documented history; there is no reliable basis here to "
-        "call any specific price 'fair' for it.</p>"
-        f"{b7_table}")
-
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Riga car deals — {_e(run_date)}</title>
@@ -239,9 +212,11 @@ a{{color:#2874a6;text-decoration:none}}a:hover{{text-decoration:underline}}
 .box{{background:#f7f9fb;border:1px solid #dbe4ea;padding:10px 14px;margin:12px 0}}
 </style></head><body>
 <h1>Riga car deals — {_e(stamp)}</h1>
-<p class="note">Coverage: {coverage}. ss.com: only the newest
-{_e(config.CAR_SS_MAX_PAGES_PER_MAKE)} pages per make plus
-{_e(config.CAR_SS_MAX_B7_PAGES)} dedicated Passat B7 pages; pp.lv: newest
+<p class="note">Coverage: {coverage}. ss.com: the newest
+{_e(config.CAR_SS_MAX_PAGES_PER_MAKE)} pages per make, then a bounded deep
+scan of up to {_e(config.CAR_SS_MAX_MODELS)} model pages (newest
+{_e(config.CAR_SS_MAX_PAGES_PER_MODEL)} pages each, models chosen by
+observed ad volume — no model is favoured); pp.lv: newest
 {_e(config.CAR_PP_MAX_PAGES)} pages. This is <b>not</b> an exhaustive scan
 of either site.</p>
 {error_html}
@@ -271,17 +246,21 @@ Ads without reliable specs are excluded or left unrated.
 price is at least {_e(config.CAR_GOOD_MIN_DISCOUNT_PCT)}% and
 {_fmt_eur(config.CAR_GOOD_MIN_SAVINGS_EUR)} below the median of at least
 {_e(config.CAR_MIN_COMPARABLES)} distinct comparable <i>current asking
-prices</i>. Comparables must match on make/model (incl. Passat generations
-like B7), fuel, year ±{_e(config.CAR_YEAR_TOLERANCE)}, mileage
+prices</i>. Comparables must match on make/model (incl. generation), fuel,
+year ±{_e(config.CAR_YEAR_TOLERANCE)}, mileage
 ±{config.CAR_MILEAGE_TOLERANCE_KM:,} km, engine
 ±{_e(config.CAR_ENGINE_TOLERANCE_L)}L, and gearbox/body whenever both
-sides state them. Score is 0–100: 50 at the median, +2 points per 1%
-cheaper, capped at 100. Missing gearbox/body reduce confidence in the
-match. Asking prices are not final selling prices, and mechanical/service
-condition cannot be verified from a listing.
+sides state them. Score is 0–100: 50 at the median, +1 point per 1%
+cheaper, up to +{_e(config.CAR_SCORE_MILEAGE_POINTS)} points for mileage
+below the pool's median (scaled across the
+±{config.CAR_MILEAGE_TOLERANCE_KM:,} km window) and
++{_e(config.CAR_SCORE_YEAR_POINTS)} points per year newer than the pool's
+median — so a cheap-but-worn car ranks below a cheap-and-fresh one. Missing
+gearbox/body reduce confidence in the match. Asking prices are not final
+selling prices, and mechanical/service condition cannot be verified from a
+listing.
 </div>
 {top_html}
-{b7_html}
 <div class="box">
 <b>Before buying:</b> check mileage and history in the CSDD register
 (e.csdd.lv), get an independent mechanical inspection, and verify all

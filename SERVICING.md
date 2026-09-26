@@ -146,20 +146,39 @@ Verified live after deploy (0372ef5): cars.html serves 200 with the deals
 table and tab nav; index/archives carry no btn-rescrape or TRIGGER_TOKEN;
 unsubscribe page still injects its token (by design, pending rotation).
 
-Known caveats: PP coverage = newest 12 pages, SS = newest 2 pages/make + 4
-B7 pages — deliberately not exhaustive; digest says so. SS eligible rate
-looked low (60/2532) — mostly missing mileage/price/engine or out-of-range
-rows; drop reasons are printed on the digest. Gearbox/body on ss.com
-inferred only when the title states them (else None = weaker comparables).
-Affordable cars in the newest two SS pages per make were sparse, so Passat
-B7 dominated the first ranking. Absence of another model is NOT evidence of
-no good cars on the market; if broader coverage is needed, sample bounded
-model-specific sale pages for common affordable cars or add more permitted
-PP pages, then verify price comparables without relaxing quality thresholds.
-First real run badged everything NEW — PRICE DROP/STILL ACTIVE badges
-start meaning something from the second run. docs/index.html still shows
-the 2026-09-13 flat digest — it refreshes on the next scheduled flat run,
-NOT when cars run; cars are website-only (no car email). PP thumbnails are
+Follow-up 2026-09-26 #4 (model-blind car coverage + score rebalance): the
+user wants best deals across ALL models — no model pointers. Removed every
+Passat B7 special case (dedicated pages, B7 watch section, reference-mileage
+config). scrapers/car_ss.py now: the per-make newest-pages scan tallies
+(make, model) slugs seen in ad links, then deep-scans the top
+CAR_SS_MAX_MODELS=200 models by observed volume, 2 pages each
+(CAR_SS_MAX_PAGES_PER_MODEL). ss.com repeats page 1 for page numbers beyond
+the last real page, so the existing zero-new-ids early stop is
+load-bearing — do not remove it. car_value.score_and_rank now also scores
+condition vs the comparable pool: CAR_SCORE_DISCOUNT_MULTIPLIER 2.0 -> 1.0
+(+1 pt per 1% cheaper; deep discounts no longer saturate the scale at 25%),
+up to +CAR_SCORE_MILEAGE_POINTS=10 for mileage below the pool median
+(1 pt per 6k km across the +/-60k window) and +CAR_SCORE_YEAR_POINTS=3 per
+year newer than the pool median. Pool median year/km is shown under
+"Median ask". Live rerun: ss.com 8207 rows (492 models observed, 200
+deep-scanned, 292 skipped as lower-volume), pp.lv 205; 177 qualifying
+deals across 52 models (was 12, all B7). 38 tests pass.
+WATCH: the ss.com scan is now ~500 requests (~9 min at the 1 s delay) and
+the daily Actions job has a 25-min timeout including the flat pipeline —
+if it starts timing out, lower CAR_SS_MAX_MODELS or
+CAR_SS_MAX_PAGES_PER_MODEL.
+
+Known caveats: PP coverage = newest 12 pages, SS = newest 2 pages/make plus
+a bounded deep scan of the 200 highest-volume model pages — deliberately
+not exhaustive; the digest says so. Gearbox/body on ss.com are inferred
+only when the title states them (else None = weaker comparables). Deep
+"deals" on 250-360k km diesels dominate the top of the ranking because
+that is where asking prices diverge most from pool medians — the
+high-mileage caution rows flag this, and condition adjustments cannot
+fully offset a 55%+ asking-price gap. First real run badged everything
+NEW — PRICE DROP/STILL ACTIVE badges start meaning something from the
+second run. docs/index.html refreshes on the next scheduled flat run, NOT
+when cars run; cars are website-only (no car email). PP thumbnails are
 blocked via route filter (image/media/font) — img alt seller labels still
 parse since alt is markup, not a fetched resource.
 The existing `main._inject_chat` copies the completion prompt to the clipboard

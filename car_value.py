@@ -145,17 +145,31 @@ def score_and_rank(listings):
         scored["_median"] = None
         scored["_discount_pct"] = None
         scored["_savings"] = None
+        scored["_pool_year"] = None
+        scored["_pool_mileage"] = None
         scored["_score"] = None
         scored["_good"] = False
         if len(peers) >= config.CAR_MIN_COMPARABLES:
             median = statistics.median(item["price_eur"] for item in peers)
             savings = median - listing["price_eur"]
             discount = 100 * savings / median
+            pool_year = statistics.median(item["year"] for item in peers)
+            pool_mileage = statistics.median(item["mileage_km"] for item in peers)
+            mileage_adj = config.CAR_SCORE_MILEAGE_POINTS * \
+                (pool_mileage - listing["mileage_km"]) / config.CAR_MILEAGE_TOLERANCE_KM
+            mileage_adj = max(-config.CAR_SCORE_MILEAGE_POINTS,
+                              min(config.CAR_SCORE_MILEAGE_POINTS, mileage_adj))
+            year_adj = config.CAR_SCORE_YEAR_POINTS * (listing["year"] - pool_year)
+            year_adj = max(-config.CAR_SCORE_YEAR_POINTS * config.CAR_YEAR_TOLERANCE,
+                           min(config.CAR_SCORE_YEAR_POINTS * config.CAR_YEAR_TOLERANCE, year_adj))
             scored["_median"] = median
             scored["_discount_pct"] = round(discount, 1)
             scored["_savings"] = savings
+            scored["_pool_year"] = int(round(pool_year))
+            scored["_pool_mileage"] = int(round(pool_mileage))
             scored["_score"] = max(0, min(config.CAR_SCORE_MAX, round(
-                config.CAR_SCORE_CENTER + config.CAR_SCORE_DISCOUNT_MULTIPLIER * discount)))
+                config.CAR_SCORE_CENTER + config.CAR_SCORE_DISCOUNT_MULTIPLIER * discount
+                + mileage_adj + year_adj)))
             scored["_good"] = (discount >= config.CAR_GOOD_MIN_DISCOUNT_PCT
                                and savings >= config.CAR_GOOD_MIN_SAVINGS_EUR)
         assessed.append(scored)

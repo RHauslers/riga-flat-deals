@@ -29,11 +29,10 @@ import config
 import car_value
 import utils
 
-B7_URL = config.CAR_SS_BASE + "/lv/transport/cars/volkswagen/passat-b7/sell/all-regions/"
-
 MAKE_LINK_RE = re.compile(r"^/lv/transport/cars/([a-z0-9-]+)/sell/$")
 NON_MAKE_SLUGS = {"new", "search", "exchange", "sell"}
 AD_HREF_RE = re.compile(r"/transport/cars/([a-z0-9-]+)/([a-z0-9-]+)/[^/]+\.html")
+MODEL_HREF_RE = re.compile(r"/msg/lv/transport/cars/([a-z0-9-]+)/([a-z0-9-]+)/")
 BUY_TITLE_RE = re.compile(r"^\s*(pērk\w*|pirks\w*|mainu\b|maina\b|maiņ\w*|izīr\w*)", re.I)
 TITLE_LPG_RE = re.compile(
     r"\b(?:benzin\w*\s*(?:\+|/|un)\s*gaz\w*|gaz\w*\s*(?:\+|/|un)\s*benzin\w*|lpg)\b",
@@ -198,8 +197,12 @@ def _row_to_listing(tr):
     }
 
 
-def _scrape_pages(start_url, cap, results, seen_ids):
-    """Walk at most `cap` list pages starting at start_url."""
+def _scrape_pages(start_url, cap, results, seen_ids, model_counts=None):
+    """Walk at most `cap` list pages starting at start_url. When
+    model_counts is given, tally (make, model) URL slugs seen in ad links —
+    used to rank which model pages deserve a deeper scan. Stops as soon as
+    a page adds nothing new: ss.com repeats page 1 for page numbers beyond
+    the last real page, so 'no new ids' means 'end of listings'."""
     for page_no in range(1, cap + 1):
         url = start_url if page_no == 1 else f"{start_url}page{page_no}.html"
         try:
@@ -209,6 +212,10 @@ def _scrape_pages(start_url, cap, results, seen_ids):
         except requests.RequestException as e:
             print(f"[car ss.com] fetch failed for {url}: {e}")
             break
+        if model_counts is not None:
+            for make, model in MODEL_HREF_RE.findall(html):
+                key = (make, model)
+                model_counts[key] = model_counts.get(key, 0) + 1
         soup = BeautifulSoup(html, "lxml")
         new_on_page = 0
         for tr in soup.select("tr[id^='tr_']"):
@@ -236,26 +243,48 @@ def _discover_makes():
     return makes
 
 
-def scrape(max_pages_per_make=None, max_b7_pages=None):
+def scrape(max_pages_per_make=None, max_pages_per_model=None, max_models=None):
     """Return list of car listing dicts from ss.com /lv/ car pages.
 
-    max_pages_per_make: override config.CAR_SS_MAX_PAGES_PER_MAKE (0 disables
-        per-make scraping entirely).
-    max_b7_pages: override config.CAR_SS_MAX_B7_PAGES (0 disables the
-        dedicated Passat B7 page scan).
+    Coverage is model-blind: scan the newest pages of every make (which
+    also reveals which models currently have ads and in what volume),
+    then deep-scan each observed model's own listing pages so every model
+    gets a comparable-price pool deep enough to score. No model is
+    special-cased.
+
+    max_pages_per_make: override config.CAR_SS_MAX_PAGES_PER_MAKE (0
+        disables the per-make scan, and with it model discovery).
+    max_pages_per_model: override config.CAR_SS_MAX_PAGES_PER_MODEL (0
+        disables the per-model deep scan).
+    max_models: override config.CAR_SS_MAX_MODELS — safety bound on how
+        many model pages are deep-scanned; models are ranked by observed
+        ad volume (most first) so the bound drops only the quietest
+        models.
     """
     cap_make = config.CAR_SS_MAX_PAGES_PER_MAKE if max_pages_per_make is None else max_pages_per_make
-    cap_b7 = config.CAR_SS_MAX_B7_PAGES if max_b7_pages is None else max_b7_pages
+    cap_model = config.CAR_SS_MAX_PAGES_PER_MODEL if max_pages_per_model is None else max_pages_per_model
+    cap_models = config.CAR_SS_MAX_MODELS if max_models is None else max_models
     results = []
     seen_ids = set()
+    model_counts = {}
 
     if cap_make:
         for make in _discover_makes():
             url = f"{config.CAR_SS_BASE}/lv/transport/cars/{make}/sell/"
-            _scrape_pages(url, cap_make, results, seen_ids)
+            _scrape_pages(url, cap_make, results, seen_ids, model_counts)
 
-    if cap_b7:
-        _scrape_pages(B7_URL, cap_b7, results, seen_ids)
+    if cap_model and model_counts:
+        ranked = sorted(model_counts.items(),
+                        key=lambda kv: (-kv[1], kv[0]))[:max(0, cap_models)]
+        for (make, model), _count in ranked:
+            url = f"{config.CAR_SS_BASE}/lv/transport/cars/{make}/{model}/sell/"
+            _scrape_pages(url, cap_model, results, seen_ids)
+        skipped = len(model_counts) - len(ranked)
+        if skipped > 0:
+            print(f"[car ss.com] model deep-scan skipped {skipped} "
+                  f"lower-volume model(s) (cap {cap_models})")
+        print(f"[car ss.com] deep-scanned {len(ranked)} model page(s) "
+              f"of {len(model_counts)} observed")
 
     print(f"[car ss.com] {len(results)} seller listings scraped")
     return results
