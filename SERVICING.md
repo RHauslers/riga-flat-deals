@@ -142,6 +142,9 @@ compromised — they were public. Delete the TRIGGER_PAT secret (nothing uses
 it now); rotate UNSUBSCRIBE_PAT and update the repo secret to keep the
 unsubscribe button working. Note the new value is again embedded in public
 HTML by design (user-accepted tradeoff); a safe redesign needs a backend.
+Verified live after deploy (0372ef5): cars.html serves 200 with the deals
+table and tab nav; index/archives carry no btn-rescrape or TRIGGER_TOKEN;
+unsubscribe page still injects its token (by design, pending rotation).
 
 Known caveats: PP coverage = newest 12 pages, SS = newest 2 pages/make + 4
 B7 pages — deliberately not exhaustive; digest says so. SS eligible rate
