@@ -89,7 +89,6 @@ SS_COM_USER_AGENT = (
 )
 SS_COM_TIMEOUT = 30   # seconds per request
 SS_COM_MAX_PAGES = 15  # safety cap for pagination (Imanta sale has 9+ pages)
-SS_COM_MAX_PAGES_HOURLY = 3  # hourly scan uses fewer pages to avoid IP blocks
 
 # ----------------------------------------------------------------------------
 # 4. city24.lv settings (scraped via Playwright -> intercept JSON API)
@@ -177,19 +176,6 @@ NEW_BUILD_KEYWORDS = [      # keywords in city24 series/title to exclude
     "new project", "new development", "jaunprojekts", "jaunā projekta",
 ]
 
-# 5b. ESCALATION (hourly hot-deal alerts)
-#    A lightweight hourly scan scores all current listings. If any deal's
-#    score >= ESCALATION_SCORE_THRESHOLD and it hasn't been alerted yet, an
-#    instant alert email is sent (separate from the daily digest). The daily
-#    digest is unaffected. Alerted deals are tracked in alerted_deals.json to
-#    avoid re-alerting the same listing every hour.
-ESCALATION_ENABLED = True
-ESCALATION_SCORE_THRESHOLD = 2.333  # ~1-in-100 statistical outlier (user-chosen)
-# A z-score computed from a handful of rows is noise, not signal. Escalation
-# refuses to alert for a deal type until that type has this many history rows,
-# so the first days can't produce false "HOT DEAL" emails.
-ESCALATION_MIN_HISTORY = 30
-
 # ----------------------------------------------------------------------------
 # 5c. CROSS-SOURCE DEDUPLICATION
 #    The same flat is often listed on both ss.com and city24.lv under different
@@ -204,17 +190,13 @@ DEDUPE_PRICE_TOL_PCT = 3.0   # prices within +/- 3% count as equal
 DEDUPE_SOURCE_PRIORITY = ["ss.com", "city24.lv"]  # which listing to keep
 
 # ----------------------------------------------------------------------------
-# 5d. HEALTH / FAILURE ALERTING (to the OPERATOR, not the recipient)
-#    Scrapers die silently when a site is redesigned: 0 listings -> no email ->
-#    nobody notices for days. If a run looks unhealthy we email the operator.
-#    Operator address comes from OPS_EMAIL_TO, falling back to EMAIL_FROM.
-#    Alerts are throttled to once per issue per day.
+# 5d. HEALTH CHECKS (log-only)
+#    Scrapers die silently when a site is redesigned: 0 listings -> nobody
+#    notices for days. Suspicious counts are printed as [health] ISSUE lines
+#    in the Actions log, and website.build() shows a stale-digest banner.
 # ----------------------------------------------------------------------------
-HEALTH_ALERTS_ENABLED = True
 MIN_EXPECTED_LISTINGS = 50    # total below this (but > 0) = suspicious
 ALERT_ON_SOURCE_ZERO = True  # a source returning 0 while another returns > 0
-# Operator alert recipient. Falls back to EMAIL_FROM if not set.
-OPS_EMAIL_TO = os.environ.get("OPS_EMAIL_TO", "")
 
 # ----------------------------------------------------------------------------
 # 5e. PRICE HISTORY (CenuMednieks.lv + our own daily tracking)
@@ -236,31 +218,17 @@ GEOCODE_ENABLED = True
 MAP_ENABLED = True
 
 # ----------------------------------------------------------------------------
-# 6. EMAIL DIGEST settings (env-ready: reads from environment / GitHub secrets)
-#    Set these secrets in GitHub Actions (or your local env) to enable sending:
-#       SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM, EMAIL_TO
-#    If any are missing, the digest is written to data/digest_YYYY-MM-DD.html
-#    and a notice is printed instead of crashing.
+# 6. DIGEST / SITE settings (website only — nothing is emailed)
 # ----------------------------------------------------------------------------
-EMAIL_SUBJECT_PREFIX = "Riga flat deals"
-EMAIL_LANG = "en"  # language of the digest body
-
-# 6b. UNSUBSCRIBE settings
-#    Set UNSUBSCRIBE_URL as an env var / GitHub secret once the GitHub Pages
-#    unsubscribe page is deployed, e.g.
-#    "https://yourname.github.io/Flat_Searcher/unsubscribe.html"
-#    The recipient's email is appended as ?email=<recipient> automatically.
-UNSUBSCRIBE_URL = os.environ.get("UNSUBSCRIBE_URL", "")  # set as env/secret once Pages is live
-
-# 6b2. HOSTED SITE URL (optional)
-#    Set SITE_URL as an env var / GitHub secret once GitHub Pages is live, e.g.
-#    "https://yourname.github.io/Flat_Searcher"
-#    Adds a "View in browser" link at the top of the email + links in the digest.
-SITE_URL = os.environ.get("SITE_URL", "")
-
-# 6c. DEAL PERSISTENCE settings
+# Deal persistence
 PRICE_DROP_MIN_PCT = 2.0    # only badge as PRICE_DROP if price dropped >= 2%
 STILL_ACTIVE_MAX_DAYS = 7   # don't show "still active" for deals shown > N days ago
+
+# Archive retention: digests older than this are deleted from data/digests/
+# and docs/archive/ by website.build(). Every day adds ~120 KB flat + ~100 KB
+# car HTML stored twice, so an unbounded archive grows the repo by ~150 MB a
+# year. The current day's pages (index.html / cars.html) are never pruned.
+ARCHIVE_KEEP_DAYS = 30
 
 # ----------------------------------------------------------------------------
 # 7. CHAT INJECTION (global rule 4)
@@ -292,14 +260,10 @@ IZSOLES_MAX_DETAILS = 30   # safety cap on detail pages fetched per run
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 HISTORY_CSV = os.path.join(DATA_DIR, "history.csv")
-SEEN_IDS_JSON = os.path.join(DATA_DIR, "seen_ids.json")  # legacy (migrated)
 SEEN_DEALS_JSON = os.path.join(DATA_DIR, "seen_deals.json")
 LAST_DIGEST_JSON = os.path.join(DATA_DIR, "last_digest.json")
 CAR_SEEN_JSON = os.path.join(DATA_DIR, "car_seen.json")
 CAR_MARKET_SNAPSHOT_JSON = os.path.join(DATA_DIR, "car_market_snapshot.json")
-UNSUBSCRIBED_JSON = os.path.join(DATA_DIR, "unsubscribed.json")
-ALERTED_DEALS_JSON = os.path.join(DATA_DIR, "alerted_deals.json")
-OPS_ALERTS_JSON = os.path.join(DATA_DIR, "ops_alerts.json")
 PRICE_HISTORY_JSON = os.path.join(DATA_DIR, "price_history.json")
 GEOCODE_CACHE_JSON = os.path.join(DATA_DIR, "geocode_cache.json")
 DIGEST_DIR = os.path.join(DATA_DIR, "digests")

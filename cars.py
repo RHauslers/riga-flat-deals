@@ -39,9 +39,11 @@ def _read_json(path, default):
 
 
 def _write_json(path, data):
+    """Compact JSON (no indent): car_seen/snapshot are ~1 MB each when
+    pretty-printed and are rewritten every day into git history."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
 
 
 def _ineligible_reason(l):

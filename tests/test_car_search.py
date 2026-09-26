@@ -706,17 +706,60 @@ class TestMainZeroFlats(unittest.TestCase):
              mock.patch.object(config, "GEOCODE_ENABLED", False), \
              mock.patch.object(main.price_history, "update_price_history",
                                return_value={}), \
-             mock.patch.object(main.health, "check_and_alert"), \
+             mock.patch.object(main.health, "check"), \
              mock.patch.object(main.cars, "run",
                                return_value="cars ok") as cars_run, \
              mock.patch.object(main.website, "build") as site_build, \
              mock.patch.object(main, "_inject_chat"), \
-             mock.patch.object(main.notifier, "send") as send:
+             mock.patch.object(main.notifier, "save_digest") as save:
             msg = main.run()
         self.assertEqual(cars_run.call_count, 1)
         self.assertEqual(site_build.call_count, 1)
-        send.assert_not_called()
+        save.assert_not_called()
         self.assertIn("0 listings", msg)
+
+
+class TestArchivePruning(unittest.TestCase):
+    def test_prunes_old_keeps_newest_and_recent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            digests = os.path.join(tmp, "digests")
+            archive = os.path.join(tmp, "docs", "archive")
+            os.makedirs(digests)
+            os.makedirs(archive)
+            names = ["digest_2026-07-01.html", "digest_2026-08-20.html",
+                     "digest_2026-09-25.html", "digest_2026-09-26.html",
+                     "cars_2026-07-15.html", "cars_2026-09-26.html",
+                     "keep_me.txt"]
+            for folder in (digests, archive):
+                for n in names:
+                    with open(os.path.join(folder, n), "w") as f:
+                        f.write("x")
+            with mock.patch.object(config, "DIGEST_DIR", digests), \
+                 mock.patch.object(website, "ARCHIVE_DIR", archive), \
+                 mock.patch.object(config, "ARCHIVE_KEEP_DAYS", 30):
+                removed = website.prune_old_digests("2026-09-26")
+            self.assertEqual(removed, 6)
+            for folder in (digests, archive):
+                left = sorted(os.listdir(folder))
+                self.assertEqual(left, ["cars_2026-09-26.html",
+                                        "digest_2026-09-25.html",
+                                        "digest_2026-09-26.html",
+                                        "keep_me.txt"])
+
+    def test_newest_survives_even_if_old(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            digests = os.path.join(tmp, "digests")
+            os.makedirs(digests)
+            with open(os.path.join(digests, "cars_2026-01-01.html"), "w") as f:
+                f.write("x")
+            with mock.patch.object(config, "DIGEST_DIR", digests), \
+                 mock.patch.object(website, "ARCHIVE_DIR",
+                                   os.path.join(tmp, "none")), \
+                 mock.patch.object(config, "ARCHIVE_KEEP_DAYS", 30):
+                removed = website.prune_old_digests("2026-09-26")
+            self.assertEqual(removed, 0)
+            self.assertTrue(os.path.exists(
+                os.path.join(digests, "cars_2026-01-01.html")))
 
 
 if __name__ == "__main__":

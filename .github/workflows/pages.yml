@@ -1,5 +1,8 @@
-name: Deploy unsubscribe page
+name: Deploy site
 
+# Redeploys docs/ to GitHub Pages when a human pushes site changes (the
+# scheduled daily job deploys its own output, see daily.yml). No secrets are
+# read and nothing is injected into the pages: docs/ is served verbatim.
 on:
   push:
     branches: [main, master]
@@ -22,20 +25,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Inject tokens into pages
-        env:
-          UNSUBSCRIBE_TOKEN: ${{ secrets.UNSUBSCRIBE_PAT }}
-          REPO: ${{ github.repository }}
-        run: |
-          OWNER=$(echo "$REPO" | cut -d/ -f1)
-          NAME=$(echo "$REPO" | cut -d/ -f2)
-          if [ -z "$UNSUBSCRIBE_TOKEN" ] || [ "$UNSUBSCRIBE_TOKEN" = "" ]; then
-            echo "::warning::UNSUBSCRIBE_PAT secret is not set - page will deploy but unsubscribe button will not work"
-          fi
-          sed -i "s|__UNSUBSCRIBE_TOKEN__|${UNSUBSCRIBE_TOKEN}|g" docs/unsubscribe.html
-          sed -i "s|__REPO_OWNER__|${OWNER}|g" docs/unsubscribe.html
-          sed -i "s|__REPO_NAME__|${NAME}|g" docs/unsubscribe.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

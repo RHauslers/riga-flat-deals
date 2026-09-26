@@ -1,34 +1,34 @@
 name: Daily flat deals
 
+# ONE scheduled run per day. This is the only scheduled job in the repo:
+# both the flat digest and the car digest are produced by `python -m main`
+# in this run, and the site is website-only (no email, no hourly scans).
 on:
   schedule:
-    # 06:23 UTC = 09:23 Riga (EEST, UTC+3). Deliberately BEFORE the
-    # promised 10:00 update and on an off-peak minute: GitHub Actions
-    # cron is best-effort and the round-hour 07:00 UTC slot is the most
-    # contended cron time of day — observed delivering ~5h late
-    # (site updated ~15:08-15:15 Riga) on 2026-09-09 and 2026-09-10.
-    # A non-round minute avoids the cron rush; the 37-min buffer means
-    # normal scheduling variance still lands the site update by ~10:00.
-    - cron: "23 6 * * *"
+    # 03:17 UTC = 05:17/06:17 Riga (winter/summer). GitHub cron is best-effort
+    # and this repo's previous 06:23 UTC slot started 4.6-11.4 h late every
+    # day (site updated ~15:00 Riga). An early, non-round minute leaves the
+    # most headroom so the page is fresh by the time anyone looks at it.
+    - cron: "17 3 * * *"
   workflow_dispatch: {}  # allow manual runs from the Actions tab
 
 permissions:
-  contents: write  # needed to commit history.csv / seen_ids.json back
+  contents: write  # needed to commit data/ + docs/ back
   pages: write     # needed to deploy the hosted site
   id-token: write  # needed for Pages deploy authentication
 
 concurrency:
-  # Shared with escalation.yml on purpose: both jobs commit state (history.csv,
-  # seen_deals.json, alerted_deals.json) to the same branch. Running them
-  # concurrently caused push races where one run's state update was discarded.
-  # A shared group makes the second run queue instead of collide.
+  # A manual run overlapping the scheduled one would race on the state
+  # commit; queue instead of collide.
   group: flat-searcher-state
   cancel-in-progress: false
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Flats take ~3-5 min; the model-blind car scan adds ~10-15 min
+    # (≈500 ss.com requests at ≥1 s + pp.lv at 5 s crawl-delay).
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,17 +50,7 @@ jobs:
         run: |
           python -m playwright install --with-deps chromium
 
-      - name: Run daily scrape + score + email
-        env:
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          OPS_EMAIL_TO: ${{ secrets.OPS_EMAIL_TO }}
-          UNSUBSCRIBE_URL: ${{ secrets.UNSUBSCRIBE_URL }}
-          SITE_URL: ${{ secrets.SITE_URL }}
+      - name: Run daily scrape + score + build digests
         run: |
           python -X utf8 -m main
 
@@ -69,9 +59,8 @@ jobs:
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Stage ALL changes (gitignore excludes junk). Using specific file
-          # lists left some modified files unstaged, which made
-          # `git pull --rebase` fail with "unstaged changes".
+          # Stage ALL changes (gitignore excludes junk); this also records the
+          # deletions made by the archive pruning in website.build().
           git add -A
 
           if git diff --cached --quiet; then
@@ -81,11 +70,9 @@ jobs:
 
           git commit -m "chore(data): daily scrape update $(date -u +%Y-%m-%d)"
 
-          # Pull-rebase-retry loop. The escalation workflow shares the
-          # `flat-searcher-state` concurrency group, so collisions should be
-          # rare, but a manual run or a re-triggered schedule can still race
-          # with an in-flight push from another branch ref. Retry up to 5
-          # times instead of silently dropping our state update.
+          # Pull-rebase-retry loop: a manual run or re-triggered schedule can
+          # still race with an in-flight push. Retry up to 5 times instead of
+          # silently dropping our state update.
           for attempt in 1 2 3 4 5; do
             if git pull --rebase origin "$GITHUB_REF_NAME"; then
               if git push origin "HEAD:$GITHUB_REF_NAME"; then
@@ -101,7 +88,7 @@ jobs:
           exit 1
 
   # Deploy the updated docs/ to GitHub Pages. This runs AFTER the scrape job
-  # commits the new index.html, so the site always reflects the latest digest.
+  # commits the new pages, so the site always reflects the latest digest.
   # We can't rely on pages.yml's push trigger because pushes made by
   # github-actions[bot] via GITHUB_TOKEN don't trigger other workflows
   # (GitHub prevents this to avoid infinite loops).
@@ -114,20 +101,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
-
-      - name: Inject tokens into pages
-        env:
-          UNSUBSCRIBE_TOKEN: ${{ secrets.UNSUBSCRIBE_PAT }}
-          REPO: ${{ github.repository }}
-        run: |
-          OWNER=$(echo "$REPO" | cut -d/ -f1)
-          NAME=$(echo "$REPO" | cut -d/ -f2)
-          if [ -z "$UNSUBSCRIBE_TOKEN" ] || [ "$UNSUBSCRIBE_TOKEN" = "" ]; then
-            echo "::warning::UNSUBSCRIBE_PAT secret is not set - unsubscribe button will not work"
-          fi
-          sed -i "s|__UNSUBSCRIBE_TOKEN__|${UNSUBSCRIBE_TOKEN}|g" docs/unsubscribe.html
-          sed -i "s|__REPO_OWNER__|${OWNER}|g" docs/unsubscribe.html
-          sed -i "s|__REPO_NAME__|${NAME}|g" docs/unsubscribe.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

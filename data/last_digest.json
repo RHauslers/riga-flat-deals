@@ -101,6 +101,17 @@
       "source": "ss.com"
     },
     {
+      "key": "city24.lv:2443318",
+      "score": 0.9273832102587187,
+      "price": 54000.0,
+      "district": "Imanta",
+      "rooms": 2,
+      "area_m2": 50.0,
+      "floor": "6/9",
+      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-imanta-maza-krumu-iela/8875425",
+      "source": "city24.lv"
+    },
+    {
       "key": "ss.com:58111894",
       "score": 0.8136583362637287,
       "price": 50500.0,
@@ -263,17 +274,6 @@
       "area_m2": 48.0,
       "floor": "1/2",
       "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/ckmlp.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:57812481",
-      "score": 0.4773483777448678,
-      "price": 53000.0,
-      "district": "Sampeteris",
-      "rooms": 2,
-      "area_m2": 48.0,
-      "floor": "1/3",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/bbcfio.html",
       "source": "ss.com"
     }
   ]

@@ -2,6 +2,49 @@
 
 Living document. Updated after each Devin session. Read this first.
 
+## Session 2026-09-26 #5 — "megaplan": audit + once-a-day, website-only cleanup
+
+Audit findings (user asked whether the app is well built and whether two
+tabs would exhaust GitHub scraping/Actions allowances):
+- Actions budget: repo is PUBLIC -> Actions minutes on standard runners are
+  free/unlimited. Real usage was 2.8-5.7 min/day; with the car scan ~15-20
+  min/day. No quota risk. Only limits that matter: job timeout (now 45 min)
+  and GitHub's 6 h job cap.
+- Hourly scans: escalation.yml lost its cron on 2026-09-13 but all the
+  machinery (escalation.py, alert email code, alerted_deals.json, config)
+  was still present -> removed entirely this session.
+- Cron lateness (the real scheduling problem): the 06:23 UTC slot started
+  4.6-11.4 h late on every one of the last 22 scheduled runs (median ~5.5
+  h; site refreshed ~15:00 Riga, not 10:00). Moved to `17 3 * * *` UTC.
+  GitHub cron is best-effort; if it is still late, try another odd minute.
+- Email: SMTP was never configured, so notifier.send, health ops-emails,
+  the unsubscribe page and its PAT injection existed for a mailing list
+  that does not exist. All removed -> the site now serves docs/ verbatim
+  with NO secrets injected. UNSUBSCRIBE_PAT / TRIGGER_PAT repo secrets are
+  unused; delete them in GitHub if not done already (TRIGGER_PAT: done).
+- Dead code removed: exceptional.py (unused), history legacy wrappers
+  (load_seen/save_seen/mark_seen/filter_new/migrate_seen_ids + unsubscribe/
+  alerted/ops-alert helpers), SS_COM_MAX_PAGES_HOURLY, ESCALATION_*,
+  EMAIL_*/SITE_URL/UNSUBSCRIBE_URL/OPS_EMAIL_TO, SEEN_IDS/UNSUBSCRIBED/
+  ALERTED/OPS_ALERTS paths. notifier.py 1234 -> ~906 lines.
+- Repo growth: each day added ~120 KB flat + ~100 KB car HTML stored twice
+  plus ~1 MB of pretty-printed car JSON rewritten -> ~150-250 MB/yr of git
+  history. Now: website.build() prunes digests older than
+  config.ARCHIVE_KEEP_DAYS=30 from data/digests + docs/archive (newest of
+  each kind always kept), and cars._write_json writes compact JSON.
+- Frontend: static f-string HTML, inline styles, Leaflet from unpkg, no-JS
+  tab nav. Works and is mobile-viewport tagged; styles are duplicated per
+  archive page (~115 KB each). Not changed this session.
+- Tests: 40 (38 car + main-zero-flats + 2 pruning). The flat pipeline
+  (scoring/classify/dedupe/scrapers) still has NO unit tests — top
+  follow-up if you touch it.
+
+API surface changes: notifier.send() -> notifier.save_digest() returns
+(path, info); health.check_and_alert() -> health.check() (log-only);
+build_html() lost its `recipient` arg. README.md written (was "N/A").
+daily.yml: no SMTP env, no token-injection step, timeout 45 min.
+pages.yml renamed "Deploy site", plain upload of docs/.
+
 ## Session 2026-09-10 (system diagnostics, no repo changes)
 
 No code changes this session. Session was used to diagnose why the PC

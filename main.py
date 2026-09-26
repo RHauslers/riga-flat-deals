@@ -2,20 +2,21 @@
 """
 Flat_Searcher - daily orchestrator.
 
-Pipeline:
-  1. Scrape ss.com + city24.lv for each deal type (rent, sale).
+Pipeline (runs ONCE a day via .github/workflows/daily.yml; website only,
+nothing is emailed):
+  1. Scrape ss.com + city24.lv (+ izsoles.ta.gov.lv auctions) for sales.
   2. Load history BEFORE appending (no leakage), then append today's rows.
-  3. Migrate legacy seen_ids.json -> seen_deals.json (one-time, no-op after).
-  4. Load state: seen_deals, last_digest (yesterday's top deals).
-  5. Score ALL current listings (not just new) -> today's true top N.
-  6. Classify into main_deals (NEW/PRICE_DROP/REAPPEARED) + still_active.
+  3. Load state: seen_deals, last_digest (yesterday's top deals).
+  4. Score ALL current listings (not just new) -> today's true top N.
+  5. Classify into main_deals (NEW/PRICE_DROP/REAPPEARED) + still_active.
      Build "vs yesterday" comparison header.
-  7. Notify: send email (skips if recipient unsubscribed), save HTML digest.
+  6. Run the car digest (cars.run) — independent, never aborts flats.
+  7. Save the flat HTML digest, build the hosted site (docs/).
   8. Update state: seen_deals (today's shown prices/scores) + last_digest.
-  9. Inject a status prompt into the Cascade/Devin chat (clipboard).
+  9. Copy a status prompt to the clipboard (local runs only; no-op in CI).
 
-Run locally:  python -m main
-Run in CI:    python -m main
+Run locally:  python -X utf8 -m main
+Run in CI:    python -X utf8 -m main
 """
 import sys
 import traceback
@@ -137,8 +138,8 @@ def run():
             print(f"[main] auctions: {len(auctions)} in-budget active "
                   f"auction(s) after filters")
 
-    # 1f. Health check -> alerts the OPERATOR if a scraper looks broken
-    health.check_and_alert(source_counts, len(all_listings), context="daily")
+    # 1f. Health check -> loud log line if a scraper looks broken
+    health.check(source_counts, len(all_listings), context="daily")
 
     car_status = ""
     try:
@@ -154,21 +155,17 @@ def run():
             print(f"[main] website.build failed: {e}")
             traceback.print_exc()
         msg = ("Flat_Searcher finished with 0 listings today. "
-               "No email sent. Check scrapers / site availability. Next steps?")
+               "Flat digest not updated. Check scrapers / site availability. Next steps?")
         _inject_chat(msg)
         return msg
 
     # 2. Training baseline = everything scraped BEFORE today.
     #    Excluding today by DATE (not just "before this append") is essential:
-    #    the hourly escalation scan also appends to history.csv, so by 10:00 it
-    #    has already inserted today's listings. Without exclude_today a listing
-    #    would help define the average it is judged against, making genuine
-    #    bargains look ordinary.
+    #    a manual rerun would otherwise have already inserted today's listings,
+    #    and a listing would help define the average it is judged against,
+    #    making genuine bargains look ordinary.
     hist_rows = history.load_history(exclude_today=True)
     history.append_history(all_listings)
-
-    # 3. One-time migration of legacy seen_ids.json -> seen_deals.json
-    history.migrate_seen_ids()
 
     # 4. Load state
     seen_deals = history.load_seen_deals()
@@ -237,10 +234,10 @@ def run():
     auctions_html = notifier.build_auctions_html(auctions)
     print(f"[main] auctions section built")
 
-    # 7. Notify (pass price history + map markers + sections)
-    sent, info = notifier.send(main_deals, still_active, comparison_html,
-                               status_note, price_data, map_markers,
-                               newest_html, near_school_html, auctions_html)
+    # 7. Save today's digest (pass price history + map markers + sections)
+    _path, info = notifier.save_digest(main_deals, still_active, comparison_html,
+                                       status_note, price_data, map_markers,
+                                       newest_html, near_school_html, auctions_html)
 
     # 8. Build hosted site (latest digest -> docs/index.html + archive)
     website.build()

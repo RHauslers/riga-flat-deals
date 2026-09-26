@@ -1,23 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-Health checks / failure alerting for the OPERATOR (not the deal recipient).
+Health checks for the scrape step (log-only — nothing is emailed).
 
 Scrapers die quietly: a site gets redesigned, the parser matches nothing, the
-run reports "0 listings today", no email is sent, and nobody notices for days.
-These checks detect that class of failure and email the operator.
+run reports "0 listings today" and nobody notices for days. These checks
+detect that class of failure and print a loud [health] ISSUE line in the
+Actions log; website.build() additionally shows a stale-digest banner on the
+site when a day's digest is missing.
 
 Detected conditions:
   - total_zero        : nothing scraped at all (both sources broken / blocked)
   - source_zero:<src> : one source returned 0 while another returned > 0
                         (that source's parser is very likely broken)
   - low_volume        : total below MIN_EXPECTED_LISTINGS (but not zero)
-
-Alerts are throttled to once per issue per day (data/ops_alerts.json) so an
-hourly scan cannot send 24 identical warnings.
 """
 import config
-import history
-import notifier
 
 
 def evaluate(source_counts, total):
@@ -56,29 +53,9 @@ def evaluate(source_counts, total):
     return issues
 
 
-def check_and_alert(source_counts, total, context="daily"):
-    """Evaluate health and email the operator about any new issues.
-
-    Returns the list of issue keys that triggered an alert this run.
-    """
-    if not config.HEALTH_ALERTS_ENABLED:
-        return []
-
+def check(source_counts, total, context="daily"):
+    """Evaluate health and print any issues. Returns the list of issue keys."""
     issues = evaluate(source_counts, total)
-    if not issues:
-        return []
-
-    sent_keys = []
     for issue_key, message in issues:
-        print(f"[health] ISSUE {issue_key}: {message}")
-        if not history.should_send_ops_alert(issue_key):
-            print(f"[health] already alerted '{issue_key}' today - throttled")
-            continue
-        ok, info = notifier.send_ops_alert(issue_key, message, source_counts,
-                                          total, context)
-        if ok:
-            history.mark_ops_alert_sent(issue_key)
-            sent_keys.append(issue_key)
-        else:
-            print(f"[health] could not send ops alert: {info}")
-    return sent_keys
+        print(f"[health] ISSUE ({context}) {issue_key}: {message}")
+    return [k for k, _ in issues]
