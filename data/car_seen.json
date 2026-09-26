@@ -1,0 +1,926 @@
+{
+  "ss.com:58112061": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2490,
+    "last_shown": "2026-09-26",
+    "first_shown": "2026-09-26"
+  },
+  "ss.com:57833014": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5500,
+    "last_shown": null
+  },
+  "ss.com:58106198": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6200,
+    "last_shown": null
+  },
+  "ss.com:58114915": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6700,
+    "last_shown": null
+  },
+  "ss.com:57758873": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6600,
+    "last_shown": null
+  },
+  "ss.com:58113451": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2950,
+    "last_shown": "2026-09-26",
+    "first_shown": "2026-09-26"
+  },
+  "ss.com:57942563": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4450,
+    "last_shown": null
+  },
+  "ss.com:58009595": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4990,
+    "last_shown": null
+  },
+  "ss.com:58109558": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3750,
+    "last_shown": null
+  },
+  "ss.com:58034803": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6990,
+    "last_shown": null
+  },
+  "ss.com:57633274": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4240,
+    "last_shown": "2026-09-26",
+    "first_shown": "2026-09-26"
+  },
+  "ss.com:57506057": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4500,
+    "last_shown": "2026-09-26",
+    "first_shown": "2026-09-26"
+  },
+  "ss.com:58030927": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6390,
+    "last_shown": null
+  },
+  "ss.com:57095313": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4200,
+    "last_shown": null
+  },
+  "ss.com:58103701": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3210,
+    "last_shown": "2026-09-26",
+    "first_shown": "2026-09-26"
+  },
+  "ss.com:57873173": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4000,
+    "last_shown": null
+  },
+  "ss.com:57338384": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6950,
+    "last_shown": null
+  },
+  "ss.com:57806465": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3150,
+    "last_shown": "2026-09-26",
+    "first_shown": "2026-09-26"
+  },
+  "ss.com:58072002": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4250,
+    "last_shown": null
+  },
+  "ss.com:57844045": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7200,
+    "last_shown": null
+  },
+  "ss.com:57691045": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3800,
+    "last_shown": null
+  },
+  "ss.com:57885032": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6950,
+    "last_shown": null
+  },
+  "ss.com:57919956": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6490,
+    "last_shown": null
+  },
+  "ss.com:57979983": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7500,
+    "last_shown": null
+  },
+  "ss.com:58007966": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5500,
+    "last_shown": null
+  },
+  "ss.com:57946992": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6400,
+    "last_shown": null
+  },
+  "ss.com:58097041": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4590,
+    "last_shown": null
+  },
+  "ss.com:56438440": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3700,
+    "last_shown": null
+  },
+  "ss.com:58095349": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6200,
+    "last_shown": null
+  },
+  "ss.com:58092533": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7358,
+    "last_shown": null
+  },
+  "ss.com:58027225": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6000,
+    "last_shown": null
+  },
+  "ss.com:57656126": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6100,
+    "last_shown": null
+  },
+  "ss.com:57573836": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5200,
+    "last_shown": null
+  },
+  "ss.com:58089765": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4000,
+    "last_shown": null
+  },
+  "ss.com:58088883": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4350,
+    "last_shown": null
+  },
+  "ss.com:57487554": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5350,
+    "last_shown": null
+  },
+  "ss.com:58068489": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5990,
+    "last_shown": null
+  },
+  "ss.com:58086655": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4200,
+    "last_shown": null
+  },
+  "ss.com:57768910": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3400,
+    "last_shown": null
+  },
+  "ss.com:57915638": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6500,
+    "last_shown": null
+  },
+  "ss.com:58085283": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4450,
+    "last_shown": "2026-09-26",
+    "first_shown": "2026-09-26"
+  },
+  "ss.com:57946512": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4500,
+    "last_shown": null
+  },
+  "ss.com:57544276": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3495,
+    "last_shown": "2026-09-26",
+    "first_shown": "2026-09-26"
+  },
+  "ss.com:58078677": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4400,
+    "last_shown": null
+  },
+  "ss.com:54444596": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7200,
+    "last_shown": null
+  },
+  "ss.com:58021848": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5000,
+    "last_shown": null
+  },
+  "ss.com:57503046": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6700,
+    "last_shown": null
+  },
+  "ss.com:57355175": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5200,
+    "last_shown": null
+  },
+  "ss.com:57935818": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4400,
+    "last_shown": null
+  },
+  "ss.com:57994786": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5190,
+    "last_shown": null
+  },
+  "ss.com:58066220": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4750,
+    "last_shown": "2026-09-26",
+    "first_shown": "2026-09-26"
+  },
+  "ss.com:58065005": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5700,
+    "last_shown": null
+  },
+  "ss.com:57917218": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5799,
+    "last_shown": null
+  },
+  "ss.com:57935290": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2800,
+    "last_shown": "2026-09-26",
+    "first_shown": "2026-09-26"
+  },
+  "ss.com:57916202": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3780,
+    "last_shown": "2026-09-26",
+    "first_shown": "2026-09-26"
+  },
+  "ss.com:57878855": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6200,
+    "last_shown": null
+  },
+  "ss.com:57973934": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5200,
+    "last_shown": null
+  },
+  "ss.com:58047718": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3400,
+    "last_shown": "2026-09-26",
+    "first_shown": "2026-09-26"
+  },
+  "ss.com:57263668": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5550,
+    "last_shown": null
+  },
+  "ss.com:58047129": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5100,
+    "last_shown": null
+  },
+  "pp.lv:3594513": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6700,
+    "last_shown": null
+  },
+  "pp.lv:3594269": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1500,
+    "last_shown": null
+  },
+  "pp.lv:3612127": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2660,
+    "last_shown": null
+  },
+  "pp.lv:3612075": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1500,
+    "last_shown": null
+  },
+  "pp.lv:3611775": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3350,
+    "last_shown": null
+  },
+  "pp.lv:3611749": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3700,
+    "last_shown": null
+  },
+  "pp.lv:3428393": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4200,
+    "last_shown": null
+  },
+  "pp.lv:3551115": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3000,
+    "last_shown": null
+  },
+  "pp.lv:3592123": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4500,
+    "last_shown": null
+  },
+  "pp.lv:3611149": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2200,
+    "last_shown": null
+  },
+  "pp.lv:3602147": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1000,
+    "last_shown": null
+  },
+  "pp.lv:3610827": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2350,
+    "last_shown": null
+  },
+  "pp.lv:3515889": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2316,
+    "last_shown": null
+  },
+  "pp.lv:3612638": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2499,
+    "last_shown": null
+  },
+  "pp.lv:3612636": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1799,
+    "last_shown": null
+  },
+  "pp.lv:3612630": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1299,
+    "last_shown": null
+  },
+  "pp.lv:3568998": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2750,
+    "last_shown": null
+  },
+  "pp.lv:3612608": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3700,
+    "last_shown": null
+  },
+  "pp.lv:3612602": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1499,
+    "last_shown": null
+  },
+  "pp.lv:3612600": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3499,
+    "last_shown": null
+  },
+  "pp.lv:3612596": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1999,
+    "last_shown": null
+  },
+  "pp.lv:3612592": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1199,
+    "last_shown": null
+  },
+  "pp.lv:3612590": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1399,
+    "last_shown": null
+  },
+  "pp.lv:3612588": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1999,
+    "last_shown": null
+  },
+  "pp.lv:3612586": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1799,
+    "last_shown": null
+  },
+  "pp.lv:3612584": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1999,
+    "last_shown": null
+  },
+  "pp.lv:3612580": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2699,
+    "last_shown": null
+  },
+  "pp.lv:3612582": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2299,
+    "last_shown": null
+  },
+  "pp.lv:3610059": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6500,
+    "last_shown": null
+  },
+  "pp.lv:3612408": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3699,
+    "last_shown": null
+  },
+  "pp.lv:3612400": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2299,
+    "last_shown": null
+  },
+  "pp.lv:3612396": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2299,
+    "last_shown": null
+  },
+  "pp.lv:3612392": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2499,
+    "last_shown": null
+  },
+  "pp.lv:3609989": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2100,
+    "last_shown": null
+  },
+  "pp.lv:3612378": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7599,
+    "last_shown": null
+  },
+  "pp.lv:3612368": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6899,
+    "last_shown": null
+  },
+  "pp.lv:3612316": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2700,
+    "last_shown": null
+  },
+  "pp.lv:3612254": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2999,
+    "last_shown": null
+  },
+  "pp.lv:3612246": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1799,
+    "last_shown": null
+  },
+  "pp.lv:3612244": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4499,
+    "last_shown": null
+  },
+  "pp.lv:3612216": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7499,
+    "last_shown": null
+  },
+  "pp.lv:3612206": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7899,
+    "last_shown": null
+  },
+  "pp.lv:3530274": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3590,
+    "last_shown": null
+  },
+  "pp.lv:3609829": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1200,
+    "last_shown": null
+  },
+  "pp.lv:3566478": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7999,
+    "last_shown": null
+  },
+  "pp.lv:3428312": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7299,
+    "last_shown": null
+  },
+  "pp.lv:3426034": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 5699,
+    "last_shown": null
+  },
+  "pp.lv:3317744": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7499,
+    "last_shown": null
+  },
+  "pp.lv:3611958": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7499,
+    "last_shown": null
+  },
+  "pp.lv:3611952": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1799,
+    "last_shown": null
+  },
+  "pp.lv:3611954": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1199,
+    "last_shown": null
+  },
+  "pp.lv:3611944": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2399,
+    "last_shown": null
+  },
+  "pp.lv:3611946": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1899,
+    "last_shown": null
+  },
+  "pp.lv:3611942": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1899,
+    "last_shown": null
+  },
+  "pp.lv:3390762": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3990,
+    "last_shown": null
+  },
+  "pp.lv:3469376": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1990,
+    "last_shown": null
+  },
+  "pp.lv:3611836": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2699,
+    "last_shown": null
+  },
+  "pp.lv:3611834": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2299,
+    "last_shown": null
+  },
+  "pp.lv:3611832": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2299,
+    "last_shown": null
+  },
+  "pp.lv:3611830": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2799,
+    "last_shown": null
+  },
+  "pp.lv:3611822": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2499,
+    "last_shown": null
+  },
+  "pp.lv:3611820": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4499,
+    "last_shown": null
+  },
+  "pp.lv:3611818": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2699,
+    "last_shown": null
+  },
+  "pp.lv:3611816": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1199,
+    "last_shown": null
+  },
+  "pp.lv:3611814": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3999,
+    "last_shown": null
+  },
+  "pp.lv:3611812": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1799,
+    "last_shown": null
+  },
+  "pp.lv:3611806": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1999,
+    "last_shown": null
+  },
+  "pp.lv:3575944": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6299,
+    "last_shown": null
+  },
+  "pp.lv:3573494": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6799,
+    "last_shown": null
+  },
+  "pp.lv:3550180": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6499,
+    "last_shown": null
+  },
+  "pp.lv:3549772": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7999,
+    "last_shown": null
+  },
+  "pp.lv:3377560": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 7199,
+    "last_shown": null
+  },
+  "pp.lv:3329070": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6599,
+    "last_shown": null
+  },
+  "pp.lv:3136305": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6000,
+    "last_shown": null
+  },
+  "pp.lv:3611676": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1099,
+    "last_shown": null
+  },
+  "pp.lv:3611668": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2099,
+    "last_shown": null
+  },
+  "pp.lv:3611666": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1899,
+    "last_shown": null
+  },
+  "pp.lv:3611662": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2999,
+    "last_shown": null
+  },
+  "pp.lv:3611664": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4099,
+    "last_shown": null
+  },
+  "pp.lv:3611658": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2199,
+    "last_shown": null
+  },
+  "pp.lv:3611660": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1699,
+    "last_shown": null
+  },
+  "pp.lv:3608745": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2100,
+    "last_shown": null
+  },
+  "pp.lv:3608315": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 4600,
+    "last_shown": null
+  },
+  "pp.lv:3611516": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 2999,
+    "last_shown": null
+  },
+  "pp.lv:3611514": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 6699,
+    "last_shown": null
+  },
+  "pp.lv:3611506": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3499,
+    "last_shown": null
+  },
+  "pp.lv:3611504": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1199,
+    "last_shown": null
+  },
+  "pp.lv:3611502": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1799,
+    "last_shown": null
+  },
+  "pp.lv:3611500": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3499,
+    "last_shown": null
+  },
+  "pp.lv:3611496": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1499,
+    "last_shown": null
+  },
+  "pp.lv:3611492": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 1199,
+    "last_shown": null
+  },
+  "pp.lv:3611488": {
+    "first_seen": "2026-09-26",
+    "last_seen": "2026-09-26",
+    "last_price": 3499,
+    "last_shown": null
+  }
+}

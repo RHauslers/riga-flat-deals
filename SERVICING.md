@@ -27,6 +27,137 @@ content-delivery (tips/Spotlight) — CLSID resolves via
 HKCR\PackagedCom to Microsoft-signed SoftLandingTask.exe in
 SystemApps\MicrosoftWindows.Client.CBS; don't flag them next time.
 
+## Session 2026-09-26 (car digest feature — cars on website only)
+
+New feature: a daily car digest alongside the flat pipeline. Website only —
+NO car email is ever sent. Buyer context: ~€1,200/mo income, provisional
+€5,000 purchase cap (config.CAR_PRICE_CEILING_EUR) + separate €1,500 repair
+reserve. Sources: ss.com cars (/lv/ only — robots.txt disallows /en/ and
+sort URLs) + pp.lv (robots Allow:/, Crawl-delay 5 s -> Playwright, no cookie
+clicks). auto24.lv / automoto.com.lv / autoplius.lt are NOT scraped (403s
+and/or automation bans in their terms).
+
+New files:
+- `car_value.py` — canonical make/model (Passat B6/B7/B8, Golf 5/6/7 by
+  year), eligible(), dedupe_cross_source(), score_and_rank() -> (ALL
+  qualifying, assessed). A "good deal" = >=15% AND >=€500 below median of
+  >=4 comparable current asking prices. DO NOT hand-edit: values verified
+  by review of synthetic score/merge cases.
+- `scrapers/car_ss.py` — scrape(max_pages_per_make=None, max_b7_pages=None).
+  Make discovery: links matching /lv/transport/cars/<make>/sell/ on
+  config.CAR_SS_MAKES_URL (48 makes live; /new/, /search/, /exchange/
+  excluded). Pagination is <url>pageN.html — '?page=N' REPEATS page 1
+  (verified live; never use it). Fetches /sell/ pages (<=2/make) +
+  dedicated volkswagen/passat-b7 pages (<=4). Row = tr#tr_N, td.msg2 a.am,
+  cells year|engine|mileage|price (msga2-o/msga2-r). '254 tūkst.' -> 254000,
+  '254,5 tūkst.' -> 254500; '2.0D' -> diesel; '-' mileage -> None. Title
+  specs matched on diacritic-stripped text ('automātiskā'->automatic,
+  'mehāniskā'->manual, 'universāls'->wagon); buy/exchange/rent filter is
+  anchored to the START of the title so 'Mainīta eļļa...' still parses.
+  Stops cleanly on 403/429 (SourceBlocked), >=1 s between requests.
+- `scrapers/car_pp.py` — scrape(max_pages=None), Playwright headless,
+  config.CAR_PP_LIST_URL + &page=N (<=12), >=5 s between navigations.
+  Cards a[href*='/!']; seller check via img alt 'Pārdod -'; specs in
+  div[title='...'] tooltips ('Mehāniskā'->manual, 'Automātiskā'->automatic);
+  price uses thin spaces (U+2009). Model = LAST path segment before !id
+  (e.g. /bmw/x-serija/x1/!N -> x1). Page-1 zero cards -> RuntimeError.
+- `cars.py` — run() -> status str. Per-source try/except; a source that
+  raises OR yields zero eligible listings is marked failed for the run
+  ('no eligible car listings' error). Both sources unavailable ->
+  'No current data' error page and car_seen.json left untouched; one
+  failed + one valid -> outage banner, digest still produced. Dedupe
+  BEFORE scoring; writes data/car_market_snapshot.json (numeric-only
+  fields from config.CAR_SNAPSHOT_FIELDS — the frozen deduped market the
+  scores were computed on, overwritten daily, untouched on full failure);
+  badges NEW / PRICE DROP (>=2%, wins at any age) /
+  STILL ACTIVE (same price AND last_shown today|yesterday) / REAPPEARED;
+  prunes seen >45 days.
+- `car_digest.py` — build_html(qualified, assessed, source_counts,
+  source_errors, badges, run_date). Header 'All qualifying deals' (no
+  top-N limit). B7 watch = non-qualified assessed B7s sorted by
+  |mileage - CAR_PASSAT_REFERENCE_MILEAGE_KM| then price, up to
+  CAR_B7_WATCH_N; acquaintance reference note (config
+  CAR_PASSAT_REFERENCE_PRICE_EUR/MILEAGE_KM, 'cannot appraise without
+  exact specs') is shown even when the watch table is empty. €1,500
+  reserve is for inspection/initial repairs/registration — fuel/tax/
+  insurance/maintenance are additional recurring expenses. 'Warning:'
+  text, no emoji. All values html.escape'd; links only to
+  https://(www.)ss.com / (www.)pp.lv.
+
+Changed:
+- `website.py` — docs/cars.html (latest car digest or 'Not generated yet'
+  placeholder). If the newest car digest is not today's, cars.html gets a
+  prominent stale-warning banner naming the actual digest date (current
+  tab only — archive copies stay clean). Car archive label is '(today)'
+  only when it really is today, else '(latest)'. Flats/Cars tab bar
+  (plain relative links, aria-current, no JS) injected ONLY into hosted
+  docs/ copies — data/digests originals stay byte-identical. Idempotent
+  (class="site-nav" marker).
+- `main.py` — cars.run() once, wrapped (never aborts flats); website.build()
+  also in the 0-flats early-return branch.
+- `tests/test_car_search.py` — 35 unittests, all temp-dir writes.
+  `python -m unittest discover -s tests -p "test_car_search.py" -v` -> OK.
+
+LIVE RUN 2026-09-26 #2 (cars.run() + website.build() only, no flat scrape,
+no email): ss.com 2532 -> 60 eligible, pp.lv 209 -> 92 eligible; 152
+deduped market rows; 12 qualifying deals, 102 assessed. Regenerated
+data/digests/cars_2026-09-26.html, car_seen.json, car_market_snapshot.json
+(152 rows), docs/cars.html + archive copy. 35 unittests pass.
+Parser fix applied this run: ss.com title-LPG override — ss.com:57095313
+(2012 Passat B7, 222k km, €4,200, 'Benzīns + Gāze' in title) now correctly
+stored as fuel='lpg' in the snapshot (was petrol). It is not displayed in
+today's digest. The audited top B7 remains ss.com:57935290 (2011, 257k km,
+€2,800, 17 peers median €5,200, 46.2% discount, score 100 — verified
+against the frozen snapshot).
+New this pass: inspection cautions on rows (>=300k km -> 'High mileage —
+budget for repairs'; >=15y old -> 'Older car — inspect carefully'; no
+score change), same-day rerun keeps NEW badges (first_shown field added
+to car_seen state), docs/index.html gets a prominent stale-flat warning
+when the newest flat digest is not today's (currently correctly warns the
+flat digest is from 2026-09-13), and archive labels use '(latest)' instead
+of a false '(today)'.
+Earlier smoke: _discover_makes() -> 48 makes incl. volkswagen+skoda;
+B7 pageN.html pages 1-2 -> 60 distinct ids.
+User also shared a browser userscript that loads SS.com listing pages through
+pageN.html. This confirms an option for wider coverage, but the current scraper
+already uses pageN.html successfully; its 250 ms page delay and ?page=N
+fallback should not be copied into the scheduled scan (which waits at least
+1 second and stops on 403/429). The present limits are intentional caps, not a
+pagination-loading failure.
+
+Deployment check 2026-09-26: car changes remain uncommitted/unpushed. After
+fetching, origin/main is 13 daily-flat commits ahead of local main, through
+2026-09-26; local docs/index.html still contains the 2026-09-13 flat digest.
+Before publishing cars, reconcile against current remote flat data and rebuild
+docs so the current flat page is not replaced by a stale one. Both
+.github/workflows/pages.yml and daily.yml replace placeholders in publicly
+served HTML with TRIGGER_PAT/UNSUBSCRIBE_PAT when those secrets are configured;
+this risks exposing the tokens. Do not deploy that design unchanged. Inspect
+and rotate affected tokens through GitHub if they were configured; no secret
+values were inspected during this check. No deployment was performed.
+
+Known caveats: PP coverage = newest 12 pages, SS = newest 2 pages/make + 4
+B7 pages — deliberately not exhaustive; digest says so. SS eligible rate
+looked low (60/2532) — mostly missing mileage/price/engine or out-of-range
+rows; drop reasons are printed on the digest. Gearbox/body on ss.com
+inferred only when the title states them (else None = weaker comparables).
+Affordable cars in the newest two SS pages per make were sparse, so Passat
+B7 dominated the first ranking. Absence of another model is NOT evidence of
+no good cars on the market; if broader coverage is needed, sample bounded
+model-specific sale pages for common affordable cars or add more permitted
+PP pages, then verify price comparables without relaxing quality thresholds.
+First real run badged everything NEW — PRICE DROP/STILL ACTIVE badges
+start meaning something from the second run. docs/index.html still shows
+the 2026-09-13 flat digest — it refreshes on the next scheduled flat run,
+NOT when cars run; cars are website-only (no car email). PP thumbnails are
+blocked via route filter (image/media/font) — img alt seller labels still
+parse since alt is markup, not a fetched resource.
+The existing `main._inject_chat` copies the completion prompt to the clipboard
+but does not submit it to Devin Desktop chat; this is not automatic injection.
+A verified chat API or safely targeted Desktop input integration is needed;
+blind keyboard simulation could send text to the wrong application. The
+car-only verification ran `cars.run()` without invoking `main._inject_chat`.
+
 ## Current state (after session 2026-09-09, upgrade #12 — state auction integration)
 
 **Working, tested end-to-end locally on Windows + Python 3.14.4.

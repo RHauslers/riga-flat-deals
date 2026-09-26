@@ -31,6 +31,7 @@ import health
 import utils
 import price_history
 import geocode
+import cars
 from scrapers import ss_com, city24, izsoles
 
 
@@ -139,7 +140,19 @@ def run():
     # 1f. Health check -> alerts the OPERATOR if a scraper looks broken
     health.check_and_alert(source_counts, len(all_listings), context="daily")
 
+    car_status = ""
+    try:
+        car_status = cars.run()
+    except Exception as e:
+        print(f"[main] cars.run failed: {e}")
+        traceback.print_exc()
+
     if not all_listings:
+        try:
+            website.build()
+        except Exception as e:
+            print(f"[main] website.build failed: {e}")
+            traceback.print_exc()
         msg = ("Flat_Searcher finished with 0 listings today. "
                "No email sent. Check scrapers / site availability. Next steps?")
         _inject_chat(msg)
@@ -238,7 +251,8 @@ def run():
 
     msg = (f"Flat_Searcher run {today} complete: scraped {len(all_listings)}, "
            f"surfaced {n_main} new/changed + {n_still} still-active deals. "
-           f"{info}. Scoring: {status_note}. Feedback or next steps?")
+           f"{info}. Scoring: {status_note}.{(' ' + car_status) if car_status else ''} "
+           f"Feedback or next steps?")
     _inject_chat(msg)
     return msg
 

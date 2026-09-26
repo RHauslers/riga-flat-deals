@@ -6,6 +6,43 @@ Change values here only; every other module imports from config.
 """
 import os
 
+CAR_SS_BASE = "https://www.ss.com"
+CAR_SS_MAKES_URL = "https://www.ss.com/lv/transport/cars/sell/"
+CAR_SS_MAX_PAGES_PER_MAKE = 2
+CAR_SS_MAX_B7_PAGES = 4
+CAR_SS_REQUEST_DELAY_SECONDS = 1.0
+CAR_PP_LIST_URL = "https://pp.lv/lv/transports-un-tehnika/vieglie-auto/?maxPrice=8%C2%A0000"
+CAR_PP_MAX_PAGES = 12
+CAR_PP_REQUEST_DELAY_SECONDS = 5.0
+CAR_SOURCE_TIMEOUT_SECONDS = 30
+CAR_MIN_YEAR = 2005
+CAR_MAX_MILEAGE_KM = 400000
+CAR_HIGH_MILEAGE_WARNING_KM = 300000
+CAR_AGE_WARNING_YEARS = 15
+CAR_MIN_PRICE_EUR = 1000
+CAR_PRICE_CEILING_EUR = 5000
+CAR_COMPARABLE_MAX_PRICE_EUR = 8000
+CAR_REPAIR_RESERVE_EUR = 1500
+CAR_MIN_COMPARABLES = 4
+CAR_YEAR_TOLERANCE = 2
+CAR_MILEAGE_TOLERANCE_KM = 60000
+CAR_ENGINE_TOLERANCE_L = 0.15
+CAR_GOOD_MIN_DISCOUNT_PCT = 15.0
+CAR_GOOD_MIN_SAVINGS_EUR = 500
+CAR_DEDUPE_MILEAGE_TOLERANCE_KM = 500
+CAR_DEDUPE_PRICE_TOLERANCE_EUR = 50
+CAR_DEDUPE_ENGINE_TOLERANCE_L = 0.06
+CAR_DEDUPE_MISSING_SPECS_MILEAGE_TOLERANCE_KM = 250
+CAR_SCORE_CENTER = 50
+CAR_SCORE_DISCOUNT_MULTIPLIER = 2.0
+CAR_SCORE_MAX = 100
+CAR_B7_WATCH_N = 10
+CAR_PASSAT_REFERENCE_MILEAGE_KM = 200000
+CAR_PASSAT_REFERENCE_PRICE_EUR = 6500
+CAR_SEEN_TTL_DAYS = 45
+CAR_SNAPSHOT_FIELDS = ("source", "id", "make", "model", "year", "mileage_km",
+                       "fuel", "engine_l", "gearbox", "body", "price_eur")
+
 # ----------------------------------------------------------------------------
 # 1. TARGET DISTRICTS (Riga, Latvia)
 #    Each entry: canonical name -> list of substrings used to match the
@@ -258,6 +295,8 @@ HISTORY_CSV = os.path.join(DATA_DIR, "history.csv")
 SEEN_IDS_JSON = os.path.join(DATA_DIR, "seen_ids.json")  # legacy (migrated)
 SEEN_DEALS_JSON = os.path.join(DATA_DIR, "seen_deals.json")
 LAST_DIGEST_JSON = os.path.join(DATA_DIR, "last_digest.json")
+CAR_SEEN_JSON = os.path.join(DATA_DIR, "car_seen.json")
+CAR_MARKET_SNAPSHOT_JSON = os.path.join(DATA_DIR, "car_market_snapshot.json")
 UNSUBSCRIBED_JSON = os.path.join(DATA_DIR, "unsubscribed.json")
 ALERTED_DEALS_JSON = os.path.join(DATA_DIR, "alerted_deals.json")
 OPS_ALERTS_JSON = os.path.join(DATA_DIR, "ops_alerts.json")
