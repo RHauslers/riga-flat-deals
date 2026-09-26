@@ -125,16 +125,23 @@ fallback should not be copied into the scheduled scan (which waits at least
 1 second and stops on 403/429). The present limits are intentional caps, not a
 pagination-loading failure.
 
-Deployment check 2026-09-26: car changes remain uncommitted/unpushed. After
-fetching, origin/main is 13 daily-flat commits ahead of local main, through
-2026-09-26; local docs/index.html still contains the 2026-09-13 flat digest.
-Before publishing cars, reconcile against current remote flat data and rebuild
-docs so the current flat page is not replaced by a stale one. Both
-.github/workflows/pages.yml and daily.yml replace placeholders in publicly
-served HTML with TRIGGER_PAT/UNSUBSCRIBE_PAT when those secrets are configured;
-this risks exposing the tokens. Do not deploy that design unchanged. Inspect
-and rotate affected tokens through GitHub if they were configured; no secret
-values were inspected during this check. No deployment was performed.
+Deployment 2026-09-26 #3 (same session): car feature committed and pushed
+(9750d7f, rebased onto the day's remote data commits), together with a
+security fix. Found the LIVE site was exposing a real fine-grained GitHub PAT
+(github_pat_..., 93 chars) in public HTML: pages.yml/daily.yml/escalation.yml
+sed-replaced __TRIGGER_TOKEN__ (and __UNSUBSCRIBE_TOKEN__ on the unsubscribe
+page) into served pages. User chose: keep the unsubscribe mechanism, remove
+the rescrape button. Done: notifier.py no longer emits the rescrape button/JS;
+all three workflows lost the TRIGGER_TOKEN sed loop (unsubscribe sed kept);
+34 existing digest files (data/digests + docs/archive, 2026-09-10..26) had the
+button+script stripped; site rebuilt — index.html (flat 2026-09-26),
+cars.html (cars_2026-09-26), archive.html (24 flat + 1 car digests), nav on
+28 hosted pages. 35 tests pass, compileall clean.
+USER ACTION REQUIRED: both old PAT values (TRIGGER_PAT, UNSUBSCRIBE_PAT) are
+compromised — they were public. Delete the TRIGGER_PAT secret (nothing uses
+it now); rotate UNSUBSCRIBE_PAT and update the repo secret to keep the
+unsubscribe button working. Note the new value is again embedded in public
+HTML by design (user-accepted tradeoff); a safe redesign needs a backend.
 
 Known caveats: PP coverage = newest 12 pages, SS = newest 2 pages/make + 4
 B7 pages — deliberately not exhaustive; digest says so. SS eligible rate

@@ -67,68 +67,10 @@ function sortTable(tableId, colIdx) {
   }
 }
 
-// Rescrape button: triggers the daily workflow via the GitHub API.
-// The placeholders are injected at deploy time by the workflows' sed
-// steps (TRIGGER_PAT secret, falling back to UNSUBSCRIBE_PAT).
-var TRIGGER_TOKEN = "__TRIGGER_TOKEN__";
-var REPO_OWNER = "__REPO_OWNER__";
-var REPO_NAME = "__REPO_NAME__";
-function rescrapeConfigured() {
-  return TRIGGER_TOKEN && TRIGGER_TOKEN.indexOf("__") !== 0;
-}
-async function triggerScrape() {
-  var btn = document.getElementById("btn-rescrape");
-  var st = document.getElementById("rescrape-status");
-  if (!rescrapeConfigured()) {
-    st.textContent = "Not available in this build (no trigger token injected).";
-    return;
-  }
-  var last = parseInt(localStorage.getItem("fs_last_trigger") || "0", 10);
-  var elapsed = Date.now() - last;
-  if (elapsed < 3600000) {
-    var mins = Math.ceil((3600000 - elapsed) / 60000);
-    st.textContent = "Already triggered recently - available again in ~" + mins + " min.";
-    return;
-  }
-  if (!confirm("Trigger a fresh scrape now? The page updates in ~5-10 minutes.")) return;
-  btn.disabled = true;
-  btn.textContent = "Triggering...";
-  try {
-    var r = await fetch("https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME
-      + "/actions/workflows/daily.yml/dispatches", {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + TRIGGER_TOKEN,
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28"
-      },
-      body: JSON.stringify({ref: "main"})
-    });
-    if (r.status === 204) {
-      localStorage.setItem("fs_last_trigger", String(Date.now()));
-      st.textContent = "Scrape triggered. Fresh data in ~5-10 minutes - reload then.";
-      btn.textContent = "Triggered";
-    } else {
-      var e = await r.json().catch(function() { return {}; });
-      st.textContent = "Failed (HTTP " + r.status + "): " + (e.message || "unknown error")
-        + ". If this is a permissions error, the site token needs Actions write access.";
-      btn.disabled = false;
-      btn.textContent = "Rescrape now";
-    }
-  } catch (err) {
-    st.textContent = "Error: " + (err && err.message ? err.message : err);
-    btn.disabled = false;
-    btn.textContent = "Rescrape now";
-  }
-}
 </script>
 </head><body>
 <h2>Riga flat deals - 2026-09-25 15:02 (Riga time)</h2>
 
-<p style="font-size:13px;margin:6px 0">
-<button id="btn-rescrape" onclick="triggerScrape()" style="background:#2874a6;color:#fff;border:none;padding:6px 14px;font-size:12px;border-radius:4px;cursor:pointer">Rescrape now</button>
-<span id="rescrape-status" style="font-size:12px;color:#666;margin-left:8px"></span>
-</p>
 <p>Districts: Zolitude, Sampeteris, Imanta &middot; Sources:
 ss.com, city24.lv, izsoles.ta.gov.lv (auctions)</p>
 <p class="note">Scoring: sale: 308 history rows -> linear regression</p>
