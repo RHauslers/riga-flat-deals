@@ -67,7 +67,7 @@
   "ss.com:imanta:anninmuizhas boule..": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-26"
+    "fetched_at": "2026-09-27"
   },
   "ss.com:imanta:dammes 1": {
     "lat": 56.9608492,
@@ -547,7 +547,7 @@
   "ss.com:zolitude:imantas 16. l. 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-26"
+    "fetched_at": "2026-09-27"
   },
   "ss.com:zolitude:apuzes 41": {
     "lat": 56.9395614,
@@ -697,7 +697,7 @@
   "ss.com:imanta:m. krūmu 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-26"
+    "fetched_at": "2026-09-27"
   },
   "ss.com:imanta:kleistu 21": {
     "lat": 56.9645798,
@@ -807,7 +807,7 @@
   "ss.com:imanta:m. krūmu 20": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-26"
+    "fetched_at": "2026-09-27"
   },
   "ss.com:zolitude:rostokas 20": {
     "lat": 56.9481208,
@@ -1308,5 +1308,15 @@
     "lat": 56.9620298,
     "lon": 24.0326066,
     "fetched_at": "2026-09-26"
+  },
+  "ss.com:sampeteris:kemeru 10": {
+    "lat": 56.9390551,
+    "lon": 24.0503246,
+    "fetched_at": "2026-09-27"
+  },
+  "ss.com:imanta:dammes 30": {
+    "lat": 56.9653262,
+    "lon": 24.0118695,
+    "fetched_at": "2026-09-27"
   }
 }
