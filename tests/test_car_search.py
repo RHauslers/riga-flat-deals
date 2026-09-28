@@ -698,7 +698,8 @@ class TestBudgetTool(unittest.TestCase):
     def test_budget_ui_present_with_market(self):
         html_text = self._build()
         self.assertIn("id='car-budget-input'", html_text)
-        self.assertIn("id='car-default-view'", html_text)
+        self.assertIn("id='car-budget-ok'", html_text)
+        self.assertIn("id='car-budget-reset'", html_text)
         self.assertIn("id='car-custom-view'", html_text)
         self.assertIn("id=\"car-budget-js\"", html_text)
         # no market -> no tool (old callers keep working)
@@ -771,6 +772,7 @@ class TestBudgetTool(unittest.TestCase):
                                        all_scored=all_scored)
         self.assertIn('id="flat-listings-data"', html_text)
         self.assertIn("id='flat-budget-input'", html_text)
+        self.assertIn("id='flat-budget-ok'", html_text)
         self.assertIn("id='flat-custom-view'", html_text)
         m = re.search(r'id="flat-listings-data">(.*?)</script>', html_text,
                       re.S)

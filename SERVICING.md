@@ -28,6 +28,13 @@ Living document. Updated after each Devin session. Read this first.
   deal score. Pure filter — the regression does not depend on budget.
 - Embed URLs are allow-listed at build time (same rule as _link());
   JSON is </ -escaped so it cannot break out of the script tag.
+- Follow-up same day: added a blue OK button (plus Enter-key support) next
+  to Reset after user feedback — Reset = clear budget / back to default
+  daily view; OK/Enter applies immediately (typing still live-recomputes).
+  Today's six generated files were surgically patched from the source
+  constants (no 4th ss.com scan) — patch asserts one hit per file; the
+  Node check confirmed the patched pages still compute 192 deals at 5k.
+  Tomorrow's CI run regenerates everything from source as usual.
 - Repo growth: the cars digest gains ~340 KB of embedded JSON per day
   (3 copies: data/digests + docs/cars.html + archive) ≈ +1 MB/day of
   git history. If that becomes a problem, the known lever is a

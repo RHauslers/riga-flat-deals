@@ -836,6 +836,17 @@ FLAT_BUDGET_JS = """
     input.value = '';
     hide();
   });
+  var okBtn = document.getElementById('flat-budget-ok');
+  if (okBtn) okBtn.addEventListener('click', function () {
+    if (timer) clearTimeout(timer);
+    apply();
+  });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      if (timer) clearTimeout(timer);
+      apply();
+    }
+  });
   var qs = (typeof location !== 'undefined' && location.search)
     ? location.search : '';
   var urlMax = new URLSearchParams(qs).get('max');
@@ -892,16 +903,20 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             f"max='{config.MAX_SALE_PRICE_EUR_EXCEPTIONAL}' step='1000' "
             "placeholder='e.g. 60000' style='padding:6px 8px;border:1px solid "
             "#b8c4cf;border-radius:4px;font-size:14px;width:110px'> "
+            "<button type='button' id='flat-budget-ok' style='padding:6px 10px;"
+            "border:0;border-radius:4px;background:#2874a6;color:#fff;cursor:pointer;"
+            "font-weight:bold'>OK</button> "
             "<button type='button' id='flat-budget-reset' style='padding:6px 10px;"
             "border:0;border-radius:4px;background:#e7edf2;cursor:pointer;"
             "font-weight:bold'>Reset</button> "
             "<span class='note' id='flat-budget-status'></span>"
             f"<p class='note' style='margin:6px 0 0'>Enter a maximum price "
-            f"(€{config.MIN_SALE_PRICE_EUR:,}–{config.MAX_SALE_PRICE_EUR_EXCEPTIONAL:,}) to "
-            "list every scored flat within it — filtered instantly in your "
-            "browser from today's data, no rescraping. Leave empty for the "
-            "default daily view. Shareable: append <b>?max=60000</b> to this "
-            "page's URL.</p>"
+            f"(€{config.MIN_SALE_PRICE_EUR:,}–{config.MAX_SALE_PRICE_EUR_EXCEPTIONAL:,}) and "
+            "press <b>OK</b> (or Enter) to list every scored flat within it — "
+            "filtered instantly in your browser from today's data, no "
+            "rescraping (results also update as you type). <b>Reset</b> "
+            "returns to the default daily view. Shareable: append "
+            "<b>?max=60000</b> to this page's URL.</p>"
             "</div>"
             "<div id='flat-custom-view' style='display:none'></div>")
 

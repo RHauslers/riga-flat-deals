@@ -401,6 +401,17 @@ CAR_BUDGET_JS = """
     input.value = '';
     showDefault();
   });
+  var okBtn = document.getElementById('car-budget-ok');
+  if (okBtn) okBtn.addEventListener('click', function () {
+    if (timer) clearTimeout(timer);
+    apply();
+  });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      if (timer) clearTimeout(timer);
+      apply();
+    }
+  });
   var qs = (typeof location !== 'undefined' && location.search)
     ? location.search : '';
   var urlMax = new URLSearchParams(qs).get('max');
@@ -537,16 +548,20 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             f"max='{config.CAR_COMPARABLE_MAX_PRICE_EUR}' step='100' placeholder='e.g. 3500' "
             "style='padding:6px 8px;border:1px solid #b8c4cf;border-radius:4px;"
             "font-size:14px;width:110px'> "
+            "<button type='button' id='car-budget-ok' style='padding:6px 10px;"
+            "border:0;border-radius:4px;background:#2874a6;color:#fff;cursor:pointer;"
+            "font-weight:bold'>OK</button> "
             "<button type='button' id='car-budget-reset' style='padding:6px 10px;"
             "border:0;border-radius:4px;background:#e7edf2;cursor:pointer;"
             "font-weight:bold'>Reset</button> "
             "<span class='note' id='car-budget-status'></span>"
             "<p class='note' style='margin:6px 0 0'>Enter a maximum price "
-            f"(€{config.CAR_MIN_PRICE_EUR:,}–{config.CAR_COMPARABLE_MAX_PRICE_EUR:,}) to "
-            "re-rank today's market snapshot for your budget — computed "
-            "instantly in your browser from the data on this page, no "
-            "rescraping. Leave empty for the default daily view ("
-            f"€{config.CAR_PRICE_CEILING_EUR:,} ceiling). Badges and "
+            f"(€{config.CAR_MIN_PRICE_EUR:,}–{config.CAR_COMPARABLE_MAX_PRICE_EUR:,}) "
+            "and press <b>OK</b> (or Enter) to re-rank today's market snapshot "
+            "for your budget — computed instantly in your browser from the "
+            "data on this page, no rescraping (results also update as you "
+            "type). <b>Reset</b> returns to the default daily view "
+            f"(€{config.CAR_PRICE_CEILING_EUR:,} ceiling). Badges and "
             "cross-source links appear in the default view only. Shareable: "
             "append <b>?max=3500</b> to this page's URL.</p>"
             "</div>")
