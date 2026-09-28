@@ -706,7 +706,9 @@ def _flat_market_data_html(all_scored):
 # by deal score. Filtering only — the regression score does not depend on
 # the buyer's budget. Reuses the page's sortTable().
 FLAT_BUDGET_JS = """
-(function () {
+// Runs after the DOM is ready: the budget input lives in <body>, below
+// this script in <head>, so the elements do not exist at parse time.
+function __flatBudgetInit() {
   var dataEl = document.getElementById('flat-listings-data');
   var input = document.getElementById('flat-budget-input');
   var statusEl = document.getElementById('flat-budget-status');
@@ -854,7 +856,15 @@ FLAT_BUDGET_JS = """
     input.value = urlMax;
     apply();
   }
-})();
+  if (typeof window !== 'undefined') {
+    window.__flatBudget = { apply: apply };
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', __flatBudgetInit);
+} else {
+  __flatBudgetInit();
+}
 """
 
 

@@ -717,8 +717,10 @@ class TestBudgetTool(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("node"), "node not available")
     def test_js_scoring_matches_python(self):
-        """Run the page's own JS scorer under Node and compare its qualified
-        set and scores with car_value.score_and_rank on the same data."""
+        """Run the page's own JS under Node with a mini-DOM: the tool must
+        initialize (this catches scripts that run before the body exists),
+        apply() must render the custom view, and the scorer must produce
+        the same qualified set/scores as car_value.score_and_rank."""
         html_text = self._build()
         payload = re.search(
             r'id="car-market-data">(.*?)</script>', html_text, re.S).group(1)
@@ -727,32 +729,63 @@ class TestBudgetTool(unittest.TestCase):
             re.S).group(1)
         driver = (
             "var fs = require('fs');\n"
-            "global.document = {getElementById: function(id) {\n"
-            "  if (id === 'car-market-data')\n"
-            "    return {textContent: fs.readFileSync(process.argv[3], 'utf8')};\n"
-            "  return {style: {}, addEventListener: function(){}, value: '',\n"
-            "          innerHTML: ''};}};\n"
+            "function makeEl(extra) {\n"
+            "  return Object.assign({style: {}, children: [], innerHTML: '',\n"
+            "    addEventListener: function(){},\n"
+            "    appendChild: function(c){this.children.push(c);},\n"
+            "    setAttribute: function(){}, textContent: '', value: ''},\n"
+            "    extra || {});\n"
+            "}\n"
+            "var elements = {\n"
+            "  'car-market-data': {textContent:\n"
+            "    fs.readFileSync(process.argv[3], 'utf8')},\n"
+            "  'car-budget-input': makeEl({value: '3500'}),\n"
+            "  'car-budget-status': makeEl(), 'car-default-view': makeEl(),\n"
+            "  'car-custom-view': makeEl(), 'car-budget-ok': makeEl(),\n"
+            "  'car-budget-reset': makeEl()};\n"
+            "var parsed = false, readyCbs = [];\n"
+            "global.document = {\n"
+            "  get readyState() { return parsed ? 'complete' : 'loading'; },\n"
+            "  getElementById: function(id) {\n"
+            "    return parsed ? (elements[id] || null) : null; },\n"
+            "  createElement: function(tag) { return makeEl(); },\n"
+            "  createTextNode: function(t) { return {textContent: t}; },\n"
+            "  addEventListener: function(ev, cb) {\n"
+            "    if (ev === 'DOMContentLoaded') readyCbs.push(cb); }};\n"
             "global.window = {};\n"
             "eval(fs.readFileSync(process.argv[4], 'utf8'));\n"
+            "// simulate the browser finishing <body> parsing\n"
+            "parsed = true;\n"
+            "readyCbs.forEach(function(cb) { cb(); });\n"
+            "if (!global.window.__carBudget) {\n"
+            "  console.log(JSON.stringify({error: 'init failed'}));\n"
+            "  process.exit(0);\n"
+            "}\n"
+            "global.window.__carBudget.apply();\n"
+            "var wiring = {children: elements['car-custom-view'].children.length,\n"
+            "  defaultHidden: elements['car-default-view'].style.display,\n"
+            "  customShown: elements['car-custom-view'].style.display};\n"
             "var res = global.window.__carBudget.compute(5000);\n"
-            "console.log(JSON.stringify(res.map(function(x) {\n"
-            "  return {k: x.r[0] + ':' + x.r[1], score: x.score,\n"
-            "          median: x.median, savings: x.savings};})));\n"
+            "console.log(JSON.stringify({wiring: wiring, deals:\n"
+            "  res.map(function(x) { return {k: x.r[0] + ':' + x.r[1],\n"
+            "    score: x.score, median: x.median, savings: x.savings}; })}));\n"
         )
         with tempfile.TemporaryDirectory() as tmp:
             drv = os.path.join(tmp, "driver.js")
             pay = os.path.join(tmp, "payload.txt")
             jsf = os.path.join(tmp, "budget.js")
-            with open(drv, "w", encoding="utf-8") as f:
-                f.write(driver)
-            with open(pay, "w", encoding="utf-8") as f:
-                f.write(payload)
-            with open(jsf, "w", encoding="utf-8") as f:
-                f.write(js)
+            for path, text in ((drv, driver), (pay, payload), (jsf, js)):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
             out = subprocess.run(["node", drv, "--", pay, jsf],
                                  capture_output=True, text=True, timeout=60)
         self.assertEqual(out.returncode, 0, out.stderr)
-        js_rows = {r["k"]: r for r in json.loads(out.stdout.strip())}
+        data = json.loads(out.stdout.strip())
+        # the tool actually initialized and apply() rendered the custom view
+        self.assertGreaterEqual(data["wiring"]["children"], 3)
+        self.assertEqual(data["wiring"]["defaultHidden"], "none")
+        self.assertEqual(data["wiring"]["customShown"], "")
+        js_rows = {r["k"]: r for r in data["deals"]}
         qualified, _assessed = car_value.score_and_rank(self._market())
         py_rows = {f"{l['source']}:{l['id']}": l for l in qualified}
         self.assertEqual(set(py_rows), set(js_rows))
@@ -783,6 +816,70 @@ class TestBudgetTool(unittest.TestCase):
         # no all_scored -> no tool (backward compatible)
         plain = notifier.build_html({}, {}, "", "note")
         self.assertNotIn("flat-budget-input", plain)
+
+    @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_flat_js_wiring_runs(self):
+        """The flats budget JS must initialize after DOM-ready and render."""
+        listing = {"source": "ss.com", "id": "f1", "district": "Zolitude",
+                   "rooms": 3, "area_m2": 55, "floor": "3/5",
+                   "price_eur": 55000, "price_per_m2": 1000,
+                   "_school_km": 0.8, "url": "https://www.ss.com/x"}
+        html_text = notifier.build_html(
+            {}, {}, "", "note", all_scored={"sale": [(listing, 1.23, "x")]})
+        payload = re.search(r'id="flat-listings-data">(.*?)</script>',
+                            html_text, re.S).group(1)
+        js = re.search(r'<script id="flat-budget-js">(.*?)</script>',
+                       html_text, re.S).group(1)
+        driver = (
+            "var fs = require('fs');\n"
+            "function makeEl(extra) {\n"
+            "  return Object.assign({style: {}, children: [], innerHTML: '',\n"
+            "    addEventListener: function(){},\n"
+            "    appendChild: function(c){this.children.push(c);},\n"
+            "    setAttribute: function(){}, textContent: '', value: ''},\n"
+            "    extra || {});\n"
+            "}\n"
+            "var elements = {\n"
+            "  'flat-listings-data': {textContent:\n"
+            "    fs.readFileSync(process.argv[3], 'utf8')},\n"
+            "  'flat-budget-input': makeEl({value: '60000'}),\n"
+            "  'flat-budget-status': makeEl(), 'flat-custom-view': makeEl(),\n"
+            "  'flat-budget-ok': makeEl(), 'flat-budget-reset': makeEl()};\n"
+            "var parsed = false, readyCbs = [];\n"
+            "global.document = {\n"
+            "  get readyState() { return parsed ? 'complete' : 'loading'; },\n"
+            "  getElementById: function(id) {\n"
+            "    return parsed ? (elements[id] || null) : null; },\n"
+            "  createElement: function(tag) { return makeEl(); },\n"
+            "  createTextNode: function(t) { return {textContent: t}; },\n"
+            "  addEventListener: function(ev, cb) {\n"
+            "    if (ev === 'DOMContentLoaded') readyCbs.push(cb); }};\n"
+            "global.window = {};\n"
+            "eval(fs.readFileSync(process.argv[4], 'utf8'));\n"
+            "parsed = true;\n"
+            "readyCbs.forEach(function(cb) { cb(); });\n"
+            "var result = {init: !!global.window.__flatBudget};\n"
+            "if (global.window.__flatBudget) {\n"
+            "  global.window.__flatBudget.apply();\n"
+            "  result.children = elements['flat-custom-view'].children.length;\n"
+            "  result.status = elements['flat-budget-status'].textContent;\n"
+            "}\n"
+            "console.log(JSON.stringify(result));\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            drv = os.path.join(tmp, "driver.js")
+            pay = os.path.join(tmp, "payload.txt")
+            jsf = os.path.join(tmp, "budget.js")
+            for path, text in ((drv, driver), (pay, payload), (jsf, js)):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            out = subprocess.run(["node", drv, "--", pay, jsf],
+                                 capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        result = json.loads(out.stdout.strip())
+        self.assertTrue(result["init"])
+        self.assertGreaterEqual(result["children"], 3)
+        self.assertIn("1 of 1", result["status"])
 
     def test_all_qualifying_header_and_no_relimit(self):
         qualified = [_car("ss.com", f"q{i}", 3000 + i) for i in range(30)]

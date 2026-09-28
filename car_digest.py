@@ -163,7 +163,9 @@ def _market_data_html(market):
 # can differ by 1 on exact .5 cases. Exposes window.__carBudget for the
 # Node parity test (tests/test_car_search.py).
 CAR_BUDGET_JS = """
-(function () {
+// Runs after the DOM is ready: the budget input lives in <body>, below
+// this script in <head>, so the elements do not exist at parse time.
+function __carBudgetInit() {
   var dataEl = document.getElementById('car-market-data');
   var input = document.getElementById('car-budget-input');
   var statusEl = document.getElementById('car-budget-status');
@@ -420,9 +422,15 @@ CAR_BUDGET_JS = """
     apply();
   }
   if (typeof window !== 'undefined') {
-    window.__carBudget = { compute: compute, market: market, idx: idx, cfg: cfg };
+    window.__carBudget = { compute: compute, apply: apply, market: market,
+                           idx: idx, cfg: cfg };
   }
-})();
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', __carBudgetInit);
+} else {
+  __carBudgetInit();
+}
 """
 
 
