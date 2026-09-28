@@ -2,6 +2,23 @@
 
 Living document. Updated after each Devin session. Read this first.
 
+## Session 2026-09-28 — sortable car columns + cron retune #2
+
+- car_digest.py: the qualifying-deals table is now click-to-sort (same
+  mechanism as the flats digest): all 7 headers toggle asc/desc, numeric
+  columns sort via data-sort attributes (Listing falls back to make/model
+  string compare), unknown values use -1 sentinel. A note under the h2
+  says clicking sorts. Archive copies inherit it automatically (copies).
+- test_escaping_and_url_allowlist updated: the digest now legitimately
+  contains ONE template <script> (the sort JS); an injected listing title
+  would make a second occurrence — count==1 is the assertion.
+- Cron: 03:17 UTC slot started 09:12/09:42 UTC on 2026-09-27/28 (~6 h late,
+  same as the old 06:23 slot) — GitHub's delay is roughly constant, not
+  slot-dependent, so moved to `47 0 * * *` to land ~06:45 UTC = ~09:45
+  Riga. CHECK THE ACTIONS TAB the morning after any retune.
+- CI confirmed: the car scan runs fine in GitHub Actions (successful
+  scheduled runs on 09-27 and 09-28; digests committed both days).
+
 ## Session 2026-09-26 #5 — "megaplan": audit + once-a-day, website-only cleanup
 
 Audit findings (user asked whether the app is well built and whether two

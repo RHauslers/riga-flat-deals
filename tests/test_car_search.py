@@ -653,7 +653,11 @@ class TestDigestOutput(unittest.TestCase):
         qualified, assessed = car_value.score_and_rank([evil] + peers)
         html_text = car_digest.build_html(qualified, assessed, {}, {}, {},
                                           "2026-09-26")
-        self.assertNotIn("<script>", html_text)
+        # The template's own column-sort script is the only <script> allowed;
+        # the listing-controlled title must arrive escaped, not as markup
+        # (an injected tag would make a second occurrence).
+        self.assertEqual(html_text.count("<script>"), 1)
+        self.assertNotIn("<script>x", html_text)
         self.assertNotIn("javascript:", html_text)
 
     def test_all_qualifying_header_and_no_relimit(self):
