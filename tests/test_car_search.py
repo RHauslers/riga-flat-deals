@@ -507,6 +507,44 @@ class TestCarsRun(_TempPaths):
         self.assertEqual(seen["pp.lv:c1"]["first_shown"], today)
         self.assertEqual(seen["pp.lv:c1"]["last_shown"], today)
 
+    def test_price_trail_accumulates_and_renders(self):
+        today = date.today().isoformat()
+        yday = (date.today() - timedelta(days=1)).isoformat()
+        with open(self.seen_json, "w", encoding="utf-8") as f:
+            json.dump({"pp.lv:c1": {"first_seen": yday, "last_seen": yday,
+                                    "last_price": 5000, "last_shown": yday,
+                                    "first_shown": yday,
+                                    "prices": [[yday, 5000]]}}, f)
+        listings = [_car("pp.lv", "c1", 4000)] + \
+                   [_car("pp.lv", f"p{i}", p)
+                    for i, p in enumerate([5200, 5300, 5500, 5700])]
+        with mock.patch.object(cars.car_ss, "scrape", return_value=[]), \
+             mock.patch.object(cars.car_pp, "scrape", return_value=listings):
+            cars.run()
+        seen = json.load(open(self.seen_json, encoding="utf-8"))
+        self.assertEqual(seen["pp.lv:c1"]["prices"],
+                         [[yday, 5000], [today, 4000]])
+        html_text = open(os.path.join(self.digest_dir,
+                                      f"cars_{today}.html"),
+                         encoding="utf-8").read()
+        self.assertIn("PRICE DROP", html_text)
+        self.assertIn("seen 1 d", html_text)
+        self.assertIn("→", html_text)          # €5,000 → €4,000 trail
+        self.assertIn("<svg", html_text)       # sparkline
+
+    def test_same_day_rerun_updates_todays_price_point(self):
+        today = date.today().isoformat()
+        listings = [_car("pp.lv", "c1", 3000)]
+        with mock.patch.object(cars.car_ss, "scrape", return_value=[]), \
+             mock.patch.object(cars.car_pp, "scrape", return_value=listings):
+            cars.run()
+        listings[0]["price_eur"] = 2800
+        with mock.patch.object(cars.car_ss, "scrape", return_value=[]), \
+             mock.patch.object(cars.car_pp, "scrape", return_value=listings):
+            cars.run()
+        seen = json.load(open(self.seen_json, encoding="utf-8"))
+        self.assertEqual(seen["pp.lv:c1"]["prices"], [[today, 2800]])
+
     def test_unparseable_source_counts_as_failure(self):
         listings = [_car("pp.lv", "c1", 3000)] + \
                    [_car("pp.lv", f"p{i}", p)
@@ -794,6 +832,116 @@ class TestBudgetTool(unittest.TestCase):
                                    msg=key)
             self.assertAlmostEqual(l["_median"], js_rows[key]["median"],
                                    delta=0.01, msg=key)
+
+    def test_history_html_days_trail_and_sparkline(self):
+        d12 = (date.today() - timedelta(days=12)).isoformat()
+        l = {"_first_seen": d12,
+             "_price_hist": [["2026-09-01", 5500], ["2026-09-10", 4900]]}
+        h = car_digest._history_html(l)
+        self.assertIn("seen 12 d", h)
+        self.assertIn("5,500", h)
+        self.assertIn("→", h)
+        self.assertIn("<svg", h)
+        self.assertEqual(car_digest._history_html({}), "")
+        self.assertIn("seen today",
+                      car_digest._history_html(
+                          {"_first_seen": date.today().isoformat()}))
+        single = {"_price_hist": [["2026-09-01", 5500]]}
+        self.assertNotIn("<svg", car_digest._history_html(single))
+
+    def test_market_rows_carry_history_fields(self):
+        l = _car("ss.com", "c1", 3000)
+        l["_first_seen"] = "2026-09-20"
+        l["_price_hist"] = [["2026-09-20", 5000], ["2026-09-26", 3000]]
+        html_text = car_digest.build_html([], [], {}, {}, {}, "2026-09-26",
+                                          market=[l])
+        payload = json.loads(re.search(
+            r'id="car-market-data">(.*?)</script>', html_text, re.S).group(1))
+        self.assertIn("_first_seen", payload["fields"])
+        self.assertIn("_price_hist", payload["fields"])
+        row = payload["rows"][0]
+        self.assertEqual(row[payload["fields"].index("_first_seen")],
+                         "2026-09-20")
+        self.assertEqual(row[payload["fields"].index("_price_hist")][-1],
+                         ["2026-09-26", 3000])
+
+    def test_filter_controls_present(self):
+        html_text = self._build()
+        for el in ("car-filter-make", "car-filter-fuel", "car-filter-gearbox",
+                   "car-filter-year", "car-filter-km"):
+            self.assertIn(f"id='{el}'", html_text)
+
+    @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_js_filters_narrow_candidates(self):
+        """compute() must honour make/fuel/gearbox/year/km filters."""
+        c1 = _car("ss.com", "c1", 3000)                      # vw passat diesel
+        c2 = _car("ss.com", "c2", 3000, fuel="petrol", engine=1.6,
+                  make="skoda", model="octavia-2", gearbox="automatic")
+        peers = ([_car("pp.lv", f"d{i}", p)
+                  for i, p in enumerate([4200, 4300, 4500, 4700])]
+                 + [_car("pp.lv", f"g{i}", p, fuel="petrol", engine=1.6,
+                         make="skoda", model="octavia-2", gearbox="automatic")
+                    for i, p in enumerate([4200, 4300, 4500, 4700])])
+        html_text = car_digest.build_html(
+            [], [], {}, {}, {}, "2026-09-26", market=[c1, c2] + peers)
+        payload = re.search(
+            r'id="car-market-data">(.*?)</script>', html_text, re.S).group(1)
+        js = re.search(
+            r'<script id="car-budget-js">(.*?)</script>', html_text,
+            re.S).group(1)
+        driver = (
+            "var fs = require('fs');\n"
+            "function makeEl() { return {style:{}, children:[], innerHTML:'',\n"
+            "  addEventListener:function(){},\n"
+            "  appendChild:function(c){this.children.push(c);},\n"
+            "  setAttribute:function(){}, textContent:'', value:''}; }\n"
+            "var elements = {'car-market-data': {textContent:\n"
+            "  fs.readFileSync(process.argv[3], 'utf8')}};\n"
+            "var readyCbs = [];\n"
+            "global.document = {readyState: 'loading',\n"
+            "  getElementById: function(id){return elements[id] || null;},\n"
+            "  createElement: function(){return makeEl();},\n"
+            "  createTextNode: function(t){return {textContent:t};},\n"
+            "  addEventListener: function(ev,cb){\n"
+            "    if (ev==='DOMContentLoaded') readyCbs.push(cb);}};\n"
+            "global.window = {};\n"
+            "eval(fs.readFileSync(process.argv[4], 'utf8'));\n"
+            "elements['car-budget-input'] = makeEl();\n"
+            "elements['car-default-view'] = makeEl();\n"
+            "elements['car-custom-view'] = makeEl();\n"
+            "global.document.readyState = 'complete';\n"
+            "global.document.getElementById = function(id){\n"
+            "  return elements[id] || null;};\n"
+            "readyCbs.forEach(function(cb){cb();});\n"
+            "var B = global.window.__carBudget;\n"
+            "function ids(list){return list.map(function(x){\n"
+            "  return x.r[0] + ':' + x.r[1];});}\n"
+            "console.log(JSON.stringify({\n"
+            "  all: ids(B.compute(5000, {})),\n"
+            "  diesel: ids(B.compute(5000, {fuel:'diesel'})),\n"
+            "  skoda: ids(B.compute(5000, {make:'skoda'})),\n"
+            "  year: ids(B.compute(5000, {minYear:2020})),\n"
+            "  km: ids(B.compute(5000, {maxKm:100000})),\n"
+            "  auto: ids(B.compute(5000, {gearbox:'automatic'}))\n"
+            "}));\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            drv = os.path.join(tmp, "driver.js")
+            pay = os.path.join(tmp, "payload.txt")
+            jsf = os.path.join(tmp, "budget.js")
+            for path, text in ((drv, driver), (pay, payload), (jsf, js)):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            out = subprocess.run(["node", drv, "--", pay, jsf],
+                                 capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        res = json.loads(out.stdout.strip())
+        self.assertEqual(set(res["all"]), {"ss.com:c1", "ss.com:c2"})
+        self.assertEqual(res["diesel"], ["ss.com:c1"])
+        self.assertEqual(res["skoda"], ["ss.com:c2"])
+        self.assertEqual(res["auto"], ["ss.com:c2"])
+        self.assertEqual(res["year"], [])
+        self.assertEqual(res["km"], [])
 
     def test_flat_budget_tool_embedded(self):
         listing = {"source": "ss.com", "id": "f1", "district": "Zolitude",

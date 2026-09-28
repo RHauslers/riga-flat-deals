@@ -2,6 +2,29 @@
 
 Living document. Updated after each Devin session. Read this first.
 
+## Session 2026-09-28 #3 — car price history + filters
+
+- car_seen.json entries now keep a `prices` trail ([date, price] per ask
+  change, capped at CAR_PRICE_HISTORY_MAX_POINTS=60; a same-day re-run only
+  updates today's point). Listings get `_first_seen`/`_price_hist`
+  annotations; note score_and_rank returns COPIES (dict(listing)), so both
+  `deduped` (market embed) and `assessed` (table rows) are annotated.
+- The deals table and the custom-budget view now show "seen N d" (days
+  since our scan first saw the ad — approx days listed), an "€a → €b"
+  ask trail (hover = full dated history) and a tiny inline-SVG sparkline
+  (red=dropping/green=rising/grey=flat). PRICE DROP semantics unchanged.
+- Budget box gained filters: make (dropdown built from today's data),
+  fuel, gearbox, min-year, max-km. They narrow CANDIDATES only — the
+  comparable pools still cover the whole market, so medians/scores stay
+  honest. Filters alone (no price typed) use the €5k default ceiling.
+  URL params: ?max=&make=&fuel=&gearbox=&year=&km=.
+- Market embed rows now carry _first_seen/_price_hist (_MARKET_FIELDS tail;
+  url is sanitised by index, not position — do NOT go back to [:-1]+[url],
+  that silently misaligned the row when fields were appended).
+- Tests: 53 total; new ones cover trail accumulation, same-day updates,
+  sparkline/history HTML, embed field order, and a Node run of the page's
+  own JS proving filters narrow candidates correctly.
+
 ## Session 2026-09-28 #2 — in-browser custom-budget tool (both tabs)
 
 - Both tabs now have a "Your budget" input: type a max price and the page

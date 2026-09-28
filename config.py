@@ -40,6 +40,7 @@ CAR_SCORE_MAX = 100
 CAR_SCORE_MILEAGE_POINTS = 10
 CAR_SCORE_YEAR_POINTS = 3
 CAR_SEEN_TTL_DAYS = 45
+CAR_PRICE_HISTORY_MAX_POINTS = 60  # [date, price] points kept per listing
 CAR_SNAPSHOT_FIELDS = ("source", "id", "make", "model", "year", "mileage_km",
                        "fuel", "engine_l", "gearbox", "body", "price_eur")
 

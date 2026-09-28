@@ -171,23 +171,44 @@ def run():
         key = f"{l.get('source')}:{l.get('id')}"
         badges[key] = _badge(seen.get(key), l.get("price_eur"), today)
 
-    html_text = car_digest.build_html(qualified, assessed, source_counts,
-                                      source_errors, badges, today,
-                                      market=deduped)
-    path = _save_digest(html_text, today)
-
     for l in deduped:
         key = f"{l.get('source')}:{l.get('id')}"
         entry = seen.setdefault(key, {"first_seen": today, "last_seen": today,
                                       "last_price": None, "last_shown": None,
-                                      "first_shown": None})
+                                      "first_shown": None, "prices": []})
         entry["last_seen"] = today
         entry["last_price"] = l.get("price_eur")
+        # Price trail: one [date, price] point per sighting where the ask
+        # actually changed (a same-day re-run only updates today's point).
+        try:
+            p = float(l.get("price_eur"))
+        except (TypeError, ValueError):
+            p = None
+        hist = entry.setdefault("prices", [])
+        if p is not None:
+            if hist and hist[-1][0] == today:
+                hist[-1][1] = p
+            elif not hist or hist[-1][1] != p:
+                hist.append([today, p])
+        del hist[:-config.CAR_PRICE_HISTORY_MAX_POINTS]
     for l in qualified:
         entry = seen[f"{l.get('source')}:{l.get('id')}"]
         entry["first_shown"] = (entry.get("first_shown")
                                 or entry.get("last_shown") or today)
         entry["last_shown"] = today
+    # Expose the per-listing history to the digest (and through it to the
+    # embedded market JSON the browser re-ranker uses). score_and_rank
+    # returns COPIES, so annotate both the market rows and the scored ones.
+    for l in deduped + assessed:
+        entry = seen.get(f"{l.get('source')}:{l.get('id')}")
+        if entry:
+            l["_first_seen"] = entry.get("first_seen")
+            l["_price_hist"] = entry.get("prices") or []
+
+    html_text = car_digest.build_html(qualified, assessed, source_counts,
+                                      source_errors, badges, today,
+                                      market=deduped)
+    path = _save_digest(html_text, today)
     cutoff = (date.today() - timedelta(days=config.CAR_SEEN_TTL_DAYS)).isoformat()
     stale = [k for k, v in seen.items()
              if (v.get("last_seen") or v.get("first_seen") or "") < cutoff]

@@ -110,9 +110,70 @@ def _pool_note(l):
 
 # Fields embedded per listing so the browser can recompute deals for a
 # custom budget (car_value.score_and_rank ported to JS). Order matters:
-# the embedded JSON stores rows as arrays in this order.
+# the embedded JSON stores rows as arrays in this order. "_first_seen" and
+# "_price_hist" are annotation fields cars.run() attaches from car_seen.json
+# (days-in-scan and the [[date, price], ...] trail of ask changes).
 _MARKET_FIELDS = ("source", "id", "make", "model", "year", "mileage_km",
-                  "fuel", "engine_l", "gearbox", "body", "price_eur", "url")
+                  "fuel", "engine_l", "gearbox", "body", "price_eur", "url",
+                  "_first_seen", "_price_hist")
+
+
+def _sparkline(hist, w=64, h=16):
+    """Tiny inline-SVG price trail (red = dropping, green = rising, grey =
+    flat). All values are numbers we generated, so no escaping needed."""
+    pts = []
+    for point in hist or []:
+        try:
+            pts.append(float(point[1]))
+        except (TypeError, ValueError, IndexError):
+            continue
+    if len(pts) < 2:
+        return ""
+    lo, hi = min(pts), max(pts)
+    span = (hi - lo) or 1.0
+    n = len(pts)
+    coords = " ".join(
+        f"{round(i * (w - 4) / (n - 1) + 2, 1)},"
+        f"{round(h - 3 - (v - lo) / span * (h - 6), 1)}"
+        for i, v in enumerate(pts))
+    color = ("#c0392b" if pts[-1] < pts[0]
+             else "#27ae60" if pts[-1] > pts[0] else "#7f8c8d")
+    return (f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" '
+            f'style="vertical-align:-3px;margin-left:4px">'
+            f'<polyline points="{coords}" fill="none" stroke="{color}" '
+            f'stroke-width="1.5"/></svg>')
+
+
+def _history_html(l, run_date=None):
+    """'seen N d' + ask-price trail under a listing. "Seen" is the first day
+    our own scan observed the ad (≈ days on the market, bounded by how long
+    we have been tracking)."""
+    bits = []
+    first = l.get("_first_seen")
+    if first:
+        try:
+            end = date.fromisoformat(str(run_date)) if run_date else date.today()
+            days = (end - date.fromisoformat(str(first))).days
+            bits.append(f"seen {days} d" if days > 0 else "seen today")
+        except ValueError:
+            pass
+    hist = []
+    for point in l.get("_price_hist") or []:
+        try:
+            hist.append((str(point[0]), float(point[1])))
+        except (TypeError, ValueError, IndexError):
+            continue
+    if len(hist) >= 2:
+        trail = " → ".join(_fmt_eur(p) for _, p in hist[-4:])
+        if len(hist) > 4:
+            trail = "… " + trail
+        tip = html.escape("\n".join(f"{d}: €{int(round(p)):,}"
+                                    for d, p in hist), quote=True)
+        bits.append(f'<span title="{tip}">{trail}</span>')
+    if not bits:
+        return ""
+    return ("<br><span style='color:#777;font-size:12px'>"
+            + " · ".join(bits) + _sparkline(hist) + "</span>")
 
 
 def _market_data_html(market):
@@ -120,12 +181,13 @@ def _market_data_html(market):
     comparable ceiling, not just today's candidates) as JSON, with the
     scoring config, so the page can re-rank for any budget in the browser.
     URLs are allow-listed here — the same rule _link() applies to rows."""
+    url_i = _MARKET_FIELDS.index("url")
     rows = []
     for l in market or []:
-        url = l.get("url")
-        if not _safe_url(url):
-            url = ""
-        rows.append([l.get(f) for f in _MARKET_FIELDS[:-1]] + [url])
+        row = [l.get(f) for f in _MARKET_FIELDS]
+        if not _safe_url(row[url_i]):
+            row[url_i] = ""
+        rows.append(row)
     cfg = {
         "minPrice": config.CAR_MIN_PRICE_EUR,
         "compMax": config.CAR_COMPARABLE_MAX_PRICE_EUR,
@@ -176,6 +238,11 @@ function __carBudgetInit() {
   var cfg = payload.config, F = payload.fields, idx = {};
   F.forEach(function (f, i) { idx[f] = i; });
   var thisYear = new Date().getFullYear();
+  var makeSel = document.getElementById('car-filter-make');
+  var fuelSel = document.getElementById('car-filter-fuel');
+  var gbSel = document.getElementById('car-filter-gearbox');
+  var yearInput = document.getElementById('car-filter-year');
+  var kmInput = document.getElementById('car-filter-km');
 
   function median(arr) {
     var s = arr.slice().sort(function (a, b) { return a - b; });
@@ -203,6 +270,43 @@ function __carBudgetInit() {
     (groups[k] = groups[k] || []).push(r);
   });
 
+  // Fill the make dropdown from today's data.
+  if (makeSel) {
+    var seen = {};
+    market.forEach(function (r) { if (r[idx.make]) seen[r[idx.make]] = 1; });
+    Object.keys(seen).sort().forEach(function (m) {
+      var o = document.createElement('option');
+      o.value = m;
+      o.textContent = m.charAt(0).toUpperCase() + m.slice(1);
+      makeSel.appendChild(o);
+    });
+  }
+
+  // Filters narrow which listings may become candidates; the comparable
+  // pools still cover the whole market (same rule as the budget itself).
+  function readFilters() {
+    return {
+      make: makeSel && makeSel.value ? makeSel.value : '',
+      fuel: fuelSel && fuelSel.value ? fuelSel.value : '',
+      gearbox: gbSel && gbSel.value ? gbSel.value : '',
+      minYear: yearInput ? (parseInt(yearInput.value, 10) || 0) : 0,
+      maxKm: kmInput ? (parseInt(kmInput.value, 10) || 0) : 0
+    };
+  }
+
+  function anyFilterSet(f) {
+    return !!(f.make || f.fuel || f.gearbox || f.minYear || f.maxKm);
+  }
+
+  function passesFilters(r, f) {
+    if (f.make && r[idx.make] !== f.make) return false;
+    if (f.fuel && r[idx.fuel] !== f.fuel) return false;
+    if (f.gearbox && r[idx.gearbox] !== f.gearbox) return false;
+    if (f.minYear && (r[idx.year] == null || r[idx.year] < f.minYear)) return false;
+    if (f.maxKm && (r[idx.mileage_km] == null || r[idx.mileage_km] > f.maxKm)) return false;
+    return true;
+  }
+
   function comparable(a, b) {
     if (a[idx.source] === b[idx.source] && a[idx.id] === b[idx.id]) return false;
     if (Math.abs(a[idx.year] - b[idx.year]) > cfg.yearTol) return false;
@@ -216,11 +320,13 @@ function __carBudgetInit() {
     return Math.abs(ea - eb) <= cfg.engineTol;
   }
 
-  function compute(maxPrice) {
+  function compute(maxPrice, filters) {
+    filters = filters || {};
     var out = [];
     market.forEach(function (r) {
       var price = r[idx.price_eur];
       if (price > maxPrice) return;  // candidate gate (custom budget)
+      if (!passesFilters(r, filters)) return;  // make/fuel/gearbox/year/km
       var group = groups[r[idx.make] + '|' + r[idx.model] + '|' + r[idx.fuel]] || [];
       var peers = group.filter(function (p) { return comparable(r, p); });
       var item = { r: r, comps: peers.length, score: null, good: false };
@@ -255,6 +361,61 @@ function __carBudgetInit() {
     return v == null ? '—' : '€' + Math.round(v).toLocaleString('en-US');
   }
 
+  // Tiny price-trail sparkline (same shape as the Python one).
+  function sparkEl(hist) {
+    if (typeof document.createElementNS === 'undefined') return null;
+    var pts = [];
+    (hist || []).forEach(function (h) {
+      var v = Number(h[1]);
+      if (!isNaN(v)) pts.push(v);
+    });
+    if (pts.length < 2) return null;
+    var w = 64, h = 16;
+    var lo = Math.min.apply(null, pts), hi = Math.max.apply(null, pts);
+    var span = (hi - lo) || 1;
+    var coords = pts.map(function (v, i) {
+      return (i * (w - 4) / (pts.length - 1) + 2).toFixed(1) + ',' +
+             (h - 3 - (v - lo) / span * (h - 6)).toFixed(1);
+    }).join(' ');
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', w); svg.setAttribute('height', h);
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    svg.style.verticalAlign = '-3px'; svg.style.marginLeft = '4px';
+    var pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    pl.setAttribute('points', coords); pl.setAttribute('fill', 'none');
+    pl.setAttribute('stroke', pts[pts.length - 1] < pts[0] ? '#c0392b'
+      : (pts[pts.length - 1] > pts[0] ? '#27ae60' : '#7f8c8d'));
+    pl.setAttribute('stroke-width', '1.5');
+    svg.appendChild(pl);
+    return svg;
+  }
+
+  // 'seen N d' + '€5,500 → €4,900' line (matches _history_html in Python).
+  function appendHistory(td, r) {
+    var bits = [];
+    var first = r[idx._first_seen];
+    if (first) {
+      var t = Date.parse(String(first) + 'T00:00:00Z');
+      if (!isNaN(t)) {
+        var days = Math.max(0, Math.round((Date.now() - t) / 86400000));
+        bits.push(days > 0 ? 'seen ' + days + ' d' : 'seen today');
+      }
+    }
+    var hist = r[idx._price_hist] || [];
+    if (hist.length >= 2) {
+      var tail = hist.slice(-4).map(function (h) { return fmtEur(h[1]); });
+      bits.push((hist.length > 4 ? '… ' : '') + tail.join(' → '));
+    }
+    if (!bits.length) return;
+    td.appendChild(document.createElement('br'));
+    var s = document.createElement('span');
+    s.style.color = '#777'; s.style.fontSize = '12px';
+    s.textContent = bits.join(' · ');
+    td.appendChild(s);
+    var spark = sparkEl(hist);
+    if (spark) td.appendChild(spark);
+  }
+
   function cell(text, sortVal, alignRight) {
     var td = document.createElement('td');
     td.style.padding = '6px';
@@ -266,17 +427,21 @@ function __carBudgetInit() {
     return td;
   }
 
-  function render(qualified, maxPrice) {
+  function render(qualified, maxPrice, defaultCeiling) {
     customView.innerHTML = '';
     var h2 = document.createElement('h2');
-    h2.textContent = 'Within your €' + maxPrice.toLocaleString('en-US') +
-                     ' budget — ' + qualified.length + ' qualifying deal(s)';
+    h2.textContent = (defaultCeiling
+      ? 'Within the default €' + maxPrice.toLocaleString('en-US') + ' ceiling'
+      : 'Within your €' + maxPrice.toLocaleString('en-US') + ' budget') +
+      ' — ' + qualified.length + ' qualifying deal(s)';
     customView.appendChild(h2);
     var note = document.createElement('p');
     note.className = 'note';
     note.textContent = 'Recomputed in your browser from today\\'s market snapshot (' +
       market.length + ' eligible listings). Same rules as the daily ranking; ' +
-      'NEW / PRICE DROP badges and cross-source links appear in the default view only.';
+      'filters only choose which cars can be candidates — comparable pools ' +
+      'still cover the whole market. Badges and cross-source links appear ' +
+      'in the default view only.';
     customView.appendChild(note);
     if (!qualified.length) {
       var p = document.createElement('p');
@@ -346,6 +511,7 @@ function __carBudgetInit() {
         c.textContent = cautions.join('; ');
         td.appendChild(c);
       }
+      appendHistory(td, r);
       tr.appendChild(td);
       tr.appendChild(cell(fmtEur(r[idx.price_eur]), r[idx.price_eur], true));
       var medTd = cell(fmtEur(item.median), item.median, true);
@@ -381,12 +547,16 @@ function __carBudgetInit() {
   function apply() {
     var raw = String(input.value || '').trim();
     var maxPrice = parseInt(raw, 10);
-    if (!raw || isNaN(maxPrice)) { showDefault(); return; }
+    var filters = readFilters();
+    var filtered = anyFilterSet(filters);
+    if ((!raw || isNaN(maxPrice)) && !filtered) { showDefault(); return; }
+    var defaultCeiling = isNaN(maxPrice);  // filters set, no budget typed
+    if (defaultCeiling) maxPrice = cfg.defaultMax;
     maxPrice = Math.max(cfg.minPrice, Math.min(cfg.compMax, maxPrice));
     var t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-    var qualified = compute(maxPrice);
+    var qualified = compute(maxPrice, filters);
     var ms = Math.round(((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0));
-    render(qualified, maxPrice);
+    render(qualified, maxPrice, defaultCeiling);
     defaultView.style.display = 'none';
     customView.style.display = '';
     if (statusEl) {
@@ -398,9 +568,22 @@ function __carBudgetInit() {
     if (timer) clearTimeout(timer);
     timer = setTimeout(apply, 150);
   });
+  function scheduleApply() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(apply, 150);
+  }
+  [makeSel, fuelSel, gbSel].forEach(function (el) {
+    if (el) el.addEventListener('change', scheduleApply);
+  });
+  [yearInput, kmInput].forEach(function (el) {
+    if (el) el.addEventListener('input', scheduleApply);
+  });
   var resetBtn = document.getElementById('car-budget-reset');
   if (resetBtn) resetBtn.addEventListener('click', function () {
     input.value = '';
+    [makeSel, fuelSel, gbSel, yearInput, kmInput].forEach(function (el) {
+      if (el) el.value = '';
+    });
     showDefault();
   });
   var okBtn = document.getElementById('car-budget-ok');
@@ -416,14 +599,24 @@ function __carBudgetInit() {
   });
   var qs = (typeof location !== 'undefined' && location.search)
     ? location.search : '';
-  var urlMax = new URLSearchParams(qs).get('max');
-  if (urlMax && !isNaN(parseInt(urlMax, 10))) {
-    input.value = urlMax;
-    apply();
+  var params = new URLSearchParams(qs);
+  var urlMax = params.get('max');
+  if (urlMax && !isNaN(parseInt(urlMax, 10))) input.value = urlMax;
+  function urlSet(name, el) {
+    var v = params.get(name);
+    if (v && el) { el.value = v; return true; }
+    return false;
   }
+  var urlActive = !!urlMax;
+  urlActive = urlSet('make', makeSel) || urlActive;
+  urlActive = urlSet('fuel', fuelSel) || urlActive;
+  urlActive = urlSet('gearbox', gbSel) || urlActive;
+  urlActive = urlSet('year', yearInput) || urlActive;
+  urlActive = urlSet('km', kmInput) || urlActive;
+  if (urlActive) apply();
   if (typeof window !== 'undefined') {
     window.__carBudget = { compute: compute, apply: apply, market: market,
-                           idx: idx, cfg: cfg };
+                           idx: idx, cfg: cfg, readFilters: readFilters };
   }
 }
 if (document.readyState === 'loading') {
@@ -465,7 +658,8 @@ def _row(l, badges):
     cells = [
         f"<td style='padding:6px' data-sort='{sort_model}'>{_e(title)}<br>"
         f"<span style='color:#777;font-size:12px'>{_e(l.get('make'))} {_e(l.get('model'))} — {_spec_text(l)}</span><br>"
-        f"{_badge_html(key, badges)} {_listing_links(l)}{caution_html}</td>",
+        f"{_badge_html(key, badges)} {_listing_links(l)}{caution_html}"
+        f"{_history_html(l)}</td>",
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('price_eur'))}'><b>{_fmt_eur(l.get('price_eur'))}</b></td>",
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('_median'))}'>{_fmt_eur(l.get('_median'))}{_pool_note(l)}</td>",
         f"<td style='padding:6px;text-align:center' data-sort='{_sort_val(l.get('_comps'))}'>{_fmt(l.get('_comps'))}</td>",
@@ -563,15 +757,40 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "border:0;border-radius:4px;background:#e7edf2;cursor:pointer;"
             "font-weight:bold'>Reset</button> "
             "<span class='note' id='car-budget-status'></span>"
+            "<div style='margin-top:8px;font-size:14px'>"
+            "<b>Filters:</b> "
+            "<select id='car-filter-make' style='padding:5px;border:1px solid "
+            "#b8c4cf;border-radius:4px'><option value=''>Any make</option></select> "
+            "<select id='car-filter-fuel' style='padding:5px;border:1px solid "
+            "#b8c4cf;border-radius:4px'><option value=''>Any fuel</option>"
+            "<option value='petrol'>petrol</option><option value='diesel'>diesel</option>"
+            "<option value='hybrid'>hybrid</option><option value='electric'>electric</option>"
+            "<option value='lpg'>lpg</option></select> "
+            "<select id='car-filter-gearbox' style='padding:5px;border:1px solid "
+            "#b8c4cf;border-radius:4px'><option value=''>Any gearbox</option>"
+            "<option value='manual'>manual</option>"
+            "<option value='automatic'>automatic</option></select> "
+            "<input type='number' id='car-filter-year' placeholder='min year' "
+            f"min='{config.CAR_MIN_YEAR}' style='padding:5px;border:1px solid "
+            "#b8c4cf;border-radius:4px;width:85px'> "
+            "<input type='number' id='car-filter-km' placeholder='max km' "
+            "min='0' step='10000' style='padding:5px;border:1px solid "
+            "#b8c4cf;border-radius:4px;width:105px'>"
+            "</div>"
             "<p class='note' style='margin:6px 0 0'>Enter a maximum price "
             f"(€{config.CAR_MIN_PRICE_EUR:,}–{config.CAR_COMPARABLE_MAX_PRICE_EUR:,}) "
-            "and press <b>OK</b> (or Enter) to re-rank today's market snapshot "
-            "for your budget — computed instantly in your browser from the "
-            "data on this page, no rescraping (results also update as you "
-            "type). <b>Reset</b> returns to the default daily view "
-            f"(€{config.CAR_PRICE_CEILING_EUR:,} ceiling). Badges and "
-            "cross-source links appear in the default view only. Shareable: "
-            "append <b>?max=3500</b> to this page's URL.</p>"
+            "and/or pick filters, then press <b>OK</b> (or Enter) to re-rank "
+            "today's market snapshot — computed instantly in your browser "
+            "from the data on this page, no rescraping (results also update "
+            "as you type). Filters alone use the default "
+            f"€{config.CAR_PRICE_CEILING_EUR:,} ceiling; they narrow "
+            "<i>candidates</i> only — comparable pools always cover the whole "
+            "market. <b>Reset</b> clears everything and returns to the "
+            "default daily view. Badges and cross-source links appear in "
+            "the default view only. <i>seen N d</i> = days since our scan "
+            "first saw the ad (≈ days listed); €… → €… is the ask-price "
+            "trail we have recorded. Shareable: append <b>?max=3500"
+            "&amp;fuel=diesel&amp;km=200000</b> to this page's URL.</p>"
             "</div>")
     if market:
         top_html = (f"<div id='car-default-view'>{top_html}</div>"
