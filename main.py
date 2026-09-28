@@ -237,7 +237,8 @@ def run():
     # 7. Save today's digest (pass price history + map markers + sections)
     _path, info = notifier.save_digest(main_deals, still_active, comparison_html,
                                        status_note, price_data, map_markers,
-                                       newest_html, near_school_html, auctions_html)
+                                       newest_html, near_school_html,
+                                       auctions_html, all_scored)
 
     # 8. Build hosted site (latest digest -> docs/index.html + archive)
     website.build()

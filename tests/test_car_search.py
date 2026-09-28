@@ -5,6 +5,9 @@ behaviour. All file writes happen in tempfile dirs — repo data/ and docs/
 are never touched."""
 import json
 import os
+import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -19,6 +22,7 @@ import config
 import car_value
 import car_digest
 import cars
+import notifier
 import website
 import main
 from scrapers import car_ss, car_pp
@@ -659,6 +663,124 @@ class TestDigestOutput(unittest.TestCase):
         self.assertEqual(html_text.count("<script>"), 1)
         self.assertNotIn("<script>x", html_text)
         self.assertNotIn("javascript:", html_text)
+
+
+class TestBudgetTool(unittest.TestCase):
+    """The in-browser custom-budget recomputation (embedded market JSON +
+    JS port of the scorer)."""
+
+    def _market(self):
+        cand = _car("ss.com", "c1", 3000)
+        peers = [_car("pp.lv", f"p{i}", p)
+                 for i, p in enumerate([4200, 4300, 4500, 4700])]
+        over = _car("pp.lv", "big", 6500)  # above ceiling: comparable only
+        return [cand, over] + peers
+
+    def _build(self):
+        return car_digest.build_html([], [], {}, {}, {}, "2026-09-26",
+                                     market=self._market())
+
+    def test_market_embedded_with_config(self):
+        html_text = self._build()
+        m = re.search(r'<script type="application/json" id="car-market-data">'
+                      r"(.*?)</script>", html_text, re.S)
+        self.assertIsNotNone(m)
+        payload = json.loads(m.group(1))
+        self.assertEqual(payload["fields"][0], "source")
+        self.assertEqual(len(payload["rows"]), 6)
+        cfg = payload["config"]
+        self.assertEqual(cfg["minPrice"], config.CAR_MIN_PRICE_EUR)
+        self.assertEqual(cfg["compMax"], config.CAR_COMPARABLE_MAX_PRICE_EUR)
+        self.assertEqual(cfg["minComps"], config.CAR_MIN_COMPARABLES)
+        self.assertEqual(cfg["discountMult"], config.CAR_SCORE_DISCOUNT_MULTIPLIER)
+        self.assertIn("url", payload["fields"])
+
+    def test_budget_ui_present_with_market(self):
+        html_text = self._build()
+        self.assertIn("id='car-budget-input'", html_text)
+        self.assertIn("id='car-default-view'", html_text)
+        self.assertIn("id='car-custom-view'", html_text)
+        self.assertIn("id=\"car-budget-js\"", html_text)
+        # no market -> no tool (old callers keep working)
+        plain = car_digest.build_html([], [], {}, {}, {}, "2026-09-26")
+        self.assertNotIn("car-budget-input", plain)
+        self.assertNotIn("car-market-data", plain)
+
+    def test_embedded_urls_allowlisted(self):
+        evil = _car("ss.com", "e1", 3000)
+        evil["url"] = "javascript:alert(1)"
+        html_text = car_digest.build_html([], [], {}, {}, {}, "2026-09-26",
+                                         market=[evil] + self._market()[1:])
+        m = re.search(r'id="car-market-data">(.*?)</script>', html_text, re.S)
+        self.assertNotIn("javascript:", m.group(1))
+
+    @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_js_scoring_matches_python(self):
+        """Run the page's own JS scorer under Node and compare its qualified
+        set and scores with car_value.score_and_rank on the same data."""
+        html_text = self._build()
+        payload = re.search(
+            r'id="car-market-data">(.*?)</script>', html_text, re.S).group(1)
+        js = re.search(
+            r'<script id="car-budget-js">(.*?)</script>', html_text,
+            re.S).group(1)
+        driver = (
+            "var fs = require('fs');\n"
+            "global.document = {getElementById: function(id) {\n"
+            "  if (id === 'car-market-data')\n"
+            "    return {textContent: fs.readFileSync(process.argv[3], 'utf8')};\n"
+            "  return {style: {}, addEventListener: function(){}, value: '',\n"
+            "          innerHTML: ''};}};\n"
+            "global.window = {};\n"
+            "eval(fs.readFileSync(process.argv[4], 'utf8'));\n"
+            "var res = global.window.__carBudget.compute(5000);\n"
+            "console.log(JSON.stringify(res.map(function(x) {\n"
+            "  return {k: x.r[0] + ':' + x.r[1], score: x.score,\n"
+            "          median: x.median, savings: x.savings};})));\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            drv = os.path.join(tmp, "driver.js")
+            pay = os.path.join(tmp, "payload.txt")
+            jsf = os.path.join(tmp, "budget.js")
+            with open(drv, "w", encoding="utf-8") as f:
+                f.write(driver)
+            with open(pay, "w", encoding="utf-8") as f:
+                f.write(payload)
+            with open(jsf, "w", encoding="utf-8") as f:
+                f.write(js)
+            out = subprocess.run(["node", drv, "--", pay, jsf],
+                                 capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        js_rows = {r["k"]: r for r in json.loads(out.stdout.strip())}
+        qualified, _assessed = car_value.score_and_rank(self._market())
+        py_rows = {f"{l['source']}:{l['id']}": l for l in qualified}
+        self.assertEqual(set(py_rows), set(js_rows))
+        for key, l in py_rows.items():
+            self.assertAlmostEqual(l["_score"], js_rows[key]["score"], delta=1,
+                                   msg=key)
+            self.assertAlmostEqual(l["_median"], js_rows[key]["median"],
+                                   delta=0.01, msg=key)
+
+    def test_flat_budget_tool_embedded(self):
+        listing = {"source": "ss.com", "id": "f1", "district": "Zolitude",
+                   "rooms": 3, "area_m2": 55, "floor": "3/5",
+                   "price_eur": 55000, "price_per_m2": 1000,
+                   "_school_km": 0.8, "url": "https://www.ss.com/x"}
+        all_scored = {"sale": [(listing, 1.23, "linear regression")]}
+        html_text = notifier.build_html({}, {}, "", "note",
+                                       all_scored=all_scored)
+        self.assertIn('id="flat-listings-data"', html_text)
+        self.assertIn("id='flat-budget-input'", html_text)
+        self.assertIn("id='flat-custom-view'", html_text)
+        m = re.search(r'id="flat-listings-data">(.*?)</script>', html_text,
+                      re.S)
+        payload = json.loads(m.group(1))
+        self.assertEqual(payload["config"]["minPrice"],
+                         config.MIN_SALE_PRICE_EUR)
+        self.assertEqual(len(payload["rows"]), 1)
+        # no all_scored -> no tool (backward compatible)
+        plain = notifier.build_html({}, {}, "", "note")
+        self.assertNotIn("flat-budget-input", plain)
 
     def test_all_qualifying_header_and_no_relimit(self):
         qualified = [_car("ss.com", f"q{i}", 3000 + i) for i in range(30)]

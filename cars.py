@@ -172,7 +172,8 @@ def run():
         badges[key] = _badge(seen.get(key), l.get("price_eur"), today)
 
     html_text = car_digest.build_html(qualified, assessed, source_counts,
-                                      source_errors, badges, today)
+                                      source_errors, badges, today,
+                                      market=deduped)
     path = _save_digest(html_text, today)
 
     for l in deduped:

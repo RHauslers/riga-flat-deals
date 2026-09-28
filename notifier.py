@@ -11,6 +11,7 @@ and saves it to data/digests/digest_YYYY-MM-DD.html; website.build() then
 publishes it as docs/index.html + docs/archive/.
 """
 import os
+import json
 from datetime import date, datetime
 
 import config
@@ -667,9 +668,189 @@ def build_auctions_html(auctions, top_n=15):
 # ---------------------------------------------------------------------------
 # build the full HTML digest
 # ---------------------------------------------------------------------------
+# Fields embedded per listing so the browser can filter for a custom budget.
+_FLAT_FIELDS = ("district", "rooms", "area_m2", "floor", "price_eur",
+                "price_per_m2", "school_km", "score", "source", "url")
+
+
+def _flat_market_data_html(all_scored):
+    """Embed every scored listing (not just the top-N shown in the tables)
+    as JSON so the page can filter by a custom budget in the browser."""
+    rows = []
+    for dt, items in (all_scored or {}).items():
+        for entry in items:
+            listing, score = entry[0], entry[1]
+            if listing.get("price_eur") is None:
+                continue
+            rows.append([
+                listing.get("district"), listing.get("rooms"),
+                listing.get("area_m2"), listing.get("floor"),
+                listing.get("price_eur"), listing.get("price_per_m2"),
+                listing.get("_school_km"), score,
+                listing.get("source"), listing.get("url"),
+            ])
+    payload = {
+        "config": {"minPrice": config.MIN_SALE_PRICE_EUR,
+                   "maxPrice": config.MAX_SALE_PRICE_EUR_EXCEPTIONAL},
+        "fields": list(_FLAT_FIELDS),
+        "rows": rows,
+    }
+    text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    text = text.replace("</", "<\\/")
+    return ('<script type="application/json" id="flat-listings-data">'
+            + text + "</script>")
+
+
+# In-browser budget filter for the flats digest: shows ALL scored listings
+# within a custom budget (the daily tables cap at TOP_N_PER_TYPE), ranked
+# by deal score. Filtering only — the regression score does not depend on
+# the buyer's budget. Reuses the page's sortTable().
+FLAT_BUDGET_JS = """
+(function () {
+  var dataEl = document.getElementById('flat-listings-data');
+  var input = document.getElementById('flat-budget-input');
+  var statusEl = document.getElementById('flat-budget-status');
+  var customView = document.getElementById('flat-custom-view');
+  if (!dataEl || !input || !customView) return;
+  var payload = JSON.parse(dataEl.textContent);
+  var cfg = payload.config, F = payload.fields, idx = {};
+  F.forEach(function (f, i) { idx[f] = i; });
+  var rows = payload.rows;
+
+  function fmtEur(v) {
+    return v == null ? '—' : '€' + Math.round(v).toLocaleString('en-US');
+  }
+
+  function cell(text, sortVal, alignRight) {
+    var td = document.createElement('td');
+    td.style.padding = '5px';
+    if (alignRight) td.style.textAlign = 'right';
+    if (sortVal !== undefined && sortVal !== null) {
+      td.setAttribute('data-sort', sortVal);
+    }
+    td.textContent = text;
+    return td;
+  }
+
+  function render(matches, maxPrice) {
+    customView.innerHTML = '';
+    var h3 = document.createElement('h3');
+    h3.textContent = 'Within your €' + maxPrice.toLocaleString('en-US') +
+                     ' budget — ' + matches.length + ' listing(s), ranked by deal score';
+    customView.appendChild(h3);
+    var note = document.createElement('p');
+    note.className = 'note';
+    note.textContent = 'All of today\\'s scored listings within this budget ' +
+      '(the daily sections below show the newest/top-N view). ' +
+      'Click column headers to sort.';
+    customView.appendChild(note);
+    if (!matches.length) {
+      var p = document.createElement('p');
+      p.textContent = 'No listings within this budget today.';
+      customView.appendChild(p);
+      return;
+    }
+    var table = document.createElement('table');
+    table.id = 'flat-custom';
+    var headers = ['District', 'Distance', 'Rooms', 'm²', 'Floor', 'Price',
+                   'EUR/m²', 'Score', 'Source'];
+    var hr = document.createElement('tr');
+    headers.forEach(function (name, col) {
+      var th = document.createElement('th');
+      th.className = 'sort-th';
+      if (col >= 1 && col <= 7) th.style.textAlign = 'right';
+      th.textContent = name;
+      th.onclick = (function (c) {
+        return function () { sortTable('flat-custom', c); };
+      })(col);
+      hr.appendChild(th);
+    });
+    table.appendChild(hr);
+    matches.forEach(function (r) {
+      var tr = document.createElement('tr');
+      tr.appendChild(cell(r[idx.district] || '?', r[idx.district]));
+      var km = r[idx.school_km];
+      tr.appendChild(cell(km != null ? km.toFixed(1) + ' km' : '—',
+        km != null ? km : 9999, true));
+      tr.appendChild(cell(String(r[idx.rooms] == null ? '—' : r[idx.rooms]), r[idx.rooms], true));
+      tr.appendChild(cell(String(r[idx.area_m2] == null ? '—' : r[idx.area_m2]), r[idx.area_m2], true));
+      tr.appendChild(cell(String(r[idx.floor] == null ? '—' : r[idx.floor]), r[idx.floor], true));
+      tr.appendChild(cell(fmtEur(r[idx.price_eur]), r[idx.price_eur], true));
+      tr.appendChild(cell(r[idx.price_per_m2] != null
+        ? Math.round(r[idx.price_per_m2]).toLocaleString('en-US') : '—',
+        r[idx.price_per_m2], true));
+      var score = r[idx.score];
+      tr.appendChild(cell(score != null ? (+score).toFixed(2) : '—', score, true));
+      var srcTd = cell(r[idx.source] || '', r[idx.source]);
+      if (r[idx.url]) {
+        var a = document.createElement('a');
+        a.href = r[idx.url];
+        a.textContent = r[idx.source] || 'link';
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        srcTd.textContent = '';
+        srcTd.appendChild(a);
+      }
+      tr.appendChild(srcTd);
+      table.appendChild(tr);
+    });
+    customView.appendChild(table);
+  }
+
+  function hide() {
+    customView.style.display = 'none';
+    customView.innerHTML = '';
+    if (statusEl) statusEl.textContent = '';
+  }
+
+  var timer = null;
+  function apply() {
+    var raw = String(input.value || '').trim();
+    var maxPrice = parseInt(raw, 10);
+    if (!raw || isNaN(maxPrice)) { hide(); return; }
+    maxPrice = Math.max(cfg.minPrice, Math.min(cfg.maxPrice, maxPrice));
+    var matches = rows.filter(function (r) {
+      return r[idx.price_eur] != null && r[idx.price_eur] <= maxPrice;
+    });
+    matches.sort(function (a, b) {
+      var sa = a[idx.score], sb = b[idx.score];
+      if (sa == null && sb == null) return 0;
+      if (sa == null) return 1;
+      if (sb == null) return -1;
+      return sb - sa;
+    });
+    render(matches, maxPrice);
+    customView.style.display = '';
+    if (statusEl) {
+      statusEl.textContent = matches.length + ' of ' + rows.length +
+        ' listings within €' + maxPrice.toLocaleString('en-US');
+    }
+  }
+
+  input.addEventListener('input', function () {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(apply, 150);
+  });
+  var resetBtn = document.getElementById('flat-budget-reset');
+  if (resetBtn) resetBtn.addEventListener('click', function () {
+    input.value = '';
+    hide();
+  });
+  var qs = (typeof location !== 'undefined' && location.search)
+    ? location.search : '';
+  var urlMax = new URLSearchParams(qs).get('max');
+  if (urlMax && !isNaN(parseInt(urlMax, 10))) {
+    input.value = urlMax;
+    apply();
+  }
+})();
+"""
+
+
 def build_html(main_deals, still_active, comparison_html, status_note,
                price_data=None, map_markers=None,
-               newest_html="", near_school_html="", auctions_html=""):
+               newest_html="", near_school_html="", auctions_html="",
+               all_scored=None):
     today = date.today().isoformat()
     run_time = _now_header_str()
     sections = []
@@ -696,6 +877,33 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             sections.append(sa)
 
     body_sections = "".join(sections)
+
+    # Custom-budget tool: embed all scored listings, filter in the browser.
+    flat_market_html = _flat_market_data_html(all_scored) if all_scored else ""
+    flat_budget_script = (f'<script id="flat-budget-js">{FLAT_BUDGET_JS}</script>'
+                          if all_scored else "")
+    flat_budget_html = ""
+    if all_scored:
+        flat_budget_html = (
+            "<div style='background:#f7f9fb;border:1px solid #dbe4ea;"
+            "padding:10px 14px;margin:12px 0'>"
+            "<b>Your budget:</b> "
+            f"<input type='number' id='flat-budget-input' min='{config.MIN_SALE_PRICE_EUR}' "
+            f"max='{config.MAX_SALE_PRICE_EUR_EXCEPTIONAL}' step='1000' "
+            "placeholder='e.g. 60000' style='padding:6px 8px;border:1px solid "
+            "#b8c4cf;border-radius:4px;font-size:14px;width:110px'> "
+            "<button type='button' id='flat-budget-reset' style='padding:6px 10px;"
+            "border:0;border-radius:4px;background:#e7edf2;cursor:pointer;"
+            "font-weight:bold'>Reset</button> "
+            "<span class='note' id='flat-budget-status'></span>"
+            f"<p class='note' style='margin:6px 0 0'>Enter a maximum price "
+            f"(€{config.MIN_SALE_PRICE_EUR:,}–{config.MAX_SALE_PRICE_EUR_EXCEPTIONAL:,}) to "
+            "list every scored flat within it — filtered instantly in your "
+            "browser from today's data, no rescraping. Leave empty for the "
+            "default daily view. Shareable: append <b>?max=60000</b> to this "
+            "page's URL.</p>"
+            "</div>"
+            "<div id='flat-custom-view' style='display:none'></div>")
 
     # Map section (Leaflet.js with OpenStreetMap tiles — free, no API key)
     map_html = _build_map_html(map_markers) if map_markers else ""
@@ -770,6 +978,8 @@ function sortTable(tableId, colIdx) {{
 }}
 
 </script>
+{flat_market_html}
+{flat_budget_script}
 </head><body>
 <h2>Riga flat deals - {run_time}</h2>
 <p>Districts: {', '.join(config.DISTRICTS.keys())} &middot; Sources:
@@ -778,6 +988,7 @@ ss.com, city24.lv{', izsoles.ta.gov.lv (auctions)' if config.IZSOLES_ENABLED els
 <p class="note">Sale ranking: 50% deal score + 50% walking distance to
 {config.SCHOOL_NAME} (shown in the Distance column). New builds excluded.
 Sales only — rentals are out of scope.</p>
+{flat_budget_html}
 {comparison_html}
 {map_html}
 {near_school_html}
@@ -891,11 +1102,11 @@ function showOnMap(markerId) {{
 
 def save_digest(main_deals, still_active, comparison_html, status_note,
                 price_data=None, map_markers=None, newest_html="",
-                near_school_html="", auctions_html=""):
+                near_school_html="", auctions_html="", all_scored=None):
     """Build today's digest and write it to data/digests/. Returns (path, info)."""
     html = build_html(main_deals, still_active, comparison_html, status_note,
                       price_data, map_markers, newest_html,
-                      near_school_html, auctions_html)
+                      near_school_html, auctions_html, all_scored)
     today = date.today().isoformat()
     os.makedirs(config.DIGEST_DIR, exist_ok=True)
     digest_path = os.path.join(config.DIGEST_DIR, f"digest_{today}.html")

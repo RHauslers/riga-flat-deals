@@ -2,6 +2,39 @@
 
 Living document. Updated after each Devin session. Read this first.
 
+## Session 2026-09-28 #2 — in-browser custom-budget tool (both tabs)
+
+- Both tabs now have a "Your budget" input: type a max price and the page
+  recomputes instantly IN THE BROWSER — no rescraping, no backend, no
+  secrets. Shareable via ?max=3500 (cars) / ?max=60000 (flats) URL param.
+  Empty input / Reset = default daily view.
+- CARS: the digest embeds the day's full eligible market (all prices up
+  to the €8k comparable ceiling — not just today's €5k candidates) as
+  compact JSON + the scoring config, and CAR_BUDGET_JS in car_digest.py
+  ports car_value.score_and_rank to JS (eligibility, make/model/fuel
+  grouping, tolerance matching, pool medians, 15%/€500/4-comp gate,
+  condition-adjusted score). Budgets ABOVE €5,000 promote €5-8k cars from
+  comparables to candidates and score them for the first time; below it,
+  it is a pure filter. Custom view shows no badges/also_on links (state
+  lives in car_seen.json, not embedded) — noted in the UI.
+- PARITY GUARANTEE: tests/test_car_search.py::test_js_scoring_matches_
+  python extracts the page's own JS + JSON, runs it under Node (skipped
+  if node absent, e.g. CI) and asserts the same qualified set/scores/
+  medians as Python. Known divergence: Math.round vs Python banker's
+  rounding on exact .5 — tolerated at delta=1.
+- FLATS: notifier.build_html embeds every scored listing (all_scored is
+  now passed through main -> save_digest; the daily tables still cap at
+  TOP_N_PER_TYPE) and FLAT_BUDGET_JS filters + re-renders them ranked by
+  deal score. Pure filter — the regression does not depend on budget.
+- Embed URLs are allow-listed at build time (same rule as _link());
+  JSON is </ -escaped so it cannot break out of the script tag.
+- Repo growth: the cars digest gains ~340 KB of embedded JSON per day
+  (3 copies: data/digests + docs/cars.html + archive) ≈ +1 MB/day of
+  git history. If that becomes a problem, the known lever is a
+  string-table (source/make/model/... as dictionary indices) — would
+  roughly halve it. The snapshot file stays numeric-only (no url) per
+  its original contract; the embed builds its own rows from `market`.
+
 ## Session 2026-09-28 — sortable car columns + cron retune #2
 
 - car_digest.py: the qualifying-deals table is now click-to-sort (same
