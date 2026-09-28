@@ -107,6 +107,16 @@ def _pool_note(l):
             f"pool ~{_e(year)} · ~{km}k km</span>")
 
 
+def _sort_val(v, default=-1):
+    """Numeric value for a column's data-sort attribute (-1 when unknown,
+    so unsortable rows sink rather than crash the JS parseFloat)."""
+    try:
+        f = float(v)
+        return int(f) if f.is_integer() else f
+    except (TypeError, ValueError):
+        return default
+
+
 def _row(l, badges):
     key = f"{l.get('source')}:{l.get('id')}"
     title = l.get("title") or f"{l.get('make', '')} {l.get('model', '')}"
@@ -123,16 +133,18 @@ def _row(l, badges):
     if cautions:
         caution_html = ("<br><span style='color:#a04000;font-size:12px'>"
                         f"{_e('; '.join(cautions))}</span>")
+    sort_model = html.escape(
+        f"{l.get('make') or ''} {l.get('model') or ''}".strip(), quote=True)
     cells = [
-        f"<td style='padding:6px'>{_e(title)}<br>"
+        f"<td style='padding:6px' data-sort='{sort_model}'>{_e(title)}<br>"
         f"<span style='color:#777;font-size:12px'>{_e(l.get('make'))} {_e(l.get('model'))} — {_spec_text(l)}</span><br>"
         f"{_badge_html(key, badges)} {_listing_links(l)}{caution_html}</td>",
-        f"<td style='padding:6px;text-align:right'><b>{_fmt_eur(l.get('price_eur'))}</b></td>",
-        f"<td style='padding:6px;text-align:right'>{_fmt_eur(l.get('_median'))}{_pool_note(l)}</td>",
-        f"<td style='padding:6px;text-align:center'>{_fmt(l.get('_comps'))}</td>",
-        f"<td style='padding:6px;text-align:right'>{_fmt_eur(l.get('_savings'))}</td>",
-        f"<td style='padding:6px;text-align:right'>{_fmt(l.get('_discount_pct'), '%')}</td>",
-        f"<td style='padding:6px;text-align:center'><b>{_fmt(l.get('_score'))}</b></td>",
+        f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('price_eur'))}'><b>{_fmt_eur(l.get('price_eur'))}</b></td>",
+        f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('_median'))}'>{_fmt_eur(l.get('_median'))}{_pool_note(l)}</td>",
+        f"<td style='padding:6px;text-align:center' data-sort='{_sort_val(l.get('_comps'))}'>{_fmt(l.get('_comps'))}</td>",
+        f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('_savings'))}'>{_fmt_eur(l.get('_savings'))}</td>",
+        f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('_discount_pct'))}'>{_fmt(l.get('_discount_pct'), '%')}</td>",
+        f"<td style='padding:6px;text-align:center' data-sort='{_sort_val(l.get('_score'))}'><b>{_fmt(l.get('_score'))}</b></td>",
     ]
     return "<tr>" + "".join(cells) + "</tr>"
 
@@ -189,14 +201,16 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
         rows = "".join(_row(l, badges) for l in qualified)
         top_html = (
             f"<h2>All qualifying deals ({len(qualified)})</h2>"
-            "<table><tr style='background:#f0f0f0'>"
-            "<th style='text-align:left;padding:6px'>Listing</th>"
-            "<th style='padding:6px'>Asking</th>"
-            "<th style='padding:6px'>Median ask</th>"
-            "<th style='padding:6px'>Comps</th>"
-            "<th style='padding:6px'>Discount €</th>"
-            "<th style='padding:6px'>Discount %</th>"
-            "<th style='padding:6px'>Score</th></tr>"
+            "<p class='note'>Click a column header to sort; click again to "
+            "reverse. Ranking below is the default (score, then savings).</p>"
+            "<table id='car-deals'><tr style='background:#f0f0f0'>"
+            "<th class='sort-th' style='text-align:left;padding:6px' onclick=\"sortTable('car-deals', 0)\">Listing</th>"
+            "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 1)\">Asking</th>"
+            "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 2)\">Median ask</th>"
+            "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 3)\">Comps</th>"
+            "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 4)\">Discount €</th>"
+            "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 5)\">Discount %</th>"
+            "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 6)\">Score</th></tr>"
             f"{rows}</table>")
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -210,7 +224,46 @@ td,th{{border-bottom:1px solid #eee}}
 a{{color:#2874a6;text-decoration:none}}a:hover{{text-decoration:underline}}
 .note{{color:#777;font-size:13px}}
 .box{{background:#f7f9fb;border:1px solid #dbe4ea;padding:10px 14px;margin:12px 0}}
-</style></head><body>
+th{{user-select:none;cursor:default;position:relative}}
+th.sort-th{{cursor:pointer}}
+th.sort-th:hover{{background:#e8e8e8}}
+th.sort-th::after{{content:"\\21C5";font-size:10px;color:#bbb;margin-left:4px;opacity:0}}
+th.sort-th:hover::after{{opacity:1}}
+th.sort-asc::after{{content:"\\2191";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
+th.sort-desc::after{{content:"\\2193";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
+</style>
+<script>
+// Click-to-sort table headers (same mechanism as the flats digest):
+// first click sorts ascending, second click reverses. Numeric columns use
+// the data-sort attribute on each cell; the Listing column falls back to
+// string comparison of "make model".
+var sortState = {{}};
+function sortTable(tableId, colIdx) {{
+  var table = document.getElementById(tableId);
+  if (!table) return;
+  var ths = table.querySelectorAll('th.sort-th');
+  ths.forEach(function(th) {{ th.classList.remove('sort-asc','sort-desc'); }});
+  var rows = Array.from(table.querySelectorAll('tr')).slice(1);
+  var key = tableId + '_' + colIdx;
+  sortState[key] = !sortState[key];
+  var asc = sortState[key];
+  var clickedTh = table.querySelectorAll('th')[colIdx];
+  if (clickedTh) clickedTh.classList.add(asc ? 'sort-asc' : 'sort-desc');
+  rows.sort(function(a, b) {{
+    var va = a.children[colIdx].getAttribute('data-sort');
+    var vb = b.children[colIdx].getAttribute('data-sort');
+    if (va === null || vb === null) return 0;
+    va = va.trim(); vb = vb.trim();
+    var na = parseFloat(va), nb = parseFloat(vb);
+    if (!isNaN(na) && !isNaN(nb)) {{
+      return asc ? na - nb : nb - na;
+    }}
+    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+  }});
+  rows.forEach(function(r) {{ table.appendChild(r); }});
+}}
+</script>
+</head><body>
 <h1>Riga car deals — {_e(stamp)}</h1>
 <p class="note">Coverage: {coverage}. ss.com: the newest
 {_e(config.CAR_SS_MAX_PAGES_PER_MAKE)} pages per make, then a bounded deep

@@ -682,6 +682,21 @@ class TestDigestOutput(unittest.TestCase):
                                           "2026-09-26")
         self.assertIn("pool ~2012 · ~240k km", html_text)
 
+    def test_sortable_columns_wired(self):
+        good = _car("ss.com", "q1", 3000)
+        good.update({"_score": 90, "_median": 4000, "_comps": 5,
+                     "_savings": 1000, "_discount_pct": 25.0,
+                     "_pool_year": 2012, "_pool_mileage": 240000})
+        html_text = car_digest.build_html([good], [good], {}, {}, {},
+                                          "2026-09-26")
+        self.assertIn("id='car-deals'", html_text)
+        self.assertIn("sortTable('car-deals', 6)", html_text)
+        self.assertEqual(html_text.count("class='sort-th'"), 7)
+        self.assertIn("data-sort='volkswagen passat-b7'", html_text)
+        self.assertIn("data-sort='3000'", html_text)
+        self.assertIn("data-sort='4000'", html_text)
+        self.assertIn("function sortTable", html_text)
+
     def test_inspection_cautions_displayed(self):
         old_high_km = _car("ss.com", "old", 3000, mileage=379000, year=2011)
         newer = _car("ss.com", "new", 3000, mileage=150000, year=2018)

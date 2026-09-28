@@ -5,11 +5,12 @@ name: Daily flat deals
 # in this run, and the site is website-only (no email, no hourly scans).
 on:
   schedule:
-    # 03:17 UTC = 05:17/06:17 Riga (winter/summer). GitHub cron is best-effort
-    # and this repo's previous 06:23 UTC slot started 4.6-11.4 h late every
-    # day (site updated ~15:00 Riga). An early, non-round minute leaves the
-    # most headroom so the page is fresh by the time anyone looks at it.
-    - cron: "17 3 * * *"
+    # 00:47 UTC = 02:47/03:47 Riga (winter/summer). GitHub cron is best-effort
+    # and this repo's scheduled runs start consistently ~6 h late (measured:
+    # 06:23 slot -> ~11:35 UTC; 03:17 slot -> 09:12/09:42 UTC on 2026-09-27/28),
+    # so an early non-round minute lands the actual run ~06:45 UTC = ~09:45
+    # Riga, in time for a morning look at the site.
+    - cron: "47 0 * * *"
   workflow_dispatch: {}  # allow manual runs from the Actions tab
 
 permissions:
