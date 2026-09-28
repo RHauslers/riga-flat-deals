@@ -676,6 +676,29 @@ class TestWebsiteBuild(_TempPaths):
         self.assertNotIn("stale-warning", cars_html)
         self.assertIn('href="index.html"', cars_html)
 
+    def test_nav_ignores_body_text_inside_script(self):
+        """A digest whose <script> mentions the literal text '<body>' (the
+        budget JS comment does) must still get the nav inside the real
+        body, not inside the script element."""
+        today = date.today().isoformat()
+        flat = ("<html><head><script>// input lives in <body> x"
+                "</script></head><body><h1>digest</h1></body></html>")
+        car = ("<html><head><script>// same <body> trap"
+               "</script></head><body><h1>cars</h1></body></html>")
+        self._write(f"digest_{today}.html", flat)
+        self._write(f"cars_{today}.html", car)
+        website.build()
+        for f in ("index.html", "cars.html",
+                  f"archive{os.sep}digest_{today}.html",
+                  f"archive{os.sep}cars_{today}.html"):
+            path = os.path.join(self.docs_dir, f)
+            content = open(path, encoding="utf-8").read()
+            nav_at = content.find('class="site-nav"')
+            real_body = content.find("<body>")
+            self.assertGreaterEqual(nav_at, 0, f)
+            self.assertGreater(nav_at, real_body, f)
+            self.assertGreater(nav_at, content.find("</head>"), f)
+
     def test_no_car_digest_placeholder(self):
         self._write("digest_2026-09-26.html", "<html><body>x</body></html>")
         website.build()

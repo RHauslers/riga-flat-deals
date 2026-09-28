@@ -706,8 +706,9 @@ def _flat_market_data_html(all_scored):
 # by deal score. Filtering only — the regression score does not depend on
 # the buyer's budget. Reuses the page's sortTable().
 FLAT_BUDGET_JS = """
-// Runs after the DOM is ready: the budget input lives in <body>, below
-// this script in <head>, so the elements do not exist at parse time.
+// Runs after the DOM is ready: the budget input lives in the body
+// element, below this script in the head, so it does not exist at parse
+// time. (No literal '<body>' here — website._inject_nav searches for it.)
 function __flatBudgetInit() {
   var dataEl = document.getElementById('flat-listings-data');
   var input = document.getElementById('flat-budget-input');

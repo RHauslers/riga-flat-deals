@@ -225,8 +225,9 @@ def _market_data_html(market):
 # can differ by 1 on exact .5 cases. Exposes window.__carBudget for the
 # Node parity test (tests/test_car_search.py).
 CAR_BUDGET_JS = """
-// Runs after the DOM is ready: the budget input lives in <body>, below
-// this script in <head>, so the elements do not exist at parse time.
+// Runs after the DOM is ready: the budget input lives in the body
+// element, below this script in the head, so it does not exist at parse
+// time. (No literal '<body>' here — website._inject_nav searches for it.)
 function __carBudgetInit() {
   var dataEl = document.getElementById('car-market-data');
   var input = document.getElementById('car-budget-input');

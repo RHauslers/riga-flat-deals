@@ -105,6 +105,21 @@ def _nav_html(prefix, active):
     )
 
 
+def _real_body_tag(content):
+    """First <body...> tag NOT inside a <script>/<style> block or HTML
+    comment — JS comments can legitimately contain the literal text
+    '<body>' (the budget-script comment does), and injecting the nav
+    there would hide it inside the script element."""
+    hidden = [m.span() for m in re.finditer(
+        r"<script\b[^>]*>.*?</script\s*>|<style\b[^>]*>.*?</style\s*>"
+        r"|<!--.*?-->",
+        content, re.S | re.I)]
+    for m in re.finditer(r"<body[^>]*>", content, re.I):
+        if not any(s <= m.start() < e for s, e in hidden):
+            return m
+    return None
+
+
 def _inject_nav(path, active, prefix, extra_top=""):
     """Insert the tab bar at the top of <body> of a hosted copy. Idempotent:
     files already carrying the nav are left untouched."""
@@ -116,7 +131,7 @@ def _inject_nav(path, active, prefix, extra_top=""):
     if NAV_MARK in content:
         return
     nav = extra_top + _nav_html(prefix, active)
-    m = re.search(r"<body[^>]*>", content, re.I)
+    m = _real_body_tag(content)
     if m:
         content = content[:m.end()] + "\n" + nav + content[m.end():]
     else:
