@@ -74,13 +74,11 @@ def run():
     print(f"[main] total scraped (target districts): {len(all_listings)} "
           f"per source: {source_counts}")
 
-    # 1b. Sanity filter: drop listings with implausible or out-of-budget prices
-    #     Flexible cap: sales up to MAX_SALE_PRICE_EUR are the target budget;
-    #     above that we keep listings only up to MAX_SALE_PRICE_EUR_EXCEPTIONAL.
-    #     The scoring then ranks naturally — an 80K flat that is genuinely
-    #     exceptional value still surfaces, an overpriced 80K flat does not.
+    # 1b. Sanity filter: drop listings with implausible prices only.
+    #     No upper bound — the buyer's budget is applied by the browser-side
+    #     budget tool, so every plausible listing is kept for scoring/embed.
     min_price = {"sale": config.MIN_SALE_PRICE_EUR, "rent": config.MIN_RENT_PRICE_EUR}
-    max_price = {"sale": config.MAX_SALE_PRICE_EUR_EXCEPTIONAL, "rent": float('inf')}
+    max_price = {"sale": float('inf'), "rent": float('inf')}
     before = len(all_listings)
     all_listings = [l for l in all_listings
                     if l.get("price_eur")
@@ -125,9 +123,7 @@ def run():
         before_a = len(auctions)
         auctions = [a for a in auctions
                     if a.get("price_eur")
-                    and config.MIN_SALE_PRICE_EUR
-                    <= a["price_eur"]
-                    <= config.MAX_SALE_PRICE_EUR_EXCEPTIONAL]
+                    and a["price_eur"] >= config.MIN_SALE_PRICE_EUR]
         if before_a and len(auctions) != before_a:
             print(f"[main] auctions: dropped {before_a - len(auctions)} "
                   f"out-of-budget auction(s)")

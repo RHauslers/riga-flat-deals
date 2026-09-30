@@ -2,6 +2,33 @@
 
 Living document. Updated after each Devin session. Read this first.
 
+## Session 2026-09-30 #5 — scrape-all caps removed + Market sub-tabs
+
+- User asked to "scrape all" and let the budget input filter: the flat
+  upper price cap (MAX_SALE_PRICE_EUR_EXCEPTIONAL = 85k) is REMOVED —
+  main.py filters only on the MIN_SALE_PRICE_EUR floor (5k) for sale and
+  rent; auctions likewise. config.py no longer defines
+  MAX_SALE_PRICE_EUR_EXCEPTIONAL; MAX_SALE_PRICE_EUR (75k) remains as
+  display-only "buyer's target budget".
+- Flat embed cfg.maxPrice is now DYNAMIC (max row price, e.g. 385k
+  today) — JSON-safe and self-adjusting. The budget tool's filter set is
+  payload.rows + payload.extra (all 136 flats today), so custom budgets
+  see every plausible flat, not just the top-N scored.
+- Cars: CAR_COMPARABLE_MAX_PRICE_EUR raised 8k -> 1,000,000 — a
+  plausibility bound only (keeps out exotics/mispriced ads, JSON-safe
+  number for the embedded config). Effect today: eligible pool 2,348 ->
+  4,589 ads; cars.html ~1.2MB (watch growth); market models 118 -> 144.
+  Candidate ceiling stays CAR_PRICE_CEILING_EUR (5k) for the default
+  view; the budget box explores above it.
+- Market page (docs/market.html) now has Cars/Flats SUB-TABS
+  (.mtab pill buttons, __mktTab JS, ?m=flats or #flats deep link).
+  build_page renders whichever dataset(s) exist; empty side shows a
+  "no stats yet" note.
+- Side effects of unbounded flats: new-build exclusion now does the work
+  the price cap did (70 excluded today vs 1 before); auctions grew to 28.
+- 84 tests pass; new coverage for sub-tabs, dynamic embed max, and
+  rows+extra budget coverage.
+
 ## Session 2026-09-30 #4 — flat Market section + flat budget filters
 
 - flat_market.py: per-district stats (ads, first-seen-today count,

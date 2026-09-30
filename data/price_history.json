@@ -133,7 +133,7 @@
         "price": 110000.0
       },
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 105000.0
       }
     ],
@@ -146,8 +146,13 @@
       {
         "date": "2026-09-05",
         "price": 141000.0
+      },
+      {
+        "date": "2026-09-30",
+        "price": 139000.0
       }
-    ]
+    ],
+    "first_seen": "2026-09-30"
   },
   "city24.lv:2443318": {
     "cenumednieks": null,
@@ -173,6 +178,10 @@
       {
         "date": "2026-09-08",
         "price": 415000.0
+      },
+      {
+        "date": "2026-09-30",
+        "price": 385000.0
       }
     ],
     "first_seen": "2026-09-05",
@@ -184,6 +193,10 @@
       {
         "date": "2026-09-08",
         "price": 93000.0
+      },
+      {
+        "date": "2026-09-30",
+        "price": 92000.0
       }
     ],
     "first_seen": "2026-09-05"
@@ -251,8 +264,13 @@
       {
         "date": "2026-09-05",
         "price": 129900.0
+      },
+      {
+        "date": "2026-09-30",
+        "price": 126000.0
       }
-    ]
+    ],
+    "first_seen": "2026-09-30"
   },
   "city24.lv:2215354": {
     "cenumednieks": null,
@@ -3344,10 +3362,10 @@
   "ss.com:57694385": {
     "cenumednieks": {
       "original_price": 118000,
-      "current_price": 105000,
-      "total_change": 13000,
-      "first_listed_date": "2026-09-03",
-      "days_on_market": 2,
+      "current_price": 99500,
+      "total_change": 18500,
+      "first_listed_date": "2026-09-27",
+      "days_on_market": 3,
       "previous_listings": [
         {
           "date": "2024-11-07",
@@ -3430,13 +3448,17 @@
           "original_price": 92250
         }
       ],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/cdojk"
     },
     "our_tracking": [
       {
         "date": "2026-09-08",
         "price": 105000.0
+      },
+      {
+        "date": "2026-09-30",
+        "price": 99500.0
       }
     ],
     "first_seen": "2026-09-05"
@@ -4561,7 +4583,7 @@
       "current_price": 91000,
       "total_change": 0,
       "first_listed_date": "2026-09-02",
-      "days_on_market": 3,
+      "days_on_market": 28,
       "previous_listings": [
         {
           "date": "2026-02-06",
@@ -4629,12 +4651,12 @@
           "original_price": 50000
         }
       ],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/eixmm"
     },
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 91000.0
       }
     ],
@@ -6497,18 +6519,22 @@
   "ss.com:55208529": {
     "cenumednieks": {
       "original_price": 245000,
-      "current_price": 227000,
-      "total_change": 18000,
-      "first_listed_date": "2026-07-17",
-      "days_on_market": 50,
+      "current_price": 237000,
+      "total_change": 8000,
+      "first_listed_date": "2026-09-08",
+      "days_on_market": 22,
       "previous_listings": [],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/bcixod"
     },
     "our_tracking": [
       {
         "date": "2026-09-08",
         "price": 227000.0
+      },
+      {
+        "date": "2026-09-30",
+        "price": 237000.0
       }
     ],
     "first_seen": "2026-09-05"
@@ -6566,18 +6592,22 @@
   "ss.com:57986691": {
     "cenumednieks": {
       "original_price": 105000,
-      "current_price": 105000,
-      "total_change": 0,
-      "first_listed_date": "2026-08-19",
-      "days_on_market": 17,
+      "current_price": 103500,
+      "total_change": 1500,
+      "first_listed_date": "2026-09-11",
+      "days_on_market": 19,
       "previous_listings": [],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/bchofj"
     },
     "our_tracking": [
       {
         "date": "2026-09-08",
         "price": 105000.0
+      },
+      {
+        "date": "2026-09-30",
+        "price": 103500.0
       }
     ],
     "first_seen": "2026-09-05"
@@ -6949,7 +6979,7 @@
       "current_price": 95000,
       "total_change": 0,
       "first_listed_date": "2026-07-24",
-      "days_on_market": 43,
+      "days_on_market": 68,
       "previous_listings": [
         {
           "date": "2025-12-14",
@@ -6957,12 +6987,12 @@
           "original_price": 170000
         }
       ],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/aegnn"
     },
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 95000.0
       }
     ],
@@ -7056,14 +7086,14 @@
       "current_price": 95000,
       "total_change": 0,
       "first_listed_date": "2025-08-31",
-      "days_on_market": 370,
+      "days_on_market": 395,
       "previous_listings": [],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/bdmdxj"
     },
     "our_tracking": [
       {
-        "date": "2026-09-05",
+        "date": "2026-09-30",
         "price": 95000.0
       }
     ],
@@ -7349,7 +7379,7 @@
       "current_price": 119000,
       "total_change": 500,
       "first_listed_date": "2026-05-25",
-      "days_on_market": 103,
+      "days_on_market": 128,
       "previous_listings": [
         {
           "date": "2026-03-09",
@@ -7362,12 +7392,12 @@
           "original_price": 122500
         }
       ],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/dggjj"
     },
     "our_tracking": [
       {
-        "date": "2026-09-07",
+        "date": "2026-09-30",
         "price": 119000.0
       }
     ],
@@ -7516,14 +7546,14 @@
       "current_price": 115000,
       "total_change": 20000,
       "first_listed_date": "2026-08-18",
-      "days_on_market": 18,
+      "days_on_market": 43,
       "previous_listings": [],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/bbxedg"
     },
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 115000.0
       }
     ],
@@ -7847,7 +7877,7 @@
       "current_price": 118500,
       "total_change": 0,
       "first_listed_date": "2026-03-02",
-      "days_on_market": 187,
+      "days_on_market": 212,
       "previous_listings": [
         {
           "date": "2025-07-30",
@@ -7875,12 +7905,12 @@
           "original_price": 115000
         }
       ],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/bcbmdi"
     },
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 118500.0
       }
     ],
@@ -9107,7 +9137,7 @@
       "current_price": 87800,
       "total_change": 0,
       "first_listed_date": "2026-07-29",
-      "days_on_market": 38,
+      "days_on_market": 63,
       "previous_listings": [
         {
           "date": "2025-08-25",
@@ -9120,12 +9150,12 @@
           "original_price": 49900
         }
       ],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/amcll"
     },
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 87800.0
       }
     ],
@@ -9320,7 +9350,7 @@
       "current_price": 99900,
       "total_change": 0,
       "first_listed_date": "2026-06-25",
-      "days_on_market": 72,
+      "days_on_market": 97,
       "previous_listings": [
         {
           "date": "2026-03-21",
@@ -9353,12 +9383,12 @@
           "original_price": 95000
         }
       ],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/diicf"
     },
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 99900.0
       }
     ],
@@ -9645,10 +9675,10 @@
   "ss.com:57968529": {
     "cenumednieks": {
       "original_price": 92900,
-      "current_price": 92900,
-      "total_change": 0,
-      "first_listed_date": "2026-08-14",
-      "days_on_market": 22,
+      "current_price": 91900,
+      "total_change": 1000,
+      "first_listed_date": "2026-09-18",
+      "days_on_market": 12,
       "previous_listings": [
         {
           "date": "2026-01-18",
@@ -9681,13 +9711,17 @@
           "original_price": 145000
         }
       ],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/aaaff"
     },
     "our_tracking": [
       {
         "date": "2026-09-08",
         "price": 92900.0
+      },
+      {
+        "date": "2026-09-30",
+        "price": 91900.0
       }
     ],
     "first_seen": "2026-09-05"
@@ -10014,10 +10048,10 @@
   "ss.com:57848751": {
     "cenumednieks": {
       "original_price": 107000,
-      "current_price": 106000,
-      "total_change": 1000,
-      "first_listed_date": "2026-08-11",
-      "days_on_market": 25,
+      "current_price": 112000,
+      "total_change": 5000,
+      "first_listed_date": "2026-09-30",
+      "days_on_market": 0,
       "previous_listings": [
         {
           "date": "2025-12-03",
@@ -10030,13 +10064,17 @@
           "original_price": 72800
         }
       ],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/bnlpf"
     },
     "our_tracking": [
       {
         "date": "2026-09-07",
         "price": 106000.0
+      },
+      {
+        "date": "2026-09-30",
+        "price": 112000.0
       }
     ],
     "first_seen": "2026-09-05"
@@ -10138,10 +10176,10 @@
   "ss.com:57623530": {
     "cenumednieks": {
       "original_price": 124000,
-      "current_price": 122200,
-      "total_change": 1800,
-      "first_listed_date": "2026-07-13",
-      "days_on_market": 54,
+      "current_price": 110000,
+      "total_change": 14000,
+      "first_listed_date": "2026-09-29",
+      "days_on_market": 1,
       "previous_listings": [
         {
           "date": "2025-10-08",
@@ -10209,7 +10247,7 @@
           "original_price": 43000
         }
       ],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/dclik"
     },
     "our_tracking": [
@@ -10220,6 +10258,10 @@
       {
         "date": "2026-09-08",
         "price": 115000.0
+      },
+      {
+        "date": "2026-09-30",
+        "price": 110000.0
       }
     ],
     "first_seen": "2026-09-05"
@@ -10818,14 +10860,14 @@
       "current_price": 89900,
       "total_change": 3099,
       "first_listed_date": "2026-08-07",
-      "days_on_market": 29,
+      "days_on_market": 54,
       "previous_listings": [],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/bebbib"
     },
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 89900.0
       }
     ],
@@ -11778,7 +11820,7 @@
       "current_price": 140000,
       "total_change": 0,
       "first_listed_date": "2026-09-05",
-      "days_on_market": 0,
+      "days_on_market": 25,
       "previous_listings": [
         {
           "date": "2026-01-26",
@@ -11786,12 +11828,12 @@
           "original_price": 71500
         }
       ],
-      "fetched_at": "2026-09-05",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/ejpdx"
     },
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 140000.0
       }
     ],
@@ -12473,14 +12515,14 @@
       "current_price": 110000,
       "total_change": 0,
       "first_listed_date": "2026-09-06",
-      "days_on_market": 0,
+      "days_on_market": 24,
       "previous_listings": [],
-      "fetched_at": "2026-09-06",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/ecxfc"
     },
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 110000.0
       }
     ],
@@ -13105,7 +13147,7 @@
       "current_price": 90000,
       "total_change": 0,
       "first_listed_date": "2026-04-28",
-      "days_on_market": 132,
+      "days_on_market": 155,
       "previous_listings": [
         {
           "date": "2025-10-02",
@@ -13178,12 +13220,12 @@
           "original_price": 205000
         }
       ],
-      "fetched_at": "2026-09-07",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/djpld"
     },
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 90000.0
       }
     ],
@@ -13679,7 +13721,7 @@
       "current_price": 97000,
       "total_change": 0,
       "first_listed_date": "2026-09-07",
-      "days_on_market": 0,
+      "days_on_market": 23,
       "previous_listings": [
         {
           "date": "2026-02-10",
@@ -13687,12 +13729,12 @@
           "original_price": 130000
         }
       ],
-      "fetched_at": "2026-09-07",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/ejnoi"
     },
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 97000.0
       }
     ],
@@ -13868,7 +13910,7 @@
       "current_price": 131500,
       "total_change": 1500,
       "first_listed_date": "2026-08-04",
-      "days_on_market": 35,
+      "days_on_market": 57,
       "previous_listings": [
         {
           "date": "2025-11-17",
@@ -13886,12 +13928,12 @@
           "original_price": 47000
         }
       ],
-      "fetched_at": "2026-09-08",
+      "fetched_at": "2026-09-30",
       "source_url": "https://cenumednieks.lv/ad/bblpdk"
     },
     "our_tracking": [
       {
-        "date": "2026-09-08",
+        "date": "2026-09-30",
         "price": 131500.0
       }
     ],
@@ -18218,6 +18260,926 @@
       {
         "date": "2026-09-30",
         "price": 62900.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58132839": {
+    "cenumednieks": {
+      "original_price": 180000,
+      "current_price": 180000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-30",
+      "days_on_market": 0,
+      "previous_listings": [
+        {
+          "date": "2025-10-11",
+          "price": 52000,
+          "original_price": 52000
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/fdjmn"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 180000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58091681": {
+    "cenumednieks": {
+      "original_price": 89000,
+      "current_price": 89000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-18",
+      "days_on_market": 12,
+      "previous_listings": [
+        {
+          "date": "2026-02-20",
+          "price": 110900,
+          "original_price": 117000
+        },
+        {
+          "date": "2025-10-15",
+          "price": 130000,
+          "original_price": 130000
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/amhxn"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 89000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58125032": {
+    "cenumednieks": {
+      "original_price": 85600,
+      "current_price": 85600,
+      "total_change": 0,
+      "first_listed_date": "2026-09-29",
+      "days_on_market": 1,
+      "previous_listings": [
+        {
+          "date": "2026-02-27",
+          "price": 49500,
+          "original_price": 46500
+        },
+        {
+          "date": "2025-08-14",
+          "price": 47000,
+          "original_price": 47000
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/ffjlx"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 85600.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58121187": {
+    "cenumednieks": {
+      "original_price": 93000,
+      "current_price": 93000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-27",
+      "days_on_market": 3,
+      "previous_listings": [
+        {
+          "date": "2026-02-17",
+          "price": 90000,
+          "original_price": 90000
+        },
+        {
+          "date": "2026-01-18",
+          "price": 90000,
+          "original_price": 90000
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/cclfc"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 93000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58130733": {
+    "cenumednieks": {
+      "original_price": 119000,
+      "current_price": 119000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-30",
+      "days_on_market": 0,
+      "previous_listings": [
+        {
+          "date": "2026-03-05",
+          "price": 105000,
+          "original_price": 105000
+        },
+        {
+          "date": "2025-08-05",
+          "price": 48900,
+          "original_price": 48900
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/dopin"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 119000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58107326": {
+    "cenumednieks": {
+      "original_price": 120000,
+      "current_price": 120000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-24",
+      "days_on_market": 6,
+      "previous_listings": [
+        {
+          "date": "2025-08-07",
+          "price": 105500,
+          "original_price": 105500
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/fnbce"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 120000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58079031": {
+    "cenumednieks": {
+      "original_price": 112000,
+      "current_price": 112000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-16",
+      "days_on_market": 14,
+      "previous_listings": [
+        {
+          "date": "2026-02-05",
+          "price": 98000,
+          "original_price": 98000
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/fhfgj"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 112000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "city24.lv:2473756": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 188000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58111501": {
+    "cenumednieks": {
+      "original_price": 120000,
+      "current_price": 120000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-24",
+      "days_on_market": 6,
+      "previous_listings": [
+        {
+          "date": "2025-07-25",
+          "price": 63500,
+          "original_price": 63500
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/bejifi"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 120000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "city24.lv:2318754": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 150000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58113528": {
+    "cenumednieks": {
+      "original_price": 99900,
+      "current_price": 99900,
+      "total_change": 0,
+      "first_listed_date": "2026-09-25",
+      "days_on_market": 5,
+      "previous_listings": [
+        {
+          "date": "2025-08-29",
+          "price": 52000,
+          "original_price": 68000
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/bexplk"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 99900.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58110592": {
+    "cenumednieks": {
+      "original_price": 87600,
+      "current_price": 87600,
+      "total_change": 0,
+      "first_listed_date": "2026-09-24",
+      "days_on_market": 6,
+      "previous_listings": [
+        {
+          "date": "2026-02-28",
+          "price": 69000,
+          "original_price": 69000
+        },
+        {
+          "date": "2025-08-03",
+          "price": 39000,
+          "original_price": 39000
+        },
+        {
+          "date": "2024-05-22",
+          "price": 198500,
+          "original_price": 210000
+        },
+        {
+          "date": "2023-09-12",
+          "price": 64900,
+          "original_price": 66500
+        },
+        {
+          "date": "2023-02-23",
+          "price": 49900,
+          "original_price": 49900
+        },
+        {
+          "date": "2022-11-02",
+          "price": 135000,
+          "original_price": 138000
+        },
+        {
+          "date": "2022-07-19",
+          "price": 135000,
+          "original_price": 135000
+        },
+        {
+          "date": "2022-04-10",
+          "price": 56000,
+          "original_price": 56000
+        },
+        {
+          "date": "2020-09-17",
+          "price": 85000,
+          "original_price": 92000
+        },
+        {
+          "date": "2019-10-17",
+          "price": 59000,
+          "original_price": 59000
+        },
+        {
+          "date": "2019-05-02",
+          "price": 45500,
+          "original_price": 44500
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/chhee"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 87600.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58105301": {
+    "cenumednieks": {
+      "original_price": 93200,
+      "current_price": 93200,
+      "total_change": 0,
+      "first_listed_date": "2026-09-23",
+      "days_on_market": 7,
+      "previous_listings": [
+        {
+          "date": "2026-01-29",
+          "price": 90000,
+          "original_price": 90000
+        },
+        {
+          "date": "2024-05-03",
+          "price": 45000,
+          "original_price": 45000
+        },
+        {
+          "date": "2023-12-20",
+          "price": 61000,
+          "original_price": 61000
+        },
+        {
+          "date": "2023-09-07",
+          "price": 39000,
+          "original_price": 39000
+        },
+        {
+          "date": "2023-03-24",
+          "price": 270000,
+          "original_price": 290000
+        },
+        {
+          "date": "2022-03-30",
+          "price": 65000,
+          "original_price": 65000
+        },
+        {
+          "date": "2020-06-10",
+          "price": 49875,
+          "original_price": 55145
+        },
+        {
+          "date": "2019-09-02",
+          "price": 58000,
+          "original_price": 58000
+        },
+        {
+          "date": "2019-04-09",
+          "price": 49500,
+          "original_price": 49500
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/fbkce"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 93200.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:57829959": {
+    "cenumednieks": {
+      "original_price": 140000,
+      "current_price": 138000,
+      "total_change": 2000,
+      "first_listed_date": "2026-09-14",
+      "days_on_market": 16,
+      "previous_listings": [
+        {
+          "date": "2025-12-06",
+          "price": 57500,
+          "original_price": 57500
+        },
+        {
+          "date": "2024-10-08",
+          "price": 38000,
+          "original_price": 38000
+        },
+        {
+          "date": "2024-02-16",
+          "price": 33000,
+          "original_price": 43000
+        },
+        {
+          "date": "2023-06-26",
+          "price": 110000,
+          "original_price": 110000
+        },
+        {
+          "date": "2023-03-29",
+          "price": 57900,
+          "original_price": 59800
+        },
+        {
+          "date": "2022-11-25",
+          "price": 52000,
+          "original_price": 52000
+        },
+        {
+          "date": "2022-05-30",
+          "price": 75000,
+          "original_price": 66000
+        },
+        {
+          "date": "2021-02-09",
+          "price": 68000,
+          "original_price": 68000
+        },
+        {
+          "date": "2020-11-13",
+          "price": 47500,
+          "original_price": 47500
+        },
+        {
+          "date": "2020-08-17",
+          "price": 100000,
+          "original_price": 108000
+        },
+        {
+          "date": "2020-04-28",
+          "price": 48500,
+          "original_price": 48900
+        },
+        {
+          "date": "2019-12-03",
+          "price": 80000,
+          "original_price": 80000
+        },
+        {
+          "date": "2019-07-10",
+          "price": 35000,
+          "original_price": 35000
+        },
+        {
+          "date": "2019-04-12",
+          "price": 66000,
+          "original_price": 67000
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/afpij"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 138000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58123691": {
+    "cenumednieks": {
+      "original_price": 94000,
+      "current_price": 94000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-28",
+      "days_on_market": 2,
+      "previous_listings": [
+        {
+          "date": "2026-03-03",
+          "price": 195000,
+          "original_price": 195000
+        },
+        {
+          "date": "2025-08-05",
+          "price": 37500,
+          "original_price": 37500
+        },
+        {
+          "date": "2024-05-30",
+          "price": 46000,
+          "original_price": 49900
+        },
+        {
+          "date": "2023-11-27",
+          "price": 210000,
+          "original_price": 210000
+        },
+        {
+          "date": "2023-08-26",
+          "price": 39000,
+          "original_price": 40000
+        },
+        {
+          "date": "2023-02-02",
+          "price": 57000,
+          "original_price": 59000
+        },
+        {
+          "date": "2022-11-09",
+          "price": 59000,
+          "original_price": 59000
+        },
+        {
+          "date": "2022-06-11",
+          "price": 55111,
+          "original_price": 55111
+        },
+        {
+          "date": "2022-03-13",
+          "price": 66000,
+          "original_price": 66000
+        },
+        {
+          "date": "2021-12-08",
+          "price": 62500,
+          "original_price": 62500
+        },
+        {
+          "date": "2021-06-11",
+          "price": 36000,
+          "original_price": 36000
+        },
+        {
+          "date": "2021-03-08",
+          "price": 145000,
+          "original_price": 145000
+        },
+        {
+          "date": "2020-06-25",
+          "price": 49000,
+          "original_price": 49000
+        },
+        {
+          "date": "2020-03-24",
+          "price": 59500,
+          "original_price": 59500
+        },
+        {
+          "date": "2019-11-26",
+          "price": 122000,
+          "original_price": 122000
+        },
+        {
+          "date": "2019-08-30",
+          "price": 40000,
+          "original_price": 40000
+        },
+        {
+          "date": "2019-05-21",
+          "price": 42000,
+          "original_price": 46900
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/ajfck"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 94000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58124392": {
+    "cenumednieks": {
+      "original_price": 87000,
+      "current_price": 87000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-28",
+      "days_on_market": 2,
+      "previous_listings": [
+        {
+          "date": "2026-03-03",
+          "price": 204000,
+          "original_price": 204000
+        },
+        {
+          "date": "2025-07-30",
+          "price": 256236,
+          "original_price": 256236
+        },
+        {
+          "date": "2024-05-07",
+          "price": 120000,
+          "original_price": 123000
+        },
+        {
+          "date": "2023-08-14",
+          "price": 51500,
+          "original_price": 51500
+        },
+        {
+          "date": "2023-04-13",
+          "price": 34000,
+          "original_price": 36000
+        },
+        {
+          "date": "2022-10-28",
+          "price": 45000,
+          "original_price": 56000
+        },
+        {
+          "date": "2022-09-06",
+          "price": 56000,
+          "original_price": 56000
+        },
+        {
+          "date": "2019-09-04",
+          "price": 42000,
+          "original_price": 42000
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/apgkb"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 87000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58121315": {
+    "cenumednieks": {
+      "original_price": 93000,
+      "current_price": 93000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-27",
+      "days_on_market": 3,
+      "previous_listings": [
+        {
+          "date": "2025-07-29",
+          "price": 65000,
+          "original_price": 65000
+        },
+        {
+          "date": "2024-11-26",
+          "price": 59000,
+          "original_price": 59500
+        },
+        {
+          "date": "2022-03-14",
+          "price": 49500,
+          "original_price": 49500
+        },
+        {
+          "date": "2020-07-09",
+          "price": 49900,
+          "original_price": 49900
+        },
+        {
+          "date": "2019-10-30",
+          "price": 77700,
+          "original_price": 83500
+        },
+        {
+          "date": "2019-03-21",
+          "price": 57000,
+          "original_price": 57000
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/helki"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 93000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58082438": {
+    "cenumednieks": {
+      "original_price": 92000,
+      "current_price": 92000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-22",
+      "days_on_market": 8,
+      "previous_listings": [
+        {
+          "date": "2026-01-13",
+          "price": 51000,
+          "original_price": 51000
+        },
+        {
+          "date": "2024-09-24",
+          "price": 63000,
+          "original_price": 63000
+        },
+        {
+          "date": "2024-02-29",
+          "price": 45000,
+          "original_price": 45000
+        },
+        {
+          "date": "2023-11-29",
+          "price": 43000,
+          "original_price": 70000
+        },
+        {
+          "date": "2023-06-06",
+          "price": 93000,
+          "original_price": 93000
+        },
+        {
+          "date": "2023-03-09",
+          "price": 64000,
+          "original_price": 68000
+        },
+        {
+          "date": "2022-11-21",
+          "price": 110000,
+          "original_price": 110000
+        },
+        {
+          "date": "2022-06-22",
+          "price": 50000,
+          "original_price": 50000
+        },
+        {
+          "date": "2022-02-24",
+          "price": 196000,
+          "original_price": 206000
+        },
+        {
+          "date": "2021-08-11",
+          "price": 65000,
+          "original_price": 65000
+        },
+        {
+          "date": "2021-05-03",
+          "price": 69000,
+          "original_price": 69000
+        },
+        {
+          "date": "2021-01-03",
+          "price": 57800,
+          "original_price": 58300
+        },
+        {
+          "date": "2020-09-10",
+          "price": 48000,
+          "original_price": 48000
+        },
+        {
+          "date": "2020-05-12",
+          "price": 199500,
+          "original_price": 210000
+        },
+        {
+          "date": "2019-10-04",
+          "price": 120000,
+          "original_price": 120000
+        },
+        {
+          "date": "2019-04-10",
+          "price": 120000,
+          "original_price": 120000
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/blfnm"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 92000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58089751": {
+    "cenumednieks": {
+      "original_price": 92320,
+      "current_price": 92320,
+      "total_change": 0,
+      "first_listed_date": "2026-09-21",
+      "days_on_market": 9,
+      "previous_listings": [
+        {
+          "date": "2026-02-16",
+          "price": 55000,
+          "original_price": 55000
+        },
+        {
+          "date": "2024-11-01",
+          "price": 40000,
+          "original_price": 40000
+        },
+        {
+          "date": "2024-04-05",
+          "price": 106000,
+          "original_price": 121000
+        },
+        {
+          "date": "2023-06-27",
+          "price": 105000,
+          "original_price": 125290
+        },
+        {
+          "date": "2023-01-12",
+          "price": 125000,
+          "original_price": 126000
+        },
+        {
+          "date": "2020-06-02",
+          "price": 29500,
+          "original_price": 29500
+        },
+        {
+          "date": "2019-10-09",
+          "price": 55000,
+          "original_price": 55000
+        },
+        {
+          "date": "2019-08-01",
+          "price": 59300,
+          "original_price": 59300
+        },
+        {
+          "date": "2019-04-23",
+          "price": 53000,
+          "original_price": 53000
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/fpnbm"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 92320.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "ss.com:58054306": {
+    "cenumednieks": {
+      "original_price": 87000,
+      "current_price": 87000,
+      "total_change": 0,
+      "first_listed_date": "2026-09-12",
+      "days_on_market": 18,
+      "previous_listings": [
+        {
+          "date": "2024-04-12",
+          "price": 39900,
+          "original_price": 39900
+        },
+        {
+          "date": "2023-07-17",
+          "price": 44000,
+          "original_price": 57900
+        },
+        {
+          "date": "2019-08-01",
+          "price": 72000,
+          "original_price": 72000
+        }
+      ],
+      "fetched_at": "2026-09-30",
+      "source_url": "https://cenumednieks.lv/ad/hfjoc"
+    },
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 87000.0
+      }
+    ],
+    "first_seen": "2026-09-30"
+  },
+  "city24.lv:2236821": {
+    "cenumednieks": null,
+    "our_tracking": [
+      {
+        "date": "2026-09-30",
+        "price": 155900.0
       }
     ],
     "first_seen": "2026-09-30"

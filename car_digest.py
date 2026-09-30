@@ -1029,7 +1029,8 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "border:1px solid #b8c4cf;border-radius:4px;width:80px'>"
             "</div>"
             "<p class='note' style='margin:6px 0 0'>Enter a maximum price "
-            f"(€{config.CAR_MIN_PRICE_EUR:,}–{config.CAR_COMPARABLE_MAX_PRICE_EUR:,}) "
+            f"(from €{config.CAR_MIN_PRICE_EUR:,} up — the whole plausible "
+            "market is embedded) "
             "and/or pick filters, then press <b>OK</b> (or Enter) to re-rank "
             "today's market snapshot — computed instantly in your browser "
             "from the data on this page, no rescraping (results also update "
@@ -1138,13 +1139,13 @@ is a working assumption — not a guarantee of affordability and not
 financing advice.
 </div>
 <div class="box">
-<b>Eligibility:</b> only seller ads asking
-{_fmt_eur(config.CAR_MIN_PRICE_EUR)}–{_fmt_eur(config.CAR_COMPARABLE_MAX_PRICE_EUR)}
+<b>Eligibility:</b> every seller ad asking
+{_fmt_eur(config.CAR_MIN_PRICE_EUR)} or more
 with year ≥{_e(config.CAR_MIN_YEAR)} and mileage
 ≤{config.CAR_MAX_MILEAGE_KM:,} km, identified fuel (and engine where
-applicable), are considered; candidates are capped at the provisional
-{_fmt_eur(config.CAR_PRICE_CEILING_EUR)} ceiling, while comparable asking
-prices are read up to {_fmt_eur(config.CAR_COMPARABLE_MAX_PRICE_EUR)}.
+applicable), is embedded and comparable; candidates are capped at the provisional
+{_fmt_eur(config.CAR_PRICE_CEILING_EUR)} ceiling in the default view —
+raise it with the budget box.
 Ads without reliable specs are excluded or left unrated.
 </div>
 <div class="box">

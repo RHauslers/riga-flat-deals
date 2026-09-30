@@ -62,7 +62,7 @@
   "ss.com:zolitude:anninmuizhas 13": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-08"
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:anninmuizhas boule..": {
     "lat": null,
@@ -727,7 +727,7 @@
   "ss.com:imanta:m. krūmu 10": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-12"
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:rigondas g. 3": {
     "lat": 56.9649286,
@@ -1327,6 +1327,41 @@
   "ss.com:imanta:kurzemes pr. 38": {
     "lat": 56.9607965,
     "lon": 23.9982688,
+    "fetched_at": "2026-09-30"
+  },
+  "ss.com:zolitude:anninmuizhas 6": {
+    "lat": null,
+    "lon": null,
+    "fetched_at": "2026-09-30"
+  },
+  "ss.com:sampeteris:zasulauka 26": {
+    "lat": 56.94234,
+    "lon": 24.0413778,
+    "fetched_at": "2026-09-30"
+  },
+  "ss.com:imanta:slokas 46a": {
+    "lat": 56.9627731,
+    "lon": 23.9971525,
+    "fetched_at": "2026-09-30"
+  },
+  "ss.com:imanta:kurzemes pr. 156": {
+    "lat": 56.9607965,
+    "lon": 23.9982688,
+    "fetched_at": "2026-09-30"
+  },
+  "ss.com:imanta:jurmalas g. 37a": {
+    "lat": 56.9517893,
+    "lon": 24.0421095,
+    "fetched_at": "2026-09-30"
+  },
+  "ss.com:imanta:kurzemes pr. 84": {
+    "lat": 56.9607965,
+    "lon": 23.9982688,
+    "fetched_at": "2026-09-30"
+  },
+  "izsoles.ta.gov.lv:riga:raņķa dambis 30": {
+    "lat": 56.9472551,
+    "lon": 24.0801983,
     "fetched_at": "2026-09-30"
   }
 }

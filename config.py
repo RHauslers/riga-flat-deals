@@ -27,7 +27,10 @@ CAR_HIGH_MILEAGE_WARNING_KM = 300000
 CAR_AGE_WARNING_YEARS = 15
 CAR_MIN_PRICE_EUR = 1000
 CAR_PRICE_CEILING_EUR = 5000
-CAR_COMPARABLE_MAX_PRICE_EUR = 8000
+# Upper bound on the embedded market pool — a plausibility bound only
+# (exotics/mispriced ads above ~1M EUR are noise), not a budget filter:
+# the browser budget tool narrows by the user's own number.
+CAR_COMPARABLE_MAX_PRICE_EUR = 1000000
 CAR_REPAIR_RESERVE_EUR = 1500
 CAR_MIN_COMPARABLES = 4
 CAR_YEAR_TOLERANCE = 2
@@ -150,9 +153,9 @@ MAX_CATEGORIES_PER_FIELD = 20
 # Sanity filters: drop listings with implausible prices (city24 occasionally
 # returns garbage like 189 EUR for a sale listing). These are minimums only.
 MIN_SALE_PRICE_EUR = 5000    # below this, a sale listing is likely erroneous
-MAX_SALE_PRICE_EUR = 75000   # target budget cap for the buyer
-# Soft cap: allow up to this price if the deal score is genuinely great
-MAX_SALE_PRICE_EUR_EXCEPTIONAL = 85000
+MAX_SALE_PRICE_EUR = 75000   # the buyer's own target budget (display only)
+# No upper sale cap: every plausible listing is kept — the browser budget
+# tool filters by the user's own maximum instead.
 MIN_RENT_PRICE_EUR = 50      # below this, a rent listing is likely erroneous
 
 # ----------------------------------------------------------------------------

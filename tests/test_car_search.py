@@ -1314,6 +1314,27 @@ class TestBudgetTool(unittest.TestCase):
             re.S).group(1))
         self.assertEqual(payload2["extra"], [])
 
+    def test_flat_embed_dynamic_max_and_extra_coverage(self):
+        """No fixed ceiling: cfg.maxPrice is the real data max, and the
+        budget JS searches rows + extra (every embedded flat)."""
+        priced_high = {"source": "ss.com", "id": "f9", "district": "Centre",
+                       "rooms": 4, "area_m2": 120, "price_eur": 180000,
+                       "url": "https://www.ss.com/x9"}
+        priced_low = {"source": "ss.com", "id": "f1", "district": "Zolitude",
+                      "rooms": 2, "area_m2": 50, "price_eur": 55000,
+                      "url": "https://www.ss.com/x"}
+        html_text = notifier.build_html(
+            {}, {}, "", "note",
+            all_scored={"sale": [(priced_low, 1.0, "x")]},
+            all_listings=[priced_low, priced_high])
+        payload = json.loads(re.search(
+            r'id="flat-listings-data">(.*?)</script>', html_text,
+            re.S).group(1))
+        self.assertEqual(payload["config"]["maxPrice"], 180000)
+        js = re.search(r'<script id="flat-budget-js">(.*?)</script>',
+                       html_text, re.S).group(1)
+        self.assertIn("payload.rows.concat(payload.extra", js)
+
     @unittest.skipUnless(shutil.which("node"), "node not available")
     def test_flat_watch_js_resolves_extra_rows(self):
         """A watched flat present only in payload.extra must render as

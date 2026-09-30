@@ -227,6 +227,27 @@ class TestFlatMarket(unittest.TestCase):
         self.assertIn("flat-market", html)
         self.assertIn("Zolitude", html)
 
+    def test_market_page_subtabs(self):
+        """The Market page has Cars/Flats sub-tabs wired to panes."""
+        flat_data = {"date": "2026-09-30", "total": 2,
+                     "districts": [{"district": "Zolitude", "ads": 2,
+                                    "new_today": 0, "median_ppu": 1000.0,
+                                    "median_price": 50000,
+                                    "min_price": 40000, "min_url": "u"}]}
+        with mock.patch.object(car_market, "load_stats", return_value=None), \
+             mock.patch.object(car_market, "load_history", return_value={}), \
+             mock.patch.object(flat_market, "load_stats",
+                               return_value=flat_data):
+            html = car_market.build_page()
+        self.assertIn('id="mtab-cars"', html)
+        self.assertIn('id="mtab-flats"', html)
+        self.assertIn('id="mpane-cars"', html)
+        self.assertIn('id="mpane-flats"', html)
+        self.assertIn("__mktTab", html)
+        # ?m=flats / #flats activation hooks
+        self.assertIn("URLSearchParams", html)
+        self.assertIn("'mpane-' + p", html)
+
 
 if __name__ == "__main__":
     unittest.main()

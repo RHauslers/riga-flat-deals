@@ -120,9 +120,9 @@
   },
   "city24.lv:2473798": {
     "first_shown_date": "2026-09-04",
-    "last_shown_date": "2026-09-05",
-    "last_shown_price": 93000.0,
-    "last_shown_score": 1.5688108025676641,
+    "last_shown_date": "2026-09-30",
+    "last_shown_price": 92000.0,
+    "last_shown_score": 0.7696618145605145,
     "deal_type": "sale"
   },
   "city24.lv:2471677": {
@@ -358,9 +358,9 @@
   },
   "ss.com:55662878": {
     "first_shown_date": "2026-09-05",
-    "last_shown_date": "2026-09-08",
+    "last_shown_date": "2026-09-30",
     "last_shown_price": 115000.0,
-    "last_shown_score": 2.100411635309313,
+    "last_shown_score": 0.7934148569514542,
     "deal_type": "sale"
   },
   "ss.com:58042455": {
@@ -830,6 +830,62 @@
     "last_shown_date": "2026-09-30",
     "last_shown_price": 51500.0,
     "last_shown_score": 0.4895037541795939,
+    "deal_type": "sale"
+  },
+  "ss.com:56754295": {
+    "first_shown_date": "2026-09-30",
+    "last_shown_date": "2026-09-30",
+    "last_shown_price": 95000.0,
+    "last_shown_score": 1.4617101219404387,
+    "deal_type": "sale"
+  },
+  "ss.com:57889474": {
+    "first_shown_date": "2026-09-30",
+    "last_shown_date": "2026-09-30",
+    "last_shown_price": 95000.0,
+    "last_shown_score": 0.9717769876031268,
+    "deal_type": "sale"
+  },
+  "city24.lv:2236821": {
+    "first_shown_date": "2026-09-30",
+    "last_shown_date": "2026-09-30",
+    "last_shown_price": 155900.0,
+    "last_shown_score": 0.9022690035223438,
+    "deal_type": "sale"
+  },
+  "ss.com:55208529": {
+    "first_shown_date": "2026-09-30",
+    "last_shown_date": "2026-09-30",
+    "last_shown_price": 237000.0,
+    "last_shown_score": 0.8820177749259539,
+    "deal_type": "sale"
+  },
+  "ss.com:58107326": {
+    "first_shown_date": "2026-09-30",
+    "last_shown_date": "2026-09-30",
+    "last_shown_price": 120000.0,
+    "last_shown_score": 0.8696926447939238,
+    "deal_type": "sale"
+  },
+  "ss.com:58052372": {
+    "first_shown_date": "2026-09-30",
+    "last_shown_date": "2026-09-30",
+    "last_shown_price": 97000.0,
+    "last_shown_score": 0.8523231112880556,
+    "deal_type": "sale"
+  },
+  "ss.com:58042601": {
+    "first_shown_date": "2026-09-30",
+    "last_shown_date": "2026-09-30",
+    "last_shown_price": 140000.0,
+    "last_shown_score": 0.8299062149946826,
+    "deal_type": "sale"
+  },
+  "ss.com:57986691": {
+    "first_shown_date": "2026-09-30",
+    "last_shown_date": "2026-09-30",
+    "last_shown_price": 103500.0,
+    "last_shown_score": 0.7068762430356345,
     "deal_type": "sale"
   }
 }

@@ -732,9 +732,11 @@ def _flat_market_data_html(all_scored, all_listings=None):
             continue
         extra.append(_row(listing, None))
         embedded.add(key)
+    prices = [r[4] for r in rows + extra if r[4]]   # 4 = price_eur field
     payload = {
         "config": {"minPrice": config.MIN_SALE_PRICE_EUR,
-                   "maxPrice": config.MAX_SALE_PRICE_EUR_EXCEPTIONAL},
+                   # no fixed ceiling — the real data max is the bound
+                   "maxPrice": max(prices) if prices else 0},
         "fields": list(_FLAT_FIELDS),
         "rows": rows,
         "extra": extra,
@@ -762,7 +764,10 @@ function __flatBudgetInit() {
   var payload = JSON.parse(dataEl.textContent);
   var cfg = payload.config, F = payload.fields, idx = {};
   F.forEach(function (f, i) { idx[f] = i; });
-  var rows = payload.rows;
+  // Budget search covers the WHOLE embedded market: scored rows plus the
+  // unscored extras (near-school/overflow listings) — every flat kept by
+  // today's sanity floor, regardless of price.
+  var rows = payload.rows.concat(payload.extra || []);
   var districtSel = document.getElementById('flat-filter-district');
   var roomsSel = document.getElementById('flat-filter-rooms');
 
@@ -1191,7 +1196,7 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             "padding:10px 14px;margin:12px 0'>"
             "<b>Your budget:</b> "
             f"<input type='number' id='flat-budget-input' min='{config.MIN_SALE_PRICE_EUR}' "
-            f"max='{config.MAX_SALE_PRICE_EUR_EXCEPTIONAL}' step='1000' "
+            "step='1000' "
             "placeholder='e.g. 60000' style='padding:6px 8px;border:1px solid "
             "#b8c4cf;border-radius:4px;font-size:14px;width:110px'> "
             "<button type='button' id='flat-budget-ok' style='padding:6px 10px;"
@@ -1213,7 +1218,7 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             "<option value='5'>5+</option></select>"
             "</div>"
             f"<p class='note' style='margin:6px 0 0'>Enter a maximum price "
-            f"(€{config.MIN_SALE_PRICE_EUR:,}–{config.MAX_SALE_PRICE_EUR_EXCEPTIONAL:,}) and/or pick "
+            f"(from €{config.MIN_SALE_PRICE_EUR:,} up) and/or pick "
             "filters, then press <b>OK</b> (or Enter) to list every scored "
             "flat within it — filtered instantly in your browser from "
             "today's data, no rescraping (results also update as you type). "
