@@ -929,8 +929,8 @@ class TestBudgetTool(unittest.TestCase):
 
     def test_filter_controls_present(self):
         html_text = self._build()
-        for el in ("car-filter-make", "car-filter-fuel", "car-filter-gearbox",
-                   "car-filter-year", "car-filter-km"):
+        for el in ("car-filter-make", "car-filter-model", "car-filter-fuel",
+                   "car-filter-gearbox", "car-filter-year", "car-filter-km"):
             self.assertIn(f"id='{el}'", html_text)
 
     @unittest.skipUnless(shutil.which("node"), "node not available")
@@ -984,7 +984,10 @@ class TestBudgetTool(unittest.TestCase):
             "  skoda: ids(B.compute(5000, {make:'skoda'})),\n"
             "  year: ids(B.compute(5000, {minYear:2020})),\n"
             "  km: ids(B.compute(5000, {maxKm:100000})),\n"
-            "  auto: ids(B.compute(5000, {gearbox:'automatic'}))\n"
+            "  auto: ids(B.compute(5000, {gearbox:'automatic'})),\n"
+            # 'Octavia' must match model 'octavia-2' (normalized compare)
+            "  mOct: ids(B.compute(5000, {model:'Octavia'})),\n"
+            "  mPass: ids(B.compute(5000, {model:'passat b7'}))\n"
             "}));\n"
         )
         with tempfile.TemporaryDirectory() as tmp:
@@ -1004,6 +1007,8 @@ class TestBudgetTool(unittest.TestCase):
         self.assertEqual(res["auto"], ["ss.com:c2"])
         self.assertEqual(res["year"], [])
         self.assertEqual(res["km"], [])
+        self.assertEqual(res["mOct"], ["ss.com:c2"])
+        self.assertEqual(res["mPass"], ["ss.com:c1"])
 
     def test_watchlist_ui_present(self):
         html_text = self._build()
@@ -1326,6 +1331,7 @@ class TestBudgetTool(unittest.TestCase):
         self.assertIn("Passat B7", html_text)
         self.assertIn("https://www.ss.com/x/a0", html_text)
         self.assertIn("Deals today", html_text)
+        self.assertIn("cars.html?model=Passat%20B7", html_text)
         # missing stats file -> placeholder page
         with tempfile.TemporaryDirectory() as td:
             html2 = car_market.build_page(os.path.join(td, "none.json"))

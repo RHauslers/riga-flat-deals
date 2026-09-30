@@ -244,6 +244,13 @@ function __carBudgetInit() {
   var gbSel = document.getElementById('car-filter-gearbox');
   var yearInput = document.getElementById('car-filter-year');
   var kmInput = document.getElementById('car-filter-km');
+  var modelInput = document.getElementById('car-filter-model');
+
+  // 'Passat B7' / 'passat-b7' / 'passat b7' must all match: compare on
+  // alphanumeric-only lowercase forms.
+  function norm(s) {
+    return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
 
   function median(arr) {
     var s = arr.slice().sort(function (a, b) { return a - b; });
@@ -288,6 +295,7 @@ function __carBudgetInit() {
   function readFilters() {
     return {
       make: makeSel && makeSel.value ? makeSel.value : '',
+      model: modelInput && modelInput.value ? modelInput.value : '',
       fuel: fuelSel && fuelSel.value ? fuelSel.value : '',
       gearbox: gbSel && gbSel.value ? gbSel.value : '',
       minYear: yearInput ? (parseInt(yearInput.value, 10) || 0) : 0,
@@ -296,11 +304,13 @@ function __carBudgetInit() {
   }
 
   function anyFilterSet(f) {
-    return !!(f.make || f.fuel || f.gearbox || f.minYear || f.maxKm);
+    return !!(f.make || f.model || f.fuel || f.gearbox || f.minYear || f.maxKm);
   }
 
   function passesFilters(r, f) {
     if (f.make && r[idx.make] !== f.make) return false;
+    if (f.model && norm(r[idx.model]).indexOf(norm(f.model)) < 0)
+      return false;
     if (f.fuel && r[idx.fuel] !== f.fuel) return false;
     if (f.gearbox && r[idx.gearbox] !== f.gearbox) return false;
     if (f.minYear && (r[idx.year] == null || r[idx.year] < f.minYear)) return false;
@@ -592,15 +602,16 @@ function __carBudgetInit() {
   [makeSel, fuelSel, gbSel].forEach(function (el) {
     if (el) el.addEventListener('change', scheduleApply);
   });
-  [yearInput, kmInput].forEach(function (el) {
+  [yearInput, kmInput, modelInput].forEach(function (el) {
     if (el) el.addEventListener('input', scheduleApply);
   });
   var resetBtn = document.getElementById('car-budget-reset');
   if (resetBtn) resetBtn.addEventListener('click', function () {
     input.value = '';
-    [makeSel, fuelSel, gbSel, yearInput, kmInput].forEach(function (el) {
-      if (el) el.value = '';
-    });
+    [makeSel, fuelSel, gbSel, yearInput, kmInput, modelInput]
+      .forEach(function (el) {
+        if (el) el.value = '';
+      });
     showDefault();
   });
   var okBtn = document.getElementById('car-budget-ok');
@@ -626,6 +637,7 @@ function __carBudgetInit() {
   }
   var urlActive = !!urlMax;
   urlActive = urlSet('make', makeSel) || urlActive;
+  urlActive = urlSet('model', modelInput) || urlActive;
   urlActive = urlSet('fuel', fuelSel) || urlActive;
   urlActive = urlSet('gearbox', gbSel) || urlActive;
   urlActive = urlSet('year', yearInput) || urlActive;
@@ -953,6 +965,9 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "<b>Filters:</b> "
             "<select id='car-filter-make' style='padding:5px;border:1px solid "
             "#b8c4cf;border-radius:4px'><option value=''>Any make</option></select> "
+            "<input type='text' id='car-filter-model' placeholder='model' "
+            "style='padding:5px;border:1px solid #b8c4cf;border-radius:4px;"
+            "width:95px'> "
             "<select id='car-filter-fuel' style='padding:5px;border:1px solid "
             "#b8c4cf;border-radius:4px'><option value=''>Any fuel</option>"
             "<option value='petrol'>petrol</option><option value='diesel'>diesel</option>"
@@ -982,7 +997,8 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "the default view only. <i>seen N d</i> = days since our scan "
             "first saw the ad (≈ days listed); €… → €… is the ask-price "
             "trail we have recorded. Shareable: append <b>?max=3500"
-            "&amp;fuel=diesel&amp;km=200000</b> to this page's URL.</p>"
+            "&amp;fuel=diesel&amp;km=200000</b> or <b>?model=passat</b> "
+            "to this page's URL.</p>"
             "</div>"
             "<details class='box' id='car-watch-box'>"
             "<summary style='cursor:pointer'><b>★ Watchlist</b> "
