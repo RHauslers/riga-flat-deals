@@ -17,6 +17,7 @@ run() -> status string:
 """
 import json
 import os
+import time
 import traceback
 from datetime import date, timedelta
 
@@ -118,13 +119,25 @@ def run():
     raw = {}
     source_errors = {}
     for name, scraper in SOURCES:
-        try:
-            raw[name] = scraper.scrape()
-        except Exception as e:
-            raw[name] = []
-            source_errors[name] = f"{type(e).__name__}: {e}"
-            print(f"[cars] {name} scrape failed: {e}")
-            traceback.print_exc()
+        # pp.lv is a Playwright browser session with no internal retry —
+        # one second chance after a pause so a transient navigation
+        # failure doesn't cost a whole day of that source's coverage.
+        # SS.com retries internally (connection/timeout only).
+        attempts = 2 if name == "pp.lv" else 1
+        for attempt in range(attempts):
+            try:
+                raw[name] = scraper.scrape()
+                break
+            except Exception as e:
+                if attempt + 1 < attempts:
+                    print(f"[cars] {name} scrape failed ({e}); "
+                          "retrying in 15 s")
+                    time.sleep(15)
+                    continue
+                raw[name] = []
+                source_errors[name] = f"{type(e).__name__}: {e}"
+                print(f"[cars] {name} scrape failed: {e}")
+                traceback.print_exc()
 
     source_counts = {}
     drop_reasons = {}

@@ -87,6 +87,34 @@ function __flatBudgetInit() {
   var cfg = payload.config, F = payload.fields, idx = {};
   F.forEach(function (f, i) { idx[f] = i; });
   var rows = payload.rows;
+  var districtSel = document.getElementById('flat-filter-district');
+  var roomsSel = document.getElementById('flat-filter-rooms');
+
+  // Fill the district dropdown from today's data.
+  if (districtSel) {
+    var seen = {};
+    rows.forEach(function (r) { if (r[idx.district]) seen[r[idx.district]] = 1; });
+    Object.keys(seen).sort().forEach(function (d) {
+      var o = document.createElement('option');
+      o.value = d; o.textContent = d;
+      districtSel.appendChild(o);
+    });
+  }
+
+  function readFilters() {
+    return {
+      district: districtSel && districtSel.value ? districtSel.value : '',
+      rooms: roomsSel && roomsSel.value ? roomsSel.value : ''
+    };
+  }
+  function anyFilterSet(f) { return !!(f.district || f.rooms); }
+  function passesFilters(r, f) {
+    if (f.district && r[idx.district] !== f.district) return false;
+    if (f.rooms === '5') {
+      if (!(r[idx.rooms] >= 5)) return false;   // '5+' means five or more
+    } else if (f.rooms && String(r[idx.rooms]) !== f.rooms) return false;
+    return true;
+  }
 
   function fmtEur(v) {
     return v == null ? '—' : '€' + Math.round(v).toLocaleString('en-US');
@@ -193,10 +221,14 @@ function __flatBudgetInit() {
   function apply() {
     var raw = String(input.value || '').trim();
     var maxPrice = parseInt(raw, 10);
-    if (!raw || isNaN(maxPrice)) { hide(); return; }
+    var filters = readFilters();
+    var filtered = anyFilterSet(filters);
+    if ((!raw || isNaN(maxPrice)) && !filtered) { hide(); return; }
+    if (isNaN(maxPrice)) maxPrice = cfg.maxPrice;  // filters alone
     maxPrice = Math.max(cfg.minPrice, Math.min(cfg.maxPrice, maxPrice));
     var matches = rows.filter(function (r) {
-      return r[idx.price_eur] != null && r[idx.price_eur] <= maxPrice;
+      return r[idx.price_eur] != null && r[idx.price_eur] <= maxPrice &&
+             passesFilters(r, filters);
     });
     matches.sort(function (a, b) {
       var sa = a[idx.score], sb = b[idx.score];
@@ -217,9 +249,18 @@ function __flatBudgetInit() {
     if (timer) clearTimeout(timer);
     timer = setTimeout(apply, 150);
   });
+  [districtSel, roomsSel].forEach(function (el) {
+    if (el) el.addEventListener('change', function () {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(apply, 150);
+    });
+  });
   var resetBtn = document.getElementById('flat-budget-reset');
   if (resetBtn) resetBtn.addEventListener('click', function () {
     input.value = '';
+    [districtSel, roomsSel].forEach(function (el) {
+      if (el) el.value = '';
+    });
     hide();
   });
   var okBtn = document.getElementById('flat-budget-ok');
@@ -235,11 +276,16 @@ function __flatBudgetInit() {
   });
   var qs = (typeof location !== 'undefined' && location.search)
     ? location.search : '';
-  var urlMax = new URLSearchParams(qs).get('max');
-  if (urlMax && !isNaN(parseInt(urlMax, 10))) {
-    input.value = urlMax;
-    apply();
-  }
+  var params = new URLSearchParams(qs);
+  var urlMax = params.get('max');
+  if (urlMax && !isNaN(parseInt(urlMax, 10))) input.value = urlMax;
+  var urlActive = !!urlMax;
+  ['district', 'rooms'].forEach(function (name) {
+    var el = document.getElementById('flat-filter-' + name);
+    var v = params.get(name);
+    if (v && el) { el.value = v; urlActive = true; }
+  });
+  if (urlActive) apply();
   if (typeof window !== 'undefined') {
     window.__flatBudget = { apply: apply };
   }
@@ -419,14 +465,14 @@ if (document.readyState === 'loading') {
 </head><body>
 <nav class="site-nav" aria-label="Sections" style="margin:0 0 16px 0"><a href="../index.html" aria-current="page" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#1a5276;color:#fff;font-weight:bold">Flats</a><a href="../cars.html" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#eaf1f7;color:#1a5276">Cars</a><a href="../market.html" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#eaf1f7;color:#1a5276">Market</a><a href="../archive.html" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#eaf1f7;color:#1a5276">Archive</a></nav>
 
-<h2>Riga flat deals - 2026-09-30 18:26 (Riga time)</h2>
+<h2>Riga flat deals - 2026-09-30 19:02 (Riga time)</h2>
 <p>Districts: Zolitude, Sampeteris, Imanta &middot; Sources:
 ss.com, city24.lv, izsoles.ta.gov.lv (auctions)</p>
 <p class="note">Scoring: sale: 324 history rows -> linear regression</p>
 <p class="note">Sale ranking: 50% deal score + 50% walking distance to
 Rīgas Ziemeļvalstu ģimnāzija (shown in the Distance column). New builds excluded.
 Sales only — rentals are out of scope.</p>
-<div style='background:#f7f9fb;border:1px solid #dbe4ea;padding:10px 14px;margin:12px 0'><b>Your budget:</b> <input type='number' id='flat-budget-input' min='5000' max='85000' step='1000' placeholder='e.g. 60000' style='padding:6px 8px;border:1px solid #b8c4cf;border-radius:4px;font-size:14px;width:110px'> <button type='button' id='flat-budget-ok' style='padding:6px 10px;border:0;border-radius:4px;background:#2874a6;color:#fff;cursor:pointer;font-weight:bold'>OK</button> <button type='button' id='flat-budget-reset' style='padding:6px 10px;border:0;border-radius:4px;background:#e7edf2;cursor:pointer;font-weight:bold'>Reset</button> <span class='note' id='flat-budget-status'></span><p class='note' style='margin:6px 0 0'>Enter a maximum price (€5,000–85,000) and press <b>OK</b> (or Enter) to list every scored flat within it — filtered instantly in your browser from today's data, no rescraping (results also update as you type). <b>Reset</b> returns to the default daily view. Shareable: append <b>?max=60000</b> to this page's URL.</p></div><details style='background:#f7f9fb;border:1px solid #dbe4ea;padding:10px 14px;margin:12px 0' id='flat-watch-box'><summary style='cursor:pointer'><b>★ Watchlist</b> <span class='note' id='flat-watch-count'></span></summary><div id='flat-watch-list' style='margin-top:6px'></div><p class='note' style='margin:6px 0 0'>Click ☆ on any listing to pin it here — stars are saved in this browser only (localStorage), never sent anywhere. A watched flat missing from today's scan shows <b>no longer listed</b> — sold or the ad expired (the link may still open briefly).</p></details><div id='flat-custom-view' style='display:none'></div>
+<div style='background:#f7f9fb;border:1px solid #dbe4ea;padding:10px 14px;margin:12px 0'><b>Your budget:</b> <input type='number' id='flat-budget-input' min='5000' max='85000' step='1000' placeholder='e.g. 60000' style='padding:6px 8px;border:1px solid #b8c4cf;border-radius:4px;font-size:14px;width:110px'> <button type='button' id='flat-budget-ok' style='padding:6px 10px;border:0;border-radius:4px;background:#2874a6;color:#fff;cursor:pointer;font-weight:bold'>OK</button> <button type='button' id='flat-budget-reset' style='padding:6px 10px;border:0;border-radius:4px;background:#e7edf2;cursor:pointer;font-weight:bold'>Reset</button> <span class='note' id='flat-budget-status'></span><div style='margin-top:8px;font-size:14px'><b>Filters:</b> <select id='flat-filter-district' style='padding:5px;border:1px solid #b8c4cf;border-radius:4px'><option value=''>Any district</option></select> <select id='flat-filter-rooms' style='padding:5px;border:1px solid #b8c4cf;border-radius:4px'><option value=''>Any rooms</option><option value='1'>1</option><option value='2'>2</option><option value='3'>3</option><option value='4'>4</option><option value='5'>5+</option></select></div><p class='note' style='margin:6px 0 0'>Enter a maximum price (€5,000–85,000) and/or pick filters, then press <b>OK</b> (or Enter) to list every scored flat within it — filtered instantly in your browser from today's data, no rescraping (results also update as you type). Filters alone list all of today's scored flats in that district/room class. <b>Reset</b> returns to the default daily view. Shareable: append <b>?max=60000</b> or <b>?district=Zolitude&amp;rooms=2</b> to this page's URL.</p></div><details style='background:#f7f9fb;border:1px solid #dbe4ea;padding:10px 14px;margin:12px 0' id='flat-watch-box'><summary style='cursor:pointer'><b>★ Watchlist</b> <span class='note' id='flat-watch-count'></span></summary><div id='flat-watch-list' style='margin-top:6px'></div><p class='note' style='margin:6px 0 0'>Click ☆ on any listing to pin it here — stars are saved in this browser only (localStorage), never sent anywhere. A watched flat missing from today's scan shows <b>no longer listed</b> — sold or the ad expired (the link may still open briefly). Price moves since you starred it show as ▼/▲.</p></details><div id='flat-custom-view' style='display:none'></div>
 <div style='background:#eaf6ff;padding:10px;border-radius:6px;margin:12px 0'><strong>Compared to 2026-09-30:</strong><br>&bull; <strong>SALE</strong>: today's best deal (score +1.61) ties yesterday's best. 0 new deal(s).</div>
 
 <!-- Inline map at bottom -->

@@ -763,6 +763,34 @@ function __flatBudgetInit() {
   var cfg = payload.config, F = payload.fields, idx = {};
   F.forEach(function (f, i) { idx[f] = i; });
   var rows = payload.rows;
+  var districtSel = document.getElementById('flat-filter-district');
+  var roomsSel = document.getElementById('flat-filter-rooms');
+
+  // Fill the district dropdown from today's data.
+  if (districtSel) {
+    var seen = {};
+    rows.forEach(function (r) { if (r[idx.district]) seen[r[idx.district]] = 1; });
+    Object.keys(seen).sort().forEach(function (d) {
+      var o = document.createElement('option');
+      o.value = d; o.textContent = d;
+      districtSel.appendChild(o);
+    });
+  }
+
+  function readFilters() {
+    return {
+      district: districtSel && districtSel.value ? districtSel.value : '',
+      rooms: roomsSel && roomsSel.value ? roomsSel.value : ''
+    };
+  }
+  function anyFilterSet(f) { return !!(f.district || f.rooms); }
+  function passesFilters(r, f) {
+    if (f.district && r[idx.district] !== f.district) return false;
+    if (f.rooms === '5') {
+      if (!(r[idx.rooms] >= 5)) return false;   // '5+' means five or more
+    } else if (f.rooms && String(r[idx.rooms]) !== f.rooms) return false;
+    return true;
+  }
 
   function fmtEur(v) {
     return v == null ? '—' : '€' + Math.round(v).toLocaleString('en-US');
@@ -869,10 +897,14 @@ function __flatBudgetInit() {
   function apply() {
     var raw = String(input.value || '').trim();
     var maxPrice = parseInt(raw, 10);
-    if (!raw || isNaN(maxPrice)) { hide(); return; }
+    var filters = readFilters();
+    var filtered = anyFilterSet(filters);
+    if ((!raw || isNaN(maxPrice)) && !filtered) { hide(); return; }
+    if (isNaN(maxPrice)) maxPrice = cfg.maxPrice;  // filters alone
     maxPrice = Math.max(cfg.minPrice, Math.min(cfg.maxPrice, maxPrice));
     var matches = rows.filter(function (r) {
-      return r[idx.price_eur] != null && r[idx.price_eur] <= maxPrice;
+      return r[idx.price_eur] != null && r[idx.price_eur] <= maxPrice &&
+             passesFilters(r, filters);
     });
     matches.sort(function (a, b) {
       var sa = a[idx.score], sb = b[idx.score];
@@ -893,9 +925,18 @@ function __flatBudgetInit() {
     if (timer) clearTimeout(timer);
     timer = setTimeout(apply, 150);
   });
+  [districtSel, roomsSel].forEach(function (el) {
+    if (el) el.addEventListener('change', function () {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(apply, 150);
+    });
+  });
   var resetBtn = document.getElementById('flat-budget-reset');
   if (resetBtn) resetBtn.addEventListener('click', function () {
     input.value = '';
+    [districtSel, roomsSel].forEach(function (el) {
+      if (el) el.value = '';
+    });
     hide();
   });
   var okBtn = document.getElementById('flat-budget-ok');
@@ -911,11 +952,16 @@ function __flatBudgetInit() {
   });
   var qs = (typeof location !== 'undefined' && location.search)
     ? location.search : '';
-  var urlMax = new URLSearchParams(qs).get('max');
-  if (urlMax && !isNaN(parseInt(urlMax, 10))) {
-    input.value = urlMax;
-    apply();
-  }
+  var params = new URLSearchParams(qs);
+  var urlMax = params.get('max');
+  if (urlMax && !isNaN(parseInt(urlMax, 10))) input.value = urlMax;
+  var urlActive = !!urlMax;
+  ['district', 'rooms'].forEach(function (name) {
+    var el = document.getElementById('flat-filter-' + name);
+    var v = params.get(name);
+    if (v && el) { el.value = v; urlActive = true; }
+  });
+  if (urlActive) apply();
   if (typeof window !== 'undefined') {
     window.__flatBudget = { apply: apply };
   }
@@ -1155,13 +1201,27 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             "border:0;border-radius:4px;background:#e7edf2;cursor:pointer;"
             "font-weight:bold'>Reset</button> "
             "<span class='note' id='flat-budget-status'></span>"
+            "<div style='margin-top:8px;font-size:14px'>"
+            "<b>Filters:</b> "
+            "<select id='flat-filter-district' style='padding:5px;border:1px "
+            "solid #b8c4cf;border-radius:4px'><option value=''>Any district"
+            "</option></select> "
+            "<select id='flat-filter-rooms' style='padding:5px;border:1px "
+            "solid #b8c4cf;border-radius:4px'><option value=''>Any rooms"
+            "</option><option value='1'>1</option><option value='2'>2</option>"
+            "<option value='3'>3</option><option value='4'>4</option>"
+            "<option value='5'>5+</option></select>"
+            "</div>"
             f"<p class='note' style='margin:6px 0 0'>Enter a maximum price "
-            f"(€{config.MIN_SALE_PRICE_EUR:,}–{config.MAX_SALE_PRICE_EUR_EXCEPTIONAL:,}) and "
-            "press <b>OK</b> (or Enter) to list every scored flat within it — "
-            "filtered instantly in your browser from today's data, no "
-            "rescraping (results also update as you type). <b>Reset</b> "
+            f"(€{config.MIN_SALE_PRICE_EUR:,}–{config.MAX_SALE_PRICE_EUR_EXCEPTIONAL:,}) and/or pick "
+            "filters, then press <b>OK</b> (or Enter) to list every scored "
+            "flat within it — filtered instantly in your browser from "
+            "today's data, no rescraping (results also update as you type). "
+            "Filters alone list all of today's scored flats in that "
+            "district/room class. <b>Reset</b> "
             "returns to the default daily view. Shareable: append "
-            "<b>?max=60000</b> to this page's URL.</p>"
+            "<b>?max=60000</b> or <b>?district=Zolitude&amp;rooms=2</b> "
+            "to this page's URL.</p>"
             "</div>"
             "<details style='background:#f7f9fb;border:1px solid #dbe4ea;"
             "padding:10px 14px;margin:12px 0' id='flat-watch-box'>"

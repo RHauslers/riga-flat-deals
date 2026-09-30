@@ -2,6 +2,35 @@
 
 Living document. Updated after each Devin session. Read this first.
 
+## Session 2026-09-30 #4 — flat Market section + flat budget filters
+
+- flat_market.py: per-district stats (ads, first-seen-today count,
+  median €/m², median ask, cheapest ad link) over today's in-budget sale
+  listings; saved by main.run() to config.FLAT_MARKET_STATS_JSON
+  (data/flat_market_stats.json) and rendered by car_market.build_page()
+  as a second section on docs/market.html. District cells deep-link to
+  index.html?district=X (the flat budget filter below).
+- main.run() writes flat stats AFTER the empty-scrape early return —
+  failed scans keep the last good stats; the flat section header shows
+  its own "as of" date.
+- Flat budget tool gained district + rooms selects
+  (flat-filter-district / flat-filter-rooms), populated from the day's
+  embedded rows; filters alone (no price) apply at the max ceiling;
+  ?district=/?rooms= URL params; "5+" means >=5 rooms. The embed's rows
+  are already capped at MAX_SALE_PRICE_EUR_EXCEPTIONAL, so the
+  filters-only ceiling is cfg.maxPrice.
+- cars.run(): pp.lv (Playwright, no internal retry) now gets one retry
+  after 15 s on scrape failure; ss.com keeps its internal
+  connection/timeout retry. Adds ~15 s to the failure-path test.
+- car_market.build_page() renders when EITHER dataset exists; the
+  placeholder ("Not generated yet") only when both are absent. Tests
+  that assert the placeholder must patch flat_market.load_stats ->
+  None (they did not before — real stats leaked in once flat stats
+  existed).
+- 82 tests pass. Known quirk: today's flat stats came from a fresh
+  flat-only run (cars.run stubbed) — identical data path as the daily
+  run.
+
 ## Session 2026-09-30 #3 — watchlist price deltas + Market tab
 
 - Watchlist entries now flag price movement since starring: a bold

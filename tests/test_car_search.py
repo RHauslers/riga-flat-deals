@@ -651,7 +651,9 @@ class TestWebsiteBuild(_TempPaths):
         self.assertIn('href="market.html"', index)
         # missing stats -> placeholder, still navigable
         with mock.patch.object(config, "CAR_MARKET_STATS_JSON",
-                               os.path.join(self.tmp.name, "none.json")):
+                               os.path.join(self.tmp.name, "none.json")), \
+             mock.patch.object(car_market.flat_market, "load_stats",
+                               return_value=None):
             website.build()
         page = open(os.path.join(self.docs_dir, "market.html"),
                     encoding="utf-8").read()
@@ -1207,6 +1209,79 @@ class TestBudgetTool(unittest.TestCase):
         self.assertGreaterEqual(result["children"], 3)
         self.assertIn("1 of 1", result["status"])
 
+    @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_flat_js_filters_district_and_rooms(self):
+        """District select alone (no price) must narrow custom results."""
+        zol = {"source": "ss.com", "id": "f1", "district": "Zolitude",
+               "rooms": 3, "area_m2": 55, "price_eur": 55000,
+               "url": "https://www.ss.com/x"}
+        cen = {"source": "ss.com", "id": "f2", "district": "Centre",
+               "rooms": 1, "area_m2": 30, "price_eur": 70000,
+               "url": "https://www.ss.com/y"}
+        html_text = notifier.build_html(
+            {}, {}, "", "note",
+            all_scored={"sale": [(zol, 1.0, "x"), (cen, 0.5, "x")]})
+        payload = re.search(r'id="flat-listings-data">(.*?)</script>',
+                            html_text, re.S).group(1)
+        js = re.search(r'<script id="flat-budget-js">(.*?)</script>',
+                       html_text, re.S).group(1)
+        driver = (
+            "var fs = require('fs');\n"
+            "function makeEl(extra) {\n"
+            "  return Object.assign({style: {}, children: [], innerHTML: '',\n"
+            "    addEventListener: function(){},\n"
+            "    appendChild: function(c){this.children.push(c);},\n"
+            "    setAttribute: function(){}, textContent: '', value: ''},\n"
+            "    extra || {});\n"
+            "}\n"
+            "var elements = {\n"
+            "  'flat-listings-data': {textContent:\n"
+            "    fs.readFileSync(process.argv[3], 'utf8')},\n"
+            "  'flat-budget-input': makeEl({value: ''}),\n"
+            "  'flat-budget-status': makeEl(), 'flat-custom-view': makeEl(),\n"
+            "  'flat-budget-ok': makeEl(), 'flat-budget-reset': makeEl(),\n"
+            "  'flat-filter-district': makeEl({value: 'Centre'}),\n"
+            "  'flat-filter-rooms': makeEl({value: ''})};\n"
+            "var parsed = false, readyCbs = [];\n"
+            "global.document = {\n"
+            "  get readyState() { return parsed ? 'complete' : 'loading'; },\n"
+            "  getElementById: function(id) {\n"
+            "    return parsed ? (elements[id] || null) : null; },\n"
+            "  createElement: function(tag) { return makeEl(); },\n"
+            "  createTextNode: function(t) { return {textContent: t}; },\n"
+            "  addEventListener: function(ev, cb) {\n"
+            "    if (ev === 'DOMContentLoaded') readyCbs.push(cb); }};\n"
+            "global.window = {}; global.location = {search: ''};\n"
+            "global.URLSearchParams = URLSearchParams;\n"
+            "eval(fs.readFileSync(process.argv[4], 'utf8'));\n"
+            "parsed = true;\n"
+            "readyCbs.forEach(function(cb) { cb(); });\n"
+            "var result = {init: !!global.window.__flatBudget};\n"
+            "if (global.window.__flatBudget) {\n"
+            "  global.window.__flatBudget.apply();\n"
+            "  result.status = elements['flat-budget-status'].textContent;\n"
+            "  result.rows = 0;\n"
+            "  elements['flat-custom-view'].children.forEach(function(c){\n"
+            "    if (c.tagName === 'TABLE' || (c.children &&\n"
+            "        c.children.length)) result.rows += 1; });\n"
+            "}\n"
+            "console.log(JSON.stringify(result));\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            drv = os.path.join(tmp, "driver.js")
+            pay = os.path.join(tmp, "payload.txt")
+            jsf = os.path.join(tmp, "budget.js")
+            for path, text in ((drv, driver), (pay, payload), (jsf, js)):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            out = subprocess.run(["node", drv, "--", pay, jsf],
+                                 capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        result = json.loads(out.stdout.strip())
+        self.assertTrue(result["init"])
+        # filters alone -> apply() must not hide; Centre only -> 1 of 2
+        self.assertIn("1 of 2", result["status"])
+
     def test_flat_embed_extra_covers_unscored_page_rows(self):
         """Near-school rows come from all_listings, not all_scored — an
         unscored flat rendered on the page must land in payload.extra so
@@ -1345,7 +1420,9 @@ class TestBudgetTool(unittest.TestCase):
         self.assertIn("Deals today", html_text)
         self.assertIn("cars.html?model=Passat%20B7", html_text)
         # missing stats file -> placeholder page
-        with tempfile.TemporaryDirectory() as td:
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(car_market.flat_market, "load_stats",
+                               return_value=None):
             html2 = car_market.build_page(os.path.join(td, "none.json"))
         self.assertIn("Not generated yet", html2)
 

@@ -12,6 +12,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 import classify
 import scoring
+import flat_market
+import car_market
 
 
 def _flat(source="ss.com", lid="f1", price=60000, district="Zolitude",
@@ -148,6 +150,82 @@ class TestScoring(unittest.TestCase):
     def test_no_history_scores_zero(self):
         out = scoring.score_and_rank([_flat()], [])
         self.assertEqual(out["sale"][0][1], 0.0)
+
+
+class TestFlatMarket(unittest.TestCase):
+    """District stats for the Market page (flat_market.py)."""
+
+    def test_groups_by_district_sale_only(self):
+        listings = [
+            _flat(lid="a", price=60000, district="Zolitude"),
+            _flat(lid="b", price=40000, district="Zolitude", area=50),
+            _flat(lid="c", price=90000, district="Centre", rooms=1),
+            _flat(lid="r", price=500, district="Centre", deal_type="rent"),
+        ]
+        stats = flat_market.compute_district_stats(
+            listings, {}, date.today().isoformat())
+        by = {s["district"]: s for s in stats}
+        self.assertEqual(set(by), {"Zolitude", "Centre"})
+        self.assertEqual(by["Zolitude"]["ads"], 2)
+        self.assertEqual(by["Zolitude"]["median_price"], 50000)
+        self.assertEqual(by["Zolitude"]["min_price"], 40000)
+        self.assertIn("/x/b", by["Zolitude"]["min_url"])   # cheapest ad's URL
+        self.assertEqual(by["Centre"]["ads"], 1)           # rent excluded
+
+    def test_new_today_counts_first_seen(self):
+        today = date.today().isoformat()
+        listings = [_flat(lid="a"), _flat(lid="b")]
+        price_data = {"ss.com:a": {"first_seen": today},
+                      "ss.com:b": {"first_seen": "2026-09-01"}}
+        stats = flat_market.compute_district_stats(listings, price_data, today)
+        self.assertEqual(stats[0]["new_today"], 1)
+
+    def test_sorted_by_ads_desc(self):
+        listings = ([_flat(lid=f"z{i}", district="Zolitude")
+                     for i in range(3)]
+                    + [_flat(lid="c1", district="Centre")])
+        stats = flat_market.compute_district_stats(listings, {}, "d")
+        self.assertEqual(stats[0]["district"], "Zolitude")
+
+    def test_section_html_renders_and_links(self):
+        stats = [{"district": "Zolitude", "ads": 5, "new_today": 2,
+                  "median_ppu": 1100.0, "median_price": 55000,
+                  "min_price": 41000, "min_url": "https://x/y"}]
+        html = flat_market.flat_section_html(stats, "2026-09-30")
+        self.assertIn("flat-market", html)
+        self.assertIn("Zolitude", html)
+        self.assertIn("index.html?district=Zolitude", html)
+        self.assertIn("https://x/y", html)
+        self.assertEqual(flat_market.flat_section_html([], "d"), "")
+
+    def test_save_load_round_trip(self):
+        import tempfile
+        stats = [{"district": "Zolitude", "ads": 2, "new_today": 1,
+                  "median_ppu": 1000.0, "median_price": 50000,
+                  "min_price": 40000, "min_url": "u"}]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "flat_stats.json")
+            flat_market.save_stats(stats, "2026-09-30", 2, path=path)
+            loaded = flat_market.load_stats(path)
+        self.assertEqual(loaded["date"], "2026-09-30")
+        self.assertEqual(loaded["districts"][0]["district"], "Zolitude")
+        self.assertIsNone(flat_market.load_stats(
+            os.path.join(tmp, "missing.json")))
+
+    def test_build_page_flat_only(self):
+        """Market page must render when only flat stats exist."""
+        flat_data = {"date": "2026-09-30", "total": 2,
+                     "districts": [{"district": "Zolitude", "ads": 2,
+                                    "new_today": 0, "median_ppu": 1000.0,
+                                    "median_price": 50000,
+                                    "min_price": 40000, "min_url": "u"}]}
+        with mock.patch.object(car_market, "load_stats", return_value=None), \
+             mock.patch.object(car_market, "load_history", return_value={}), \
+             mock.patch.object(flat_market, "load_stats",
+                               return_value=flat_data):
+            html = car_market.build_page()
+        self.assertIn("flat-market", html)
+        self.assertIn("Zolitude", html)
 
 
 if __name__ == "__main__":

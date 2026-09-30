@@ -33,6 +33,7 @@ import utils
 import price_history
 import geocode
 import cars
+import flat_market
 from scrapers import ss_com, city24, izsoles
 
 
@@ -233,6 +234,11 @@ def run():
     #     bid / end date. Not part of the deal-score ranking.
     auctions_html = notifier.build_auctions_html(auctions)
     print(f"[main] auctions section built")
+
+    # 6b. District-level market stats for the Market tab (docs/market.html)
+    flat_market.save_stats(
+        flat_market.compute_district_stats(all_listings, price_data, today),
+        today, len(all_listings))
 
     # 7. Save today's digest (pass price history + map markers + sections)
     _path, info = notifier.save_digest(main_deals, still_active, comparison_html,
