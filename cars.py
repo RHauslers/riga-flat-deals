@@ -208,8 +208,9 @@ def run():
 
     # Per-model market stats for the Market tab (docs/market.html),
     # rendered by website.build() from this JSON.
-    car_market.save_stats(car_market.compute_market_stats(deduped, qualified),
-                          today, len(deduped))
+    car_market.save_stats(
+        car_market.compute_market_stats(deduped, qualified, today),
+        today, len(deduped))
 
     html_text = car_digest.build_html(qualified, assessed, source_counts,
                                       source_errors, badges, today,

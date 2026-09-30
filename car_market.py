@@ -50,13 +50,14 @@ def _group_key(listing):
             str(listing.get("model") or "").strip().lower())
 
 
-def compute_market_stats(listings, qualified=None):
+def compute_market_stats(listings, qualified=None, today=None):
     """Group the eligible pool by (make, model) and aggregate.
 
     Returns a list of dicts: make/model (display form from the first
     listing seen), ads, median/min ask (+ url of the cheapest), median
-    year, median mileage, and deals = how many of today's qualifying
-    deals are this model. Models with fewer than
+    year, median mileage, deals = how many of today's qualifying deals
+    are this model, and new_today = ads first seen on ``today`` (the
+    _first_seen annotation set by cars.run()). Models with fewer than
     config.CAR_MARKET_MIN_LISTINGS ads are dropped as noise.
     """
     deal_keys = {f"{l.get('source')}:{l.get('id')}" for l in (qualified or [])}
@@ -79,6 +80,8 @@ def compute_market_stats(listings, qualified=None):
                        key=lambda l: l["price_eur"], default=None)
         deals = sum(1 for l in items
                     if f"{l.get('source')}:{l.get('id')}" in deal_keys)
+        new_today = (sum(1 for l in items if l.get("_first_seen") == today)
+                     if today else 0)
         stats.append({
             "make": make, "model": model, "ads": len(items),
             "median_price": _median(prices),
@@ -87,7 +90,7 @@ def compute_market_stats(listings, qualified=None):
             if cheapest else "",
             "median_year": _median([l.get("year") for l in items]),
             "median_km": _median([l.get("mileage_km") for l in items]),
-            "deals": deals,
+            "deals": deals, "new_today": new_today,
         })
     stats.sort(key=lambda s: (-s["deals"], -s["ads"],
                               s["median_price"] or 0))
@@ -129,7 +132,7 @@ def build_market_html(stats, run_date, total_ads):
     """Render the Market page. website.build() adds the nav on top."""
     if stats is None:
         stats = []
-    headers = ["Make", "Model", "Ads", "Median ask", "Cheapest",
+    headers = ["Make", "Model", "Ads", "New", "Median ask", "Cheapest",
                "Median year", "Median km", "Deals today"]
     head_cells = "".join(
         "<th class='sort-th' style='padding:6px;{align}' "
@@ -159,6 +162,9 @@ def build_market_html(stats, run_date, total_ads):
             f"{model_l}</td>"
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['ads']}'>{s['ads']}</td>"
+            f"<td style='padding:6px;text-align:right' "
+            f"data-sort='{s.get('new_today') or 0}'>"
+            f"{s.get('new_today') or 0}</td>"
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['median_price'] or 0}'>"
             f"{_fmt_eur(s['median_price'])}</td>"
@@ -208,7 +214,8 @@ tr:hover td{{background:#f6f9fc}}
 {_fmt_eur(config.CAR_COMPARABLE_MAX_PRICE_EUR)} across ss.com + pp.lv
 after cross-source dedupe. Models with fewer than
 {_e(str(config.CAR_MARKET_MIN_LISTINGS))} ads are omitted.
-<b>Deals today</b> = ads currently qualifying on the Cars tab.
+<b>Deals today</b> = ads currently qualifying on the Cars tab;
+<b>New</b> = ads our scan saw for the first time today.
 Click column headers to sort.</p>
 <div class="box"><b>How to read this:</b> a model with many ads and a
 low median ask is easy to find cheap; <b>Deals today</b> shows where
