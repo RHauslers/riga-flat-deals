@@ -911,6 +911,14 @@ class TestBudgetTool(unittest.TestCase):
         single = {"_price_hist": [["2026-09-01", 5500]]}
         self.assertNotIn("<svg", car_digest._history_html(single))
 
+    def test_comps_html_marks_thin_pools(self):
+        thin = car_digest._comps_html({"_comps": 4})
+        self.assertIn("~", thin)
+        self.assertIn("less reliable", thin)
+        self.assertEqual(car_digest._comps_html(
+            {"_comps": config.CAR_THIN_POOL_COMPS}), "8")
+        self.assertEqual(car_digest._comps_html({"_comps": None}), "—")
+
     def test_market_rows_carry_history_fields(self):
         l = _car("ss.com", "c1", 3000)
         l["_first_seen"] = "2026-09-20"

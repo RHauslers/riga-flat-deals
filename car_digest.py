@@ -93,6 +93,21 @@ def _listing_links(l):
     return key_html
 
 
+def _comps_html(l):
+    """Comps cell; marks thin pools (< CAR_THIN_POOL_COMPS) — a median
+    from 4 ads is much weaker evidence than one from 24."""
+    n = l.get("_comps")
+    txt = _fmt(n)
+    try:
+        thin = n is not None and int(n) < config.CAR_THIN_POOL_COMPS
+    except (TypeError, ValueError):
+        thin = False
+    if not thin:
+        return txt
+    return (f"<span style='color:#a08c00' title='Only {int(n)} comparable "
+            f"ads — the median is less reliable'>{txt}~</span>")
+
+
 def _pool_note(l):
     """Small grey line under the median ask showing the comparable pool's
     own median year/mileage, so the score's condition adjustments (low
@@ -200,6 +215,7 @@ def _market_data_html(market):
         "mileageTol": config.CAR_MILEAGE_TOLERANCE_KM,
         "engineTol": config.CAR_ENGINE_TOLERANCE_L,
         "minComps": config.CAR_MIN_COMPARABLES,
+        "thinPool": config.CAR_THIN_POOL_COMPS,
         "goodDiscount": config.CAR_GOOD_MIN_DISCOUNT_PCT,
         "goodSavings": config.CAR_GOOD_MIN_SAVINGS_EUR,
         "scoreCenter": config.CAR_SCORE_CENTER,
@@ -549,7 +565,14 @@ function __carBudgetInit() {
         medTd.appendChild(pn);
       }
       tr.appendChild(medTd);
-      tr.appendChild(cell(String(item.comps), item.comps, false));
+      var compsTd = cell(String(item.comps), item.comps, false);
+      if (item.comps < cfg.thinPool) {
+        compsTd.title = 'Only ' + item.comps + ' comparable ads — ' +
+          'the median is less reliable';
+        compsTd.style.color = '#a08c00';
+        compsTd.appendChild(document.createTextNode('~'));
+      }
+      tr.appendChild(compsTd);
       tr.appendChild(cell(fmtEur(item.savings), item.savings, true));
       tr.appendChild(cell(item.discount.toFixed(1) + '%', item.discount, true));
       var scTd = cell(String(item.score), item.score, false);
@@ -864,7 +887,7 @@ def _row(l, badges):
         f"{_history_html(l)}</td>",
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('price_eur'))}'><b>{_fmt_eur(l.get('price_eur'))}</b></td>",
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('_median'))}'>{_fmt_eur(l.get('_median'))}{_pool_note(l)}</td>",
-        f"<td style='padding:6px;text-align:center' data-sort='{_sort_val(l.get('_comps'))}'>{_fmt(l.get('_comps'))}</td>",
+        f"<td style='padding:6px;text-align:center' data-sort='{_sort_val(l.get('_comps'))}'>{_comps_html(l)}</td>",
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('_savings'))}'>{_fmt_eur(l.get('_savings'))}</td>",
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('_discount_pct'))}'>{_fmt(l.get('_discount_pct'), '%')}</td>",
         f"<td style='padding:6px;text-align:center' data-sort='{_sort_val(l.get('_score'))}'><b>{_fmt(l.get('_score'))}</b></td>",
@@ -926,7 +949,10 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
         top_html = (
             f"<h2>All qualifying deals ({len(qualified)})</h2>"
             "<p class='note'>Click a column header to sort; click again to "
-            "reverse. Ranking below is the default (score, then savings).</p>"
+            "reverse. Ranking below is the default (score, then savings). "
+            f"A Comps value with <b style='color:#a08c00'>~</b> means fewer "
+            f"than {_e(config.CAR_THIN_POOL_COMPS)} comparable ads — the "
+            "median for that row is less reliable.</p>"
             "<table id='car-deals'><tr style='background:#f0f0f0'>"
             "<th class='sort-th' style='text-align:left;padding:6px' onclick=\"sortTable('car-deals', 0)\">Listing</th>"
             "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 1)\">Asking</th>"

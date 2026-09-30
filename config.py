@@ -46,6 +46,9 @@ CAR_SCORE_MILEAGE_POINTS = 10
 CAR_SCORE_YEAR_POINTS = 3
 CAR_SEEN_TTL_DAYS = 45
 CAR_PRICE_HISTORY_MAX_POINTS = 60  # [date, price] points kept per listing
+# Below this many comparable ads the pool median is thin evidence; the
+# digest marks such comps counts with a "~" warning.
+CAR_THIN_POOL_COMPS = 8
 CAR_SNAPSHOT_FIELDS = ("source", "id", "make", "model", "year", "mileage_km",
                        "fuel", "engine_l", "gearbox", "body", "price_eur")
 # Market tab (docs/market.html): per-model stats over the whole eligible
