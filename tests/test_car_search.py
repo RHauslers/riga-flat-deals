@@ -966,6 +966,98 @@ class TestBudgetTool(unittest.TestCase):
         self.assertEqual(res["year"], [])
         self.assertEqual(res["km"], [])
 
+    def test_watchlist_ui_present(self):
+        html_text = self._build()
+        self.assertIn("id='car-watch-box'", html_text)
+        self.assertIn("id='car-watch-list'", html_text)
+        self.assertIn('id="car-watch-js"', html_text)
+        self.assertIn("watch_cars_v1", html_text)
+        # no market -> no watchlist either
+        plain = car_digest.build_html([], [], {}, {}, {}, "2026-09-26")
+        self.assertNotIn("car-watch-box", plain)
+
+    def test_deal_rows_have_star_buttons(self):
+        c = _car("ss.com", "c1", 3000)
+        peers = [_car("pp.lv", f"p{i}", p)
+                 for i, p in enumerate([4200, 4300, 4500, 4700])]
+        qualified, assessed = car_value.score_and_rank([c] + peers)
+        html_text = car_digest.build_html(qualified, assessed, {}, {},
+                                          {}, "2026-09-26")
+        self.assertIn("class='watch-star'", html_text)
+        self.assertIn("data-key='ss.com:c1'", html_text)
+
+    @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_js_watchlist_toggle_and_status(self):
+        """Star/unstar must persist in localStorage; a watched car missing
+        from today's market must render as NO LONGER LISTED."""
+        html_text = self._build()
+        payload = re.search(
+            r'id="car-market-data">(.*?)</script>', html_text, re.S).group(1)
+        js = re.search(
+            r'<script id="car-watch-js">(.*?)</script>', html_text,
+            re.S).group(1)
+        driver = (
+            "var fs = require('fs');\n"
+            "function makeEl() { return {style:{}, children:[], innerHTML:'',\n"
+            "  addEventListener:function(){},\n"
+            "  appendChild:function(c){this.children.push(c);},\n"
+            "  insertBefore:function(c){this.children.unshift(c);},\n"
+            "  setAttribute:function(){}, getAttribute:function(){return null;},\n"
+            "  textContent:'', value:''}; }\n"
+            "var store = {};\n"
+            "global.localStorage = {\n"
+            "  getItem: function(k){return store[k] || null;},\n"
+            "  setItem: function(k,v){store[k]=v;}};\n"
+            "var elements = {\n"
+            "  'car-market-data': {textContent:\n"
+            "    fs.readFileSync(process.argv[3], 'utf8')},\n"
+            "  'car-watch-box': makeEl(), 'car-watch-list': makeEl(),\n"
+            "  'car-watch-count': makeEl()};\n"
+            "var readyCbs = [], clickCbs = [];\n"
+            "global.document = {readyState: 'loading',\n"
+            "  getElementById: function(id){return elements[id] || null;},\n"
+            "  createElement: function(){return makeEl();},\n"
+            "  createTextNode: function(t){return {textContent:t};},\n"
+            "  addEventListener: function(ev,cb){\n"
+            "    if (ev==='DOMContentLoaded') readyCbs.push(cb);\n"
+            "    if (ev==='click') clickCbs.push(cb);}};\n"
+            "global.window = {};\n"
+            "eval(fs.readFileSync(process.argv[4], 'utf8'));\n"
+            "global.document.readyState = 'complete';\n"
+            "readyCbs.forEach(function(cb){cb();});\n"
+            "function star(key) {\n"
+            "  return {classList:{contains:function(c){return c==='watch-star';}},\n"
+            "    getAttribute:function(k){return {\n"
+            "      'data-key': key, 'data-label': 'Car ' + key,\n"
+            "      'data-price': '3000', 'data-url': ''}[k];}};\n"
+            "}\n"
+            "clickCbs[0]({target: star('pp.lv:p1')});\n"
+            "clickCbs[0]({target: star('ss.com:gone1')});\n"
+            "var txt = JSON.stringify(elements['car-watch-list'].children);\n"
+            "var stored = JSON.parse(store['watch_cars_v1'] || '{}');\n"
+            "var ch = elements['car-watch-list'].children;\n"
+            "var tbl = ch[ch.length - 1];\n"
+            "console.log(JSON.stringify({\n"
+            "  storedKeys: Object.keys(stored).sort(),\n"
+            "  count: elements['car-watch-count'].textContent,\n"
+            "  rows: tbl ? tbl.children.length : 0\n"
+            "}));\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            drv = os.path.join(tmp, "driver.js")
+            pay = os.path.join(tmp, "payload.txt")
+            jsf = os.path.join(tmp, "watch.js")
+            for path, text in ((drv, driver), (pay, payload), (jsf, js)):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            out = subprocess.run(["node", drv, "--", pay, jsf],
+                                 capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        res = json.loads(out.stdout.strip())
+        self.assertEqual(res["storedKeys"], ["pp.lv:p1", "ss.com:gone1"])
+        self.assertEqual(res["count"], "(2)")
+        self.assertEqual(res["rows"], 2)
+
     def test_flat_budget_tool_embedded(self):
         listing = {"source": "ss.com", "id": "f1", "district": "Zolitude",
                    "rooms": 3, "area_m2": 55, "floor": "3/5",
@@ -978,6 +1070,9 @@ class TestBudgetTool(unittest.TestCase):
         self.assertIn("id='flat-budget-input'", html_text)
         self.assertIn("id='flat-budget-ok'", html_text)
         self.assertIn("id='flat-custom-view'", html_text)
+        self.assertIn("id='flat-watch-box'", html_text)
+        self.assertIn('id="flat-watch-js"', html_text)
+        self.assertIn("watch_flats_v1", html_text)
         m = re.search(r'id="flat-listings-data">(.*?)</script>', html_text,
                       re.S)
         payload = json.loads(m.group(1))
@@ -1051,6 +1146,106 @@ class TestBudgetTool(unittest.TestCase):
         self.assertTrue(result["init"])
         self.assertGreaterEqual(result["children"], 3)
         self.assertIn("1 of 1", result["status"])
+
+    def test_flat_embed_extra_covers_unscored_page_rows(self):
+        """Near-school rows come from all_listings, not all_scored — an
+        unscored flat rendered on the page must land in payload.extra so
+        the watchlist can still resolve it as 'still listed'."""
+        scored = {"source": "ss.com", "id": "f1", "district": "Zolitude",
+                  "rooms": 3, "area_m2": 55, "price_eur": 55000,
+                  "url": "https://www.ss.com/x"}
+        unscored = {"source": "ss.com", "id": "f2", "district": "Imanta",
+                    "rooms": 1, "area_m2": 30, "price_eur": 40000,
+                    "url": "https://www.ss.com/y"}
+        html_text = notifier.build_html(
+            {}, {}, "", "note",
+            all_scored={"sale": [(scored, 1.0, "x")]},
+            all_listings=[scored, unscored])
+        payload = json.loads(re.search(
+            r'id="flat-listings-data">(.*?)</script>', html_text,
+            re.S).group(1))
+        self.assertEqual(len(payload["rows"]), 1)
+        self.assertEqual(len(payload["extra"]), 1)
+        f = payload["fields"]
+        ex = payload["extra"][0]
+        self.assertEqual(ex[f.index("source")] + ":" + ex[f.index("id")],
+                         "ss.com:f2")
+        self.assertIsNone(ex[f.index("score")])
+        # no all_listings -> extra is empty
+        payload2 = json.loads(re.search(
+            r'id="flat-listings-data">(.*?)</script>',
+            notifier.build_html({}, {}, "", "note",
+                                all_scored={"sale": [(scored, 1.0, "x")]}),
+            re.S).group(1))
+        self.assertEqual(payload2["extra"], [])
+
+    @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_flat_watch_js_resolves_extra_rows(self):
+        """A watched flat present only in payload.extra must render as
+        'still listed', not 'NO LONGER LISTED'."""
+        scored = {"source": "ss.com", "id": "f1", "district": "Zolitude",
+                  "rooms": 3, "area_m2": 55, "price_eur": 55000,
+                  "url": "https://www.ss.com/x"}
+        unscored = {"source": "ss.com", "id": "f2", "district": "Imanta",
+                    "rooms": 1, "area_m2": 30, "price_eur": 40000,
+                    "url": "https://www.ss.com/y"}
+        html_text = notifier.build_html(
+            {}, {}, "", "note",
+            all_scored={"sale": [(scored, 1.0, "x")]},
+            all_listings=[scored, unscored])
+        payload = re.search(r'id="flat-listings-data">(.*?)</script>',
+                            html_text, re.S).group(1)
+        js = re.search(r'<script id="flat-watch-js">(.*?)</script>',
+                       html_text, re.S).group(1)
+        driver = (
+            "var fs = require('fs');\n"
+            "function makeEl() { return {style:{}, children:[], innerHTML:'',\n"
+            "  addEventListener:function(){},\n"
+            "  appendChild:function(c){this.children.push(c);},\n"
+            "  setAttribute:function(){}, getAttribute:function(){return null;},\n"
+            "  textContent:'', value:''}; }\n"
+            "var store = {};\n"
+            "global.localStorage = {\n"
+            "  getItem: function(k){return store[k] || null;},\n"
+            "  setItem: function(k,v){store[k]=v;}};\n"
+            "var elements = {\n"
+            "  'flat-listings-data': {textContent:\n"
+            "    fs.readFileSync(process.argv[3], 'utf8')},\n"
+            "  'flat-watch-box': makeEl(), 'flat-watch-list': makeEl(),\n"
+            "  'flat-watch-count': makeEl()};\n"
+            "var readyCbs = [], clickCbs = [];\n"
+            "global.document = {readyState: 'loading',\n"
+            "  getElementById: function(id){return elements[id] || null;},\n"
+            "  createElement: function(){return makeEl();},\n"
+            "  createTextNode: function(t){return {textContent:t};},\n"
+            "  addEventListener: function(ev,cb){\n"
+            "    if (ev==='DOMContentLoaded') readyCbs.push(cb);\n"
+            "    if (ev==='click') clickCbs.push(cb);}};\n"
+            "global.window = {};\n"
+            "eval(fs.readFileSync(process.argv[4], 'utf8'));\n"
+            "global.document.readyState = 'complete';\n"
+            "readyCbs.forEach(function(cb){cb();});\n"
+            "clickCbs[0]({target:{classList:{contains:function(c){return c==='watch-star';}},\n"
+            "  getAttribute:function(k){return {\n"
+            "    'data-key':'ss.com:f2','data-label':'Flat f2',\n"
+            "    'data-price':'40000','data-url':''}[k];}}});\n"
+            "var txt = JSON.stringify(elements['flat-watch-list'].children);\n"
+            "console.log(JSON.stringify({still: txt.indexOf('still listed'),\n"
+            "  gone: txt.indexOf('NO LONGER')}));\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            drv = os.path.join(tmp, "driver.js")
+            pay = os.path.join(tmp, "payload.txt")
+            jsf = os.path.join(tmp, "watch.js")
+            for path, text in ((drv, driver), (pay, payload), (jsf, js)):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            out = subprocess.run(["node", drv, "--", pay, jsf],
+                                 capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        res = json.loads(out.stdout.strip())
+        self.assertGreaterEqual(res["still"], 0)
+        self.assertEqual(res["gone"], -1)
 
     def test_all_qualifying_header_and_no_relimit(self):
         qualified = [_car("ss.com", f"q{i}", 3000 + i) for i in range(30)]

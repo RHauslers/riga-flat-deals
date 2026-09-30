@@ -238,7 +238,7 @@ def run():
     _path, info = notifier.save_digest(main_deals, still_active, comparison_html,
                                        status_note, price_data, map_markers,
                                        newest_html, near_school_html,
-                                       auctions_html, all_scored)
+                                       auctions_html, all_scored, all_listings)
 
     # 8. Build hosted site (latest digest -> docs/index.html + archive)
     website.build()

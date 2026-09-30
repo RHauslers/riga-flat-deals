@@ -474,6 +474,19 @@ function __carBudgetInit() {
       var td = document.createElement('td');
       td.style.padding = '6px';
       td.setAttribute('data-sort', r[idx.make] + ' ' + r[idx.model]);
+      var star = document.createElement('button');
+      star.type = 'button';
+      star.className = 'watch-star';
+      star.setAttribute('data-key', r[idx.source] + ':' + r[idx.id]);
+      star.setAttribute('data-label',
+        (String(r[idx.make] || '') + ' ' + String(r[idx.model] || ''))
+          .replace(/-/g, ' ').trim() || 'car');
+      star.setAttribute('data-price', r[idx.price_eur]);
+      star.setAttribute('data-url', r[idx.url] || '');
+      star.title = 'Watch this listing';
+      star.textContent = '☆';
+      td.appendChild(star);
+      td.appendChild(document.createTextNode(' '));
       td.appendChild(document.createTextNode(r[idx.make] + ' ' + r[idx.model]));
       td.appendChild(document.createElement('br'));
       var spec = document.createElement('span');
@@ -535,6 +548,9 @@ function __carBudgetInit() {
       table.appendChild(tr);
     });
     customView.appendChild(table);
+    if (typeof window !== 'undefined' && window.__carWatchRefresh) {
+      window.__carWatchRefresh();
+    }
   }
 
   function showDefault() {
@@ -628,6 +644,160 @@ if (document.readyState === 'loading') {
 """
 
 
+# Watchlist: ☆/★ buttons on deal rows persist picks in localStorage
+# (key watch_cars_v1). A watched listing missing from today's embedded
+# market data is flagged "no longer listed" (sold or ad expired).
+CAR_WATCH_JS = """
+function __carWatchInit() {
+  var dataEl = document.getElementById('car-market-data');
+  var box = document.getElementById('car-watch-box');
+  var listEl = document.getElementById('car-watch-list');
+  var countEl = document.getElementById('car-watch-count');
+  if (!dataEl || !box || !listEl) return;
+  if (typeof localStorage === 'undefined') return;
+  var payload = JSON.parse(dataEl.textContent);
+  var F = payload.fields, idx = {};
+  F.forEach(function (f, i) { idx[f] = i; });
+  var byKey = {};
+  payload.rows.forEach(function (r) {
+    if (r[idx.source] != null && r[idx.id] != null)
+      byKey[r[idx.source] + ':' + r[idx.id]] = r;
+  });
+  var KEY = 'watch_cars_v1';
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function save(w) {
+    try { localStorage.setItem(KEY, JSON.stringify(w)); } catch (e) {}
+  }
+  function fmtEur(v) {
+    return v == null ? '—' : '€' + Math.round(Number(v)).toLocaleString('en-US');
+  }
+
+  function refreshStars() {
+    if (!document.querySelectorAll) return;
+    var w = load();
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.watch-star'), function (s) {
+        s.textContent = w[s.getAttribute('data-key')] ? '★' : '☆';
+      });
+  }
+
+  function toggle(btn) {
+    var key = btn.getAttribute('data-key');
+    if (!key) return;
+    var w = load();
+    if (w[key]) {
+      delete w[key];
+    } else {
+      w[key] = {
+        added: new Date().toISOString().slice(0, 10),
+        label: btn.getAttribute('data-label') || key,
+        price: parseFloat(btn.getAttribute('data-price')),
+        url: btn.getAttribute('data-url') || ''
+      };
+    }
+    save(w);
+    refreshStars();
+    renderBox();
+  }
+
+  function remove(key) {
+    var w = load();
+    delete w[key];
+    save(w);
+    refreshStars();
+    renderBox();
+  }
+
+  function renderBox() {
+    var w = load();
+    var keys = Object.keys(w).sort(function (a, b) {
+      return String(w[b].added || '').localeCompare(String(w[a].added || ''));
+    });
+    if (countEl) countEl.textContent = '(' + keys.length + ')';
+    listEl.innerHTML = '';
+    if (!keys.length) {
+      var p = document.createElement('p');
+      p.className = 'note';
+      p.textContent = 'Nothing starred yet — click ☆ on a listing to pin it here.';
+      listEl.appendChild(p);
+      return;
+    }
+    var table = document.createElement('table');
+    keys.forEach(function (key) {
+      var w0 = w[key];
+      var cur = byKey[key];
+      var tr = document.createElement('tr');
+      var td = document.createElement('td');
+      td.style.padding = '6px';
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'watch-remove';
+      rm.setAttribute('data-key', key);
+      rm.title = 'Stop watching';
+      rm.textContent = '✕';
+      rm.style.cssText = 'border:0;background:none;color:#c0392b;cursor:pointer;margin-right:6px';
+      td.appendChild(rm);
+      var label = w0.label || key;
+      var url = (cur && cur[idx.url]) ? cur[idx.url] : (w0.url || '');
+      if (url) {
+        var a = document.createElement('a');
+        a.href = url;
+        a.textContent = label;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        td.appendChild(a);
+      } else {
+        td.appendChild(document.createTextNode(label));
+      }
+      var meta = document.createElement('span');
+      meta.style.fontSize = '12px';
+      if (cur) {
+        meta.style.color = '#777';
+        meta.textContent = ' — ' + fmtEur(cur[idx.price_eur]) +
+          ' · still listed today';
+      } else {
+        meta.style.color = '#c0392b';
+        meta.textContent = ' — last seen ' + fmtEur(w0.price) +
+          ' · NO LONGER LISTED (sold or expired)';
+      }
+      td.appendChild(meta);
+      var since = document.createElement('span');
+      since.style.color = '#aaa';
+      since.style.fontSize = '11px';
+      since.textContent = ' · watching since ' + (w0.added || '?');
+      td.appendChild(since);
+      tr.appendChild(td);
+      table.appendChild(tr);
+    });
+    listEl.appendChild(table);
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.getAttribute || !t.classList) return;
+    if (t.classList.contains('watch-star')) { toggle(t); }
+    else if (t.classList.contains('watch-remove')) {
+      remove(t.getAttribute('data-key'));
+    }
+  });
+  refreshStars();
+  renderBox();
+  if (typeof window !== 'undefined') {
+    window.__carWatch = { toggle: toggle, renderBox: renderBox, load: load };
+    window.__carWatchRefresh = refreshStars;
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', __carWatchInit);
+} else {
+  __carWatchInit();
+}
+"""
+
+
 def _sort_val(v, default=-1):
     """Numeric value for a column's data-sort attribute (-1 when unknown,
     so unsortable rows sink rather than crash the JS parseFloat)."""
@@ -656,8 +826,16 @@ def _row(l, badges):
                         f"{_e('; '.join(cautions))}</span>")
     sort_model = html.escape(
         f"{l.get('make') or ''} {l.get('model') or ''}".strip(), quote=True)
+    star_label = (f"{(l.get('make') or '').title()} "
+                  f"{(l.get('model') or '').replace('-', ' ').title()}").strip()
+    star = (
+        f"<button type='button' class='watch-star' "
+        f"data-key='{_e(key)}' data-label='{_e(star_label or 'car')}' "
+        f"data-price='{_e(l.get('price_eur'))}' "
+        f"data-url='{_e(_safe_url(l.get('url')) or '')}' "
+        f"title='Watch this listing'>☆</button> ")
     cells = [
-        f"<td style='padding:6px' data-sort='{sort_model}'>{_e(title)}<br>"
+        f"<td style='padding:6px' data-sort='{sort_model}'>{star}{_e(title)}<br>"
         f"<span style='color:#777;font-size:12px'>{_e(l.get('make'))} {_e(l.get('model'))} — {_spec_text(l)}</span><br>"
         f"{_badge_html(key, badges)} {_listing_links(l)}{caution_html}"
         f"{_history_html(l)}</td>",
@@ -742,6 +920,8 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
     market_html = _market_data_html(market) if market else ""
     car_budget_script = (f'<script id="car-budget-js">{CAR_BUDGET_JS}</script>'
                          if market else "")
+    car_watch_script = (f'<script id="car-watch-js">{CAR_WATCH_JS}</script>'
+                        if market else "")
     budget_html = ""
     if market:
         budget_html = (
@@ -792,7 +972,16 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "first saw the ad (≈ days listed); €… → €… is the ask-price "
             "trail we have recorded. Shareable: append <b>?max=3500"
             "&amp;fuel=diesel&amp;km=200000</b> to this page's URL.</p>"
-            "</div>")
+            "</div>"
+            "<details class='box' id='car-watch-box'>"
+            "<summary style='cursor:pointer'><b>★ Watchlist</b> "
+            "<span class='note' id='car-watch-count'></span></summary>"
+            "<div id='car-watch-list' style='margin-top:6px'></div>"
+            "<p class='note' style='margin:6px 0 0'>Click ☆ on any deal to "
+            "pin it here — stars are saved in this browser only "
+            "(localStorage), never sent anywhere. A watched car missing "
+            "from today's scan shows <b>no longer listed</b> — sold or the "
+            "ad expired (the link may still open briefly).</p></details>")
     if market:
         top_html = (f"<div id='car-default-view'>{top_html}</div>"
                     "<div id='car-custom-view' style='display:none'></div>")
@@ -815,6 +1004,10 @@ th.sort-th::after{{content:"\\21C5";font-size:10px;color:#bbb;margin-left:4px;op
 th.sort-th:hover::after{{opacity:1}}
 th.sort-asc::after{{content:"\\2191";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
 th.sort-desc::after{{content:"\\2193";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
+th{{position:sticky;top:0;background:#f0f0f0;z-index:1}}
+tr:hover td{{background:#f6f9fc}}
+.watch-star{{cursor:pointer;border:0;background:none;font-size:15px;color:#b8a03c;padding:0 2px}}
+.watch-star:hover{{color:#d4a017}}
 </style>
 <script>
 // Click-to-sort table headers (same mechanism as the flats digest):
@@ -849,6 +1042,7 @@ function sortTable(tableId, colIdx) {{
 </script>
 {market_html}
 {car_budget_script}
+{car_watch_script}
 </head><body>
 <h1>Riga car deals — {_e(stamp)}</h1>
 <p class="note">Coverage: {coverage}. ss.com: the newest

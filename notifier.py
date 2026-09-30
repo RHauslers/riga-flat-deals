@@ -13,6 +13,7 @@ publishes it as docs/index.html + docs/archive/.
 import os
 import json
 from datetime import date, datetime
+from html import escape as _esc
 
 import config
 import price_history
@@ -156,7 +157,7 @@ def _main_row_html(item, price_data=None, row_idx=0):
         f"<td>{_badge_html(badge, detail)}</td>"
         f"<td style='text-align:right;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
-        f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a>{map_link}</td>"
+        f"<td>{_watch_star(listing)}<a href='{listing.get('url','')}'>{listing.get('source','')}</a>{map_link}</td>"
         "</tr>"
         f"{timeline_row}"
     )
@@ -209,7 +210,7 @@ def _still_row_html(item, price_data=None, row_idx=0):
         f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
         f"<td style='text-align:right;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
-        f"<td><a href='{listing.get('url','')}'>{listing.get('source','')}</a>{map_link}</td>"
+        f"<td>{_watch_star(listing)}<a href='{listing.get('url','')}'>{listing.get('source','')}</a>{map_link}</td>"
         "</tr>"
         f"{timeline_row}"
     )
@@ -518,7 +519,7 @@ def build_near_school_html(all_listings):
             f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(l.get('price_eur'), l.get('price_unit'))}</td>"
             f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(l.get('price_per_m2'))}</td>"
             f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
-            f"<td><a href='{l.get('url','')}'>{source}</a>{map_link}</td>"
+            f"<td>{_watch_star(l)}<a href='{l.get('url','')}'>{source}</a>{map_link}</td>"
             '</tr>'
         )
 
@@ -665,35 +666,78 @@ def build_auctions_html(auctions, top_n=15):
     )
 
 
+def _watch_star(listing):
+    """☆ button for the in-browser watchlist (FLAT_WATCH_JS). Label is
+    'District · N r · A m²'; key is source:id (stable across days)."""
+    src, lid = listing.get("source"), listing.get("id")
+    if not src or lid is None:
+        return ""
+    url = str(listing.get("url") or "")
+    if not url.startswith("https://"):
+        url = ""
+    bits = [str(listing.get("district") or "?")]
+    if listing.get("rooms") is not None:
+        bits.append(f"{listing['rooms']} r")
+    if listing.get("area_m2") is not None:
+        bits.append(f"{listing['area_m2']} m²")
+    return (f"<button type='button' class='watch-star' "
+            f"data-key='{_esc(f'{src}:{lid}', quote=True)}' "
+            f"data-label='{_esc(' · '.join(bits), quote=True)}' "
+            f"data-price='{_esc(str(listing.get('price_eur')), quote=True)}' "
+            f"data-url='{_esc(url, quote=True)}' "
+            f"title='Watch this listing'>☆</button> ")
+
+
 # ---------------------------------------------------------------------------
 # build the full HTML digest
 # ---------------------------------------------------------------------------
 # Fields embedded per listing so the browser can filter for a custom budget.
 _FLAT_FIELDS = ("district", "rooms", "area_m2", "floor", "price_eur",
-                "price_per_m2", "school_km", "score", "source", "url")
+                "price_per_m2", "school_km", "score", "source", "url", "id")
 
 
-def _flat_market_data_html(all_scored):
+def _flat_market_data_html(all_scored, all_listings=None):
     """Embed every scored listing (not just the top-N shown in the tables)
-    as JSON so the page can filter by a custom budget in the browser."""
+    as JSON so the page can filter by a custom budget in the browser.
+
+    ``extra`` carries every other in-budget listing rendered on the page
+    (e.g. near-school rows without a score) so the watchlist can still
+    resolve them as "still listed"; the budget tool reads only ``rows``.
+    """
+    def _row(listing, score):
+        url = str(listing.get("url") or "")
+        if not url.startswith("https://"):
+            url = ""
+        return [
+            listing.get("district"), listing.get("rooms"),
+            listing.get("area_m2"), listing.get("floor"),
+            listing.get("price_eur"), listing.get("price_per_m2"),
+            listing.get("_school_km"), score,
+            listing.get("source"), url, listing.get("id"),
+        ]
+
     rows = []
+    embedded = set()
     for dt, items in (all_scored or {}).items():
         for entry in items:
             listing, score = entry[0], entry[1]
             if listing.get("price_eur") is None:
                 continue
-            rows.append([
-                listing.get("district"), listing.get("rooms"),
-                listing.get("area_m2"), listing.get("floor"),
-                listing.get("price_eur"), listing.get("price_per_m2"),
-                listing.get("_school_km"), score,
-                listing.get("source"), listing.get("url"),
-            ])
+            rows.append(_row(listing, score))
+            embedded.add((listing.get("source"), listing.get("id")))
+    extra = []
+    for listing in (all_listings or []):
+        key = (listing.get("source"), listing.get("id"))
+        if not all(key) or key in embedded:
+            continue
+        extra.append(_row(listing, None))
+        embedded.add(key)
     payload = {
         "config": {"minPrice": config.MIN_SALE_PRICE_EUR,
                    "maxPrice": config.MAX_SALE_PRICE_EUR_EXCEPTIONAL},
         "fields": list(_FLAT_FIELDS),
         "rows": rows,
+        "extra": extra,
     }
     text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     text = text.replace("</", "<\\/")
@@ -785,19 +829,34 @@ function __flatBudgetInit() {
       var score = r[idx.score];
       tr.appendChild(cell(score != null ? (+score).toFixed(2) : '—', score, true));
       var srcTd = cell(r[idx.source] || '', r[idx.source]);
+      var star = document.createElement('button');
+      star.type = 'button';
+      star.className = 'watch-star';
+      star.setAttribute('data-key', r[idx.source] + ':' + r[idx.id]);
+      star.setAttribute('data-label',
+        ((r[idx.district] || '?') + ' · ' + (r[idx.rooms] || '?') + ' r · ' +
+         (r[idx.area_m2] || '?') + ' m²'));
+      star.setAttribute('data-price', r[idx.price_eur]);
+      star.setAttribute('data-url', r[idx.url] || '');
+      star.title = 'Watch this listing';
+      star.textContent = '☆';
+      srcTd.textContent = '';
+      srcTd.appendChild(star);
       if (r[idx.url]) {
         var a = document.createElement('a');
         a.href = r[idx.url];
         a.textContent = r[idx.source] || 'link';
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
-        srcTd.textContent = '';
         srcTd.appendChild(a);
       }
       tr.appendChild(srcTd);
       table.appendChild(tr);
     });
     customView.appendChild(table);
+    if (typeof window !== 'undefined' && window.__flatWatchRefresh) {
+      window.__flatWatchRefresh();
+    }
   }
 
   function hide() {
@@ -869,10 +928,171 @@ if (document.readyState === 'loading') {
 """
 
 
+# Watchlist: ☆/★ buttons on listing rows persist picks in localStorage
+# (key watch_flats_v1). A watched flat missing from today's embedded data
+# is flagged "no longer listed" (sold or ad expired). Same mechanism as
+# CAR_WATCH_JS in car_digest.py.
+FLAT_WATCH_JS = """
+function __flatWatchInit() {
+  var dataEl = document.getElementById('flat-listings-data');
+  var box = document.getElementById('flat-watch-box');
+  var listEl = document.getElementById('flat-watch-list');
+  var countEl = document.getElementById('flat-watch-count');
+  if (!dataEl || !box || !listEl) return;
+  if (typeof localStorage === 'undefined') return;
+  var payload = JSON.parse(dataEl.textContent);
+  var F = payload.fields, idx = {};
+  F.forEach(function (f, i) { idx[f] = i; });
+  var byKey = {};
+  payload.rows.forEach(function (r) {
+    if (r[idx.source] != null && r[idx.id] != null)
+      byKey[r[idx.source] + ':' + r[idx.id]] = r;
+  });
+  (payload.extra || []).forEach(function (r) {
+    if (r[idx.source] != null && r[idx.id] != null) {
+      var k = r[idx.source] + ':' + r[idx.id];
+      if (!byKey[k]) byKey[k] = r;
+    }
+  });
+  var KEY = 'watch_flats_v1';
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function save(w) {
+    try { localStorage.setItem(KEY, JSON.stringify(w)); } catch (e) {}
+  }
+  function fmtEur(v) {
+    return v == null ? '—' : '€' + Math.round(Number(v)).toLocaleString('en-US');
+  }
+
+  function refreshStars() {
+    if (!document.querySelectorAll) return;
+    var w = load();
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.watch-star'), function (s) {
+        s.textContent = w[s.getAttribute('data-key')] ? '★' : '☆';
+      });
+  }
+
+  function toggle(btn) {
+    var key = btn.getAttribute('data-key');
+    if (!key) return;
+    var w = load();
+    if (w[key]) {
+      delete w[key];
+    } else {
+      w[key] = {
+        added: new Date().toISOString().slice(0, 10),
+        label: btn.getAttribute('data-label') || key,
+        price: parseFloat(btn.getAttribute('data-price')),
+        url: btn.getAttribute('data-url') || ''
+      };
+    }
+    save(w);
+    refreshStars();
+    renderBox();
+  }
+
+  function remove(key) {
+    var w = load();
+    delete w[key];
+    save(w);
+    refreshStars();
+    renderBox();
+  }
+
+  function renderBox() {
+    var w = load();
+    var keys = Object.keys(w).sort(function (a, b) {
+      return String(w[b].added || '').localeCompare(String(w[a].added || ''));
+    });
+    if (countEl) countEl.textContent = '(' + keys.length + ')';
+    listEl.innerHTML = '';
+    if (!keys.length) {
+      var p = document.createElement('p');
+      p.className = 'note';
+      p.textContent = 'Nothing starred yet — click ☆ on a listing to pin it here.';
+      listEl.appendChild(p);
+      return;
+    }
+    var table = document.createElement('table');
+    keys.forEach(function (key) {
+      var w0 = w[key];
+      var cur = byKey[key];
+      var tr = document.createElement('tr');
+      var td = document.createElement('td');
+      td.style.padding = '6px';
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'watch-remove';
+      rm.setAttribute('data-key', key);
+      rm.title = 'Stop watching';
+      rm.textContent = '✕';
+      rm.style.cssText = 'border:0;background:none;color:#c0392b;cursor:pointer;margin-right:6px';
+      td.appendChild(rm);
+      var label = w0.label || key;
+      var url = (cur && cur[idx.url]) ? cur[idx.url] : (w0.url || '');
+      if (url) {
+        var a = document.createElement('a');
+        a.href = url;
+        a.textContent = label;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        td.appendChild(a);
+      } else {
+        td.appendChild(document.createTextNode(label));
+      }
+      var meta = document.createElement('span');
+      meta.style.fontSize = '12px';
+      if (cur) {
+        meta.style.color = '#777';
+        meta.textContent = ' — ' + fmtEur(cur[idx.price_eur]) +
+          ' · still listed today';
+      } else {
+        meta.style.color = '#c0392b';
+        meta.textContent = ' — last seen ' + fmtEur(w0.price) +
+          ' · NO LONGER LISTED (sold or expired)';
+      }
+      td.appendChild(meta);
+      var since = document.createElement('span');
+      since.style.color = '#aaa';
+      since.style.fontSize = '11px';
+      since.textContent = ' · watching since ' + (w0.added || '?');
+      td.appendChild(since);
+      tr.appendChild(td);
+      table.appendChild(tr);
+    });
+    listEl.appendChild(table);
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.getAttribute || !t.classList) return;
+    if (t.classList.contains('watch-star')) { toggle(t); }
+    else if (t.classList.contains('watch-remove')) {
+      remove(t.getAttribute('data-key'));
+    }
+  });
+  refreshStars();
+  renderBox();
+  if (typeof window !== 'undefined') {
+    window.__flatWatch = { toggle: toggle, renderBox: renderBox, load: load };
+    window.__flatWatchRefresh = refreshStars;
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', __flatWatchInit);
+} else {
+  __flatWatchInit();
+}
+"""
+
+
 def build_html(main_deals, still_active, comparison_html, status_note,
                price_data=None, map_markers=None,
                newest_html="", near_school_html="", auctions_html="",
-               all_scored=None):
+               all_scored=None, all_listings=None):
     today = date.today().isoformat()
     run_time = _now_header_str()
     sections = []
@@ -901,9 +1121,12 @@ def build_html(main_deals, still_active, comparison_html, status_note,
     body_sections = "".join(sections)
 
     # Custom-budget tool: embed all scored listings, filter in the browser.
-    flat_market_html = _flat_market_data_html(all_scored) if all_scored else ""
+    flat_market_html = (_flat_market_data_html(all_scored, all_listings)
+                        if all_scored else "")
     flat_budget_script = (f'<script id="flat-budget-js">{FLAT_BUDGET_JS}</script>'
                           if all_scored else "")
+    flat_watch_script = (f'<script id="flat-watch-js">{FLAT_WATCH_JS}</script>'
+                         if all_scored else "")
     flat_budget_html = ""
     if all_scored:
         flat_budget_html = (
@@ -929,6 +1152,16 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             "returns to the default daily view. Shareable: append "
             "<b>?max=60000</b> to this page's URL.</p>"
             "</div>"
+            "<details style='background:#f7f9fb;border:1px solid #dbe4ea;"
+            "padding:10px 14px;margin:12px 0' id='flat-watch-box'>"
+            "<summary style='cursor:pointer'><b>★ Watchlist</b> "
+            "<span class='note' id='flat-watch-count'></span></summary>"
+            "<div id='flat-watch-list' style='margin-top:6px'></div>"
+            "<p class='note' style='margin:6px 0 0'>Click ☆ on any listing "
+            "to pin it here — stars are saved in this browser only "
+            "(localStorage), never sent anywhere. A watched flat missing "
+            "from today's scan shows <b>no longer listed</b> — sold or the "
+            "ad expired (the link may still open briefly).</p></details>"
             "<div id='flat-custom-view' style='display:none'></div>")
 
     # Map section (Leaflet.js with OpenStreetMap tiles — free, no API key)
@@ -948,6 +1181,10 @@ th.sort-th::after{{content:"\\21C5";font-size:10px;color:#bbb;margin-left:4px;op
 th.sort-th:hover::after{{opacity:1}}
 th.sort-asc::after{{content:"\\2191";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
 th.sort-desc::after{{content:"\\2193";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
+th{{position:sticky;top:0;background:#f0f0f0;z-index:1}}
+tr:hover td{{background:#f6f9fc}}
+.watch-star{{cursor:pointer;border:0;background:none;font-size:15px;color:#b8a03c;padding:0 2px}}
+.watch-star:hover{{color:#d4a017}}
 .timeline-row td{{border-top:none;border-bottom:1px solid #ccc;padding:6px 10px;background:#f5f5f5;font-size:11px;line-height:1.6}}
 
 /* Inline map at bottom of page */
@@ -1006,6 +1243,7 @@ function sortTable(tableId, colIdx) {{
 </script>
 {flat_market_html}
 {flat_budget_script}
+{flat_watch_script}
 </head><body>
 <h2>Riga flat deals - {run_time}</h2>
 <p>Districts: {', '.join(config.DISTRICTS.keys())} &middot; Sources:
@@ -1128,11 +1366,12 @@ function showOnMap(markerId) {{
 
 def save_digest(main_deals, still_active, comparison_html, status_note,
                 price_data=None, map_markers=None, newest_html="",
-                near_school_html="", auctions_html="", all_scored=None):
+                near_school_html="", auctions_html="", all_scored=None,
+                all_listings=None):
     """Build today's digest and write it to data/digests/. Returns (path, info)."""
     html = build_html(main_deals, still_active, comparison_html, status_note,
                       price_data, map_markers, newest_html,
-                      near_school_html, auctions_html, all_scored)
+                      near_school_html, auctions_html, all_scored, all_listings)
     today = date.today().isoformat()
     os.makedirs(config.DIGEST_DIR, exist_ok=True)
     digest_path = os.path.join(config.DIGEST_DIR, f"digest_{today}.html")

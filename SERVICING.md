@@ -2,6 +2,30 @@
 
 Living document. Updated after each Devin session. Read this first.
 
+## Session 2026-09-30 #2 — watchlist stars on both tabs
+
+- Every deal row (cars: default table + custom-budget view; flats: top
+  deals, still-active, near-school, custom-budget view) now has a ☆/★
+  button. Clicking pins the listing to a collapsible "★ Watchlist (N)"
+  box under the budget tool — stored in localStorage only
+  (watch_cars_v1 / watch_flats_v1 keys), keyed by source:id, snapshotting
+  label+price+url at star time. A watched listing absent from today's
+  embedded data shows "NO LONGER LISTED — sold or expired" (red) with
+  its last-seen price; present ones show today's price + still listed.
+  ✕ removes an entry. Nothing leaves the browser.
+- _FLAT_FIELDS gained "id" (needed for the flat watch key); the flat
+  embed now also guards url to https:// only (was raw — pre-existing
+  looseness fixed while passing).
+- Micro-polish: sticky table headers (th position:sticky) + row hover
+  on both tabs.
+- JS hooks: CAR_WATCH_JS / FLAT_WATCH_JS constants; the budget re-render
+  calls window.__carWatchRefresh/__flatWatchRefresh after rebuilding the
+  custom table so fresh rows get correct star states. Both init on
+  DOMContentLoaded like the budget tool.
+- Tests: 57 pass incl. a Node run driving the real embedded JS through
+  stub localStorage + click delegation (star live row + missing row,
+  verifies stored keys, count, rendered rows).
+
 ## Session 2026-09-30 — SS.com ConnectTimeout in CI + nav-injection fix
 
 - SYMPTOM: Flats tab showed the stale-digest banner; Cars tab showed
