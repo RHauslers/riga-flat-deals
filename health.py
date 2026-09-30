@@ -13,14 +13,19 @@ Detected conditions:
   - source_zero:<src> : one source returned 0 while another returned > 0
                         (that source's parser is very likely broken)
   - low_volume        : total below MIN_EXPECTED_LISTINGS (but not zero)
+  - geocode_coverage  : too few listings got coordinates — the geocoder's
+                        address normalisation is probably out of step with
+                        the source's street text (2026-09-30: 13% of SS.com
+                        flats silently had no position for weeks)
 """
 import config
 
 
-def evaluate(source_counts, total):
+def evaluate(source_counts, total, geocoded=None):
     """Return a list of (issue_key, human_message) for detected problems.
 
     source_counts: dict like {"ss.com": 4, "city24.lv": 29}
+    geocoded: optional (n_with_coords, n_total) from geocode.coverage()
     """
     issues = []
 
@@ -50,12 +55,24 @@ def evaluate(source_counts, total):
             f"minimum of {config.MIN_EXPECTED_LISTINGS}. This may be a quiet "
             f"day, or a parser may be partially broken. Counts: {source_counts}"))
 
+    if geocoded and geocoded[1] > 0:
+        n_ok, n_all = geocoded
+        pct = 100.0 * n_ok / n_all
+        if pct < config.GEOCODE_MIN_COVERAGE_PCT:
+            issues.append((
+                "geocode_coverage",
+                f"Only {n_ok}/{n_all} listings ({pct:.0f}%) have coordinates, "
+                f"below the {config.GEOCODE_MIN_COVERAGE_PCT}% floor. Flats "
+                f"without a position are missing from the map and the "
+                f"walking-distance section. Check geocode.address_candidates "
+                f"against the failed keys in data/geocode_cache.json."))
+
     return issues
 
 
-def check(source_counts, total, context="daily"):
+def check(source_counts, total, context="daily", geocoded=None):
     """Evaluate health and print any issues. Returns the list of issue keys."""
-    issues = evaluate(source_counts, total)
+    issues = evaluate(source_counts, total, geocoded)
     for issue_key, message in issues:
         print(f"[health] ISSUE ({context}) {issue_key}: {message}")
     return [k for k, _ in issues]

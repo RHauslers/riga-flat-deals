@@ -135,8 +135,10 @@ def run():
             print(f"[main] auctions: {len(auctions)} in-budget active "
                   f"auction(s) after filters")
 
-    # 1f. Health check -> loud log line if a scraper looks broken
-    health.check(source_counts, len(all_listings), context="daily")
+    # 1f. Health check -> loud log line if a scraper (or the geocoder) looks broken
+    geocoded = geocode.coverage(all_listings) if config.GEOCODE_ENABLED else None
+    health.check(source_counts, len(all_listings), context="daily",
+                 geocoded=geocoded)
 
     car_status = ""
     try:

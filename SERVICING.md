@@ -1,6 +1,96 @@
 # SERVICING — Flat_Searcher
 
+Last updated: 2026-09-30 22:40
+
 Living document. Updated after each Devin session. Read this first.
+
+## Changelog
+
+- 2026-09-30 22:40 — Session #6 (bug hunt): geocoder normalisation fix +
+  failed-lookup cache fix, flat-digest HTML escaping, SHARE badge for
+  co-ownership auctions, geocode coverage health check, '~' approximate
+  distance marker. 102 tests. Details in the session section below.
+- (earlier sessions predate the changelog — see the dated session
+  sections below, newest first)
+
+## Session 2026-09-30 #6 — geocoding bug (13% of flats had no position)
+
+- ROOT CAUSE FOUND: SS.com's English pages render Latvian street names
+  transliterated and abbreviated ("anninmuizhas 20" = Anniņmuižas iela
+  20, "jurmalas g. 82/2" = Jūrmalas gatve 82 k-2, "kurzemes pr. 104a",
+  "m. krūmu 18" = Mazā Krūmu iela, "imantas 16. l. 18" = Imantas 16.
+  līnija, truncated "anninmuizhas stree.."). Nominatim matched none of
+  them: 35 of 273 cached addresses had lat=None. Anniņmuižas/Augšzemes/
+  Apūzes are 0.3–0.7 km from the school, so ~12 walking-distance flats
+  were absent from the map, the "Walking distance" section AND got a
+  neutral proximity score — exactly what Upgrade 11 was built to prevent.
+- SECOND BUG: enrich_coordinates() skipped retries only when
+  cached["tried_today"] == today, a key that was never written — every
+  failed address was re-queried on every run (35 × 1.1 s daily, forever).
+- FIX (geocode.py): address_candidates(addr) -> ordered [(query,
+  precision)]: transliteration sh/zh/ch -> s/z/c (Nominatim accepts
+  ASCII-folded names), abbreviations g./pr./l./b./d. + leading m. -> Mazā,
+  "iela" appended when no street-type word, house-number variants
+  (82/2 -> "82 k-2" -> "82"; 104a -> 104a -> 104), then the bare street
+  as a 'street'-precision fallback. _plausible() rejects hits farther
+  than GEOCODE_MAX_KM_FROM_SCHOOL (15 km) — Nominatim sometimes returns
+  a same-named street in another town. The query no longer includes the
+  canonical district name (it hurt more than helped). Cache entries now
+  carry "precision"; misses are retried after GEOCODE_RETRY_FAILED_DAYS
+  (30). Listings get geo_precision ('house'|'street'); street-level ones
+  render distance as "~0.4 km" with a note, and the map popup says
+  "street-level position".
+- helper_scripts/regeocode_failed.py re-ran the fixed geocoder over the
+  35 misses: 33 resolved (30 house-level, 3 street-level, 32 on the FIRST
+  candidate). The 2 leftovers were izsoles keys with the "1/2 domājamā
+  daļa no" prefix — obsolete now (see SHARE below), deleted from cache.
+  Cache: 271 entries, 0 misses.
+- health.py: new geocode_coverage issue when < GEOCODE_MIN_COVERAGE_PCT
+  (85%) of listings have coordinates (main passes geocode.coverage()).
+- SECURITY HARDENING (notifier.py): the flat digest interpolated
+  district/street/floor/title/rooms/area and the ad url RAW into HTML in
+  _main_row_html, _still_row_html, build_newest_html,
+  build_near_school_html and build_auctions_html (the car digest and the
+  budget embed were already escaped). Now: _t() html-escapes every
+  scraped value; _source_link() uses utils.safe_url() (https:// only,
+  no quotes/angle brackets) — a non-https url renders the source name
+  without a link. geocode.get_map_data popups are escaped the same way
+  and the marker JSON is "</"-escaped like the budget embed.
+- NEW: co-ownership auctions. izsoles titles like "1/2 domājamā daļa no
+  Višķu iela 11 - 5" sell only a FRACTION of a flat. izsoles.
+  parse_ownership_share() -> listing["ownership_share"] ("1/2",
+  "186/1000"; None = whole flat) and strips the prefix so the address
+  geocodes. Auctions table shows a red "SHARE 1/2 — co-ownership, not a
+  whole flat" badge; near-school rows and map popups flag it too.
+- Housekeeping: deleted stray root files `nul` (Git-Bash 2>NUL artifact)
+  and `%TEMP%cars_live.html` (1.2 MB probe dump). helper_scripts/ created
+  (global rule 9).
+- Tests: 102 (86 + 16 new in tests/test_flats_pipeline.py: candidate
+  generation, fallback order + precision, far-hit rejection, cache retry
+  policy, coverage/health, row/popup escaping + allow-list, SHARE badge,
+  share parsing).
+- GOTCHA found during verification: a truncated type word must be
+  resolved, not dropped. "anninmuizhas boule.." first became
+  "anninmuizas iela" (0.42 km) but the flats are on Anniņmuižas
+  BULVĀRIS — a different street 1.09 km away (verified live). Now
+  geocode._TRUNCATED_TYPES prefix-matches "boule"->bulvāris,
+  "stree"->iela, "pros"->prospekts etc. Six Imanta flats moved from a
+  wrong 0.42 km to ~1.09 km (street-level) — correctly OUTSIDE the 1 km
+  walking radius.
+- Verification: flat-only main.run() (cars.run stubbed) regenerated
+  digest_2026-09-30: 136 listings, 0 without coordinates (was 87%
+  coverage), walking-distance section 23 -> 28 flats within 1 km (new:
+  Anniņmuižas 4/5/6/7/13/20, Augšzemes 5 at 0.30 km, Apūzes 51a, Imantas
+  16. līnija 18 ...), 165 map markers (was 149). Same-day rerun side
+  effect as in earlier sessions: last_digest date = today, so the
+  "still active from yesterday" split is against the morning run.
+- KNOWN/NEXT: (1) the first CI run after this change will spend a few
+  extra Nominatim calls on any not-yet-cached addresses (1–3 requests
+  each) — normal. (2) If SS.com changes its transliteration again, the
+  geocode_coverage health line is the early warning; add the pattern to
+  geocode._ABBREVIATIONS/_TRANSLIT and re-run helper_scripts/
+  regeocode_failed.py. (3) Watch the "~" count in the near-school header
+  — if it grows, house numbers stopped resolving.
 
 ## Session 2026-09-30 #5 — scrape-all caps removed + Market sub-tabs
 

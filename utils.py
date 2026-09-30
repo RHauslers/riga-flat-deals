@@ -27,6 +27,16 @@ def match_district(raw_name):
     return None
 
 
+def safe_url(url):
+    """Return url only if it is an absolute https:// link, else ''.
+
+    Scraped hrefs end up in the public digest; anything that is not plain
+    https (javascript:, data:, relative junk) is dropped rather than rendered.
+    """
+    u = str(url or "").strip()
+    return u if re.match(r"^https://[^\s'\"<>]+$", u) else ""
+
+
 def slugify(text):
     """'Krišjāņa Valdemāra iela' -> 'krisjana-valdemara-iela'."""
     s = strip_diacritics(text or "").lower()

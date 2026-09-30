@@ -17,6 +17,7 @@ from html import escape as _esc
 
 import config
 import price_history
+from utils import safe_url
 
 try:
     from zoneinfo import ZoneInfo
@@ -100,12 +101,28 @@ def _change_sort_val(change_pct):
 NUM_COLS = 12
 
 
-def _fmt_distance(listing):
-    """'0.8 km' for sale listings with coords, '-' otherwise."""
+def _fmt_distance(listing, digits=1):
+    """'0.8 km' for sale listings with coords, '-' otherwise. A leading '~'
+    marks street-level geocodes (house number unresolved) as approximate."""
     km = listing.get("_school_km")
     if km is None or listing.get("deal_type") != "sale":
         return "-"
-    return f"{km:.1f} km"
+    approx = "~" if listing.get("geo_precision") == "street" else ""
+    return f"{approx}{km:.{digits}f} km"
+
+
+def _t(v):
+    """Escape scraped text for HTML (None -> '')."""
+    return _esc(str(v if v is not None else ""), quote=True)
+
+
+def _source_link(listing, extra=""):
+    """<a href=...>source</a> with an https-only allow-list on the href."""
+    url = safe_url(listing.get("url"))
+    src = _t(listing.get("source", ""))
+    if not url:
+        return f"{src}{extra}"
+    return f"<a href='{_t(url)}' rel='noopener noreferrer'>{src}</a>{extra}"
 
 
 def _main_row_html(item, price_data=None, row_idx=0):
@@ -146,18 +163,18 @@ def _main_row_html(item, price_data=None, row_idx=0):
 
     return (
         f"<tr{zebra}>"
-        f"<td>{listing.get('district','')}</td>"
+        f"<td>{_t(listing.get('district',''))}</td>"
         f"<td style='text-align:right;font-size:12px' data-sort='{dist_sort}'>{dist_str}</td>"
-        f"<td style='text-align:right' data-sort='{listing.get('rooms',0) or 0}'>{listing.get('rooms','')}</td>"
-        f"<td style='text-align:right' data-sort='{listing.get('area_m2',0) or 0}'>{listing.get('area_m2','')}</td>"
-        f"<td style='text-align:right'>{listing.get('floor','')}</td>"
+        f"<td style='text-align:right' data-sort='{listing.get('rooms',0) or 0}'>{_t(listing.get('rooms',''))}</td>"
+        f"<td style='text-align:right' data-sort='{listing.get('area_m2',0) or 0}'>{_t(listing.get('area_m2',''))}</td>"
+        f"<td style='text-align:right'>{_t(listing.get('floor',''))}</td>"
         f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'), listing.get('price_unit'))}</td>"
         f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
         f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
         f"<td>{_badge_html(badge, detail)}</td>"
         f"<td style='text-align:right;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
-        f"<td>{_watch_star(listing)}<a href='{listing.get('url','')}'>{listing.get('source','')}</a>{map_link}</td>"
+        f"<td>{_watch_star(listing)}{_source_link(listing, map_link)}</td>"
         "</tr>"
         f"{timeline_row}"
     )
@@ -200,17 +217,17 @@ def _still_row_html(item, price_data=None, row_idx=0):
 
     return (
         f"<tr{zebra}>"
-        f"<td>{listing.get('district','')}</td>"
+        f"<td>{_t(listing.get('district',''))}</td>"
         f"<td style='text-align:right;font-size:12px' data-sort='{dist_sort}'>{dist_str}</td>"
-        f"<td style='text-align:right' data-sort='{listing.get('rooms',0) or 0}'>{listing.get('rooms','')}</td>"
-        f"<td style='text-align:right' data-sort='{listing.get('area_m2',0) or 0}'>{listing.get('area_m2','')}</td>"
-        f"<td style='text-align:right'>{listing.get('floor','')}</td>"
+        f"<td style='text-align:right' data-sort='{listing.get('rooms',0) or 0}'>{_t(listing.get('rooms',''))}</td>"
+        f"<td style='text-align:right' data-sort='{listing.get('area_m2',0) or 0}'>{_t(listing.get('area_m2',''))}</td>"
+        f"<td style='text-align:right'>{_t(listing.get('floor',''))}</td>"
         f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'), listing.get('price_unit'))}</td>"
         f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
         f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
         f"<td style='text-align:right;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
-        f"<td>{_watch_star(listing)}<a href='{listing.get('url','')}'>{listing.get('source','')}</a>{map_link}</td>"
+        f"<td>{_watch_star(listing)}{_source_link(listing, map_link)}</td>"
         "</tr>"
         f"{timeline_row}"
     )
@@ -399,14 +416,13 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
     rows = []
     for idx, (listing, score, method, badge, detail) in enumerate(new_items):
         score_str = f"{score:+.2f}" if score is not None else "-"
-        district = listing.get('district', '?')
-        rooms = listing.get('rooms', '?')
-        area = listing.get('area_m2', '?')
-        floor = listing.get('floor', '?')
+        district = _t(listing.get('district', '?'))
+        rooms = _t(listing.get('rooms', '?'))
+        area = _t(listing.get('area_m2', '?'))
+        floor = _t(listing.get('floor', '?'))
         price_str = _fmt_price(listing.get('price_eur'), listing.get('price_unit'))
         ppu_str = _fmt_ppu(listing.get('price_per_m2'))
-        deal_type = listing.get('deal_type', '?')
-        url = listing.get('url', '')
+        deal_type = _t(listing.get('deal_type', '?'))
         source = listing.get('source', '')
 
         # "map" link if coordinates available
@@ -427,7 +443,7 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
             f"<td style='text-align:right;font-weight:bold'>{price_str}</td>"
             f"<td style='text-align:right'>{ppu_str}</td>"
             f"<td style='text-align:right'>{deal_type}</td>"
-            f"<td><a href='{url}'>{source}</a>{map_link}</td>"
+            f"<td>{_source_link(listing, map_link)}</td>"
             '</tr>'
         )
 
@@ -508,23 +524,32 @@ def build_near_school_html(all_listings):
                         f"return false\" style=\"font-size:11px;color:#1a5276\">map</a>")
 
         zebra = ' style="background:#fafafa"' if idx % 2 else ''
+        share = ""
+        if l.get("ownership_share"):
+            share = (f" <b style='color:#c0392b;font-size:11px' "
+                     f"title='Co-ownership share, not a whole flat'>"
+                     f"SHARE {_t(l['ownership_share'])}</b>")
         rows.append(
             f'<tr{zebra}>'
-            f"<td style='text-align:right;font-weight:bold' data-sort='{km:.3f}'>{km:.2f} km</td>"
-            f"<td>{l.get('district','')}</td>"
-            f"<td style='font-size:12px'>{l.get('street','')}</td>"
-            f"<td style='text-align:right' data-sort='{l.get('rooms',0) or 0}'>{l.get('rooms','')}</td>"
-            f"<td style='text-align:right' data-sort='{l.get('area_m2',0) or 0}'>{l.get('area_m2','')}</td>"
-            f"<td style='text-align:right'>{l.get('floor','')}</td>"
+            f"<td style='text-align:right;font-weight:bold' data-sort='{km:.3f}'>{_fmt_distance(l, 2)}</td>"
+            f"<td>{_t(l.get('district',''))}</td>"
+            f"<td style='font-size:12px'>{_t(l.get('street',''))}{share}</td>"
+            f"<td style='text-align:right' data-sort='{l.get('rooms',0) or 0}'>{_t(l.get('rooms',''))}</td>"
+            f"<td style='text-align:right' data-sort='{l.get('area_m2',0) or 0}'>{_t(l.get('area_m2',''))}</td>"
+            f"<td style='text-align:right'>{_t(l.get('floor',''))}</td>"
             f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(l.get('price_eur'), l.get('price_unit'))}</td>"
             f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(l.get('price_per_m2'))}</td>"
             f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
-            f"<td>{_watch_star(l)}<a href='{l.get('url','')}'>{source}</a>{map_link}</td>"
+            f"<td>{_watch_star(l)}{_source_link(l, map_link)}</td>"
             '</tr>'
         )
 
     rows_html = "".join(rows)
     n = len(near)
+    n_approx = sum(1 for l in near if l.get("geo_precision") == "street")
+    approx_note = (f' <span style="color:#999;font-size:11px">'
+                   f'(~ = street-level position, house number not resolved; '
+                   f'{n_approx} such)</span>') if n_approx else ''
     more_note = (f' <span style="color:#999;font-size:11px">'
                  f'(+{hidden} more within {radius:.0f} km)</span>') if hidden else ''
     tid = "tbl_near_school"
@@ -532,7 +557,7 @@ def build_near_school_html(all_listings):
         '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
         'padding:16px;margin:16px 0">'
         '<h3 style="color:#1a5276;border:none;margin:0 0 8px 0">'
-        f'Walking distance to school ({n} within {radius:.0f} km){more_note}</h3>'
+        f'Walking distance to school ({n} within {radius:.0f} km){more_note}{approx_note}</h3>'
         '<p style="color:#666;font-size:12px;margin:0 0 10px 0">'
         'Every in-budget listing within walking distance of '
         f'{config.SCHOOL_NAME}, closest first. A flat here is fairly priced '
@@ -592,8 +617,15 @@ def build_auctions_html(auctions, top_n=15):
     rows = []
     for idx, a in enumerate(shown):
         km = a.get("_school_km")
-        dist = f"{km:.2f} km" if km is not None else "-"
+        dist = _fmt_distance(a, 2) if km is not None else "-"
         dist_sort = km if km is not None else 9999
+        share_badge = ""
+        if a.get("ownership_share"):
+            share_badge = (
+                f"<br><b style='color:#c0392b;font-size:11px' "
+                f"title='Only a co-ownership share of the flat is auctioned, "
+                f"not the whole flat'>SHARE {_t(a['ownership_share'])} "
+                f"&mdash; co-ownership, not a whole flat</b>")
         rooms = a.get("rooms")
         rooms_disp = rooms if rooms is not None else "?"
         area = a.get("area_m2")
@@ -618,14 +650,14 @@ def build_auctions_html(auctions, top_n=15):
         rows.append(
             f'<tr{zebra}>'
             f"<td style='text-align:right;font-weight:bold' data-sort='{dist_sort:.3f}'>{dist}</td>"
-            f"<td style='font-size:12px'>{a.get('title','')}</td>"
+            f"<td style='font-size:12px'>{_t(a.get('title',''))}{share_badge}</td>"
             f"<td style='text-align:right' data-sort='{rooms if rooms is not None else 0}'>{rooms_disp}</td>"
             f"<td style='text-align:right' data-sort='{area if area is not None else 0}'>{area_disp}</td>"
             f"<td style='text-align:right' data-sort='{sp or 0}'>{sp_disp}</td>"
             f"<td style='text-align:right;{cb_style}' data-sort='{cb or 0}'>{cb_disp}</td>"
             f"<td style='text-align:right' data-sort='{ap or 0}'>{ap_disp}</td>"
-            f"<td style='text-align:right;font-size:12px'>{end}</td>"
-            f"<td><a href='{a.get('url','')}'>izsoles.ta.gov.lv</a>{map_link}</td>"
+            f"<td style='text-align:right;font-size:12px'>{_t(end)}</td>"
+            f"<td>{_source_link(a, map_link)}</td>"
             '</tr>'
         )
 
@@ -646,7 +678,10 @@ def build_auctions_html(auctions, top_n=15):
         'from a regular sale: you must register on the site, pay a deposit, '
         'and bid before the end date. Prices shown: start price and current '
         'bid. Sorted by distance to '
-        f'{config.SCHOOL_NAME}. Always read the full auction terms.</p>'
+        f'{config.SCHOOL_NAME}. Always read the full auction terms. '
+        '<b style="color:#c0392b">SHARE</b> rows auction only a co-ownership '
+        'fraction (dom&#257;jam&#257; da&#316;a) of a flat &mdash; you would '
+        'own it jointly with the other co-owners, not get a whole flat.</p>'
         f"<table id='{tid}' style='border-collapse:collapse;width:100%;font-size:14px' "
         f"data-sortable='1'>"
         f"<tr style='background:#f0f0f0'>"
@@ -1378,7 +1413,8 @@ def _build_map_html(markers):
             "school": is_school,
         })
 
-    js_data = _json.dumps(js_markers, ensure_ascii=False)
+    # '</' -> '<\/' so a popup string can never terminate the <script> tag
+    js_data = _json.dumps(js_markers, ensure_ascii=False).replace("</", "<\\/")
     n_markers = len(js_markers)
 
     return f"""

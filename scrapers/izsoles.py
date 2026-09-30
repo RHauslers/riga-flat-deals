@@ -194,6 +194,10 @@ def _parse_detail(html, url, title):
     # Title is "Street House - Apt, Rīga" — split off the city, and a
     # building-level street (no apartment number) for geocoding.
     street_full = re.sub(r",\s*Rīga.*$", "", title).strip()
+    # Co-ownership auctions are titled "1/2 domājamā daļa no <address>" /
+    # "186/1000 dom. daļas no <address>": only a FRACTION of the flat is
+    # sold. Record the share (the digest flags it) and geocode the address.
+    share, street_full = parse_ownership_share(street_full)
     street_geo = re.sub(r"\s*-\s*\d+\s*$", "", street_full).strip()
 
     # The realistic price today is the current bid, or the starting
@@ -229,7 +233,23 @@ def _parse_detail(html, url, title):
         "auction_deposit": deposit,
         "auction_end": end_date,
         "auction_register_until": reg_until,
+        "ownership_share": share,   # e.g. "1/2"; None = whole flat
     }
+
+
+_SHARE_RE = re.compile(
+    r"^\s*(\d+\s*/\s*\d+)\s*dom(?:ājam(?:ā|ās|o)|\.)\s*daļ\w*\s+(?:no\s+)?",
+    re.I)
+
+
+def parse_ownership_share(text):
+    """('1/2', 'Višķu iela 11 - 5') from '1/2 domājamā daļa no Višķu iela
+    11 - 5'; (None, text) when the title names a whole property."""
+    m = _SHARE_RE.match(text or "")
+    if not m:
+        return None, (text or "").strip()
+    share = re.sub(r"\s+", "", m.group(1))
+    return share, text[m.end():].strip()
 
 
 def scrape():

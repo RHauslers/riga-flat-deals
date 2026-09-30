@@ -236,6 +236,17 @@ CENU_REFRESH_DAYS = 7       # re-fetch CenuMednieks data weekly (not daily)
 # ----------------------------------------------------------------------------
 GEOCODE_ENABLED = True
 MAP_ENABLED = True
+# Nominatim sometimes matches a same-named street in another town; every
+# target district lies within ~5 km of the school, so anything farther than
+# this is a wrong hit and is discarded (the listing stays un-geocoded).
+GEOCODE_MAX_KM_FROM_SCHOOL = 15.0
+# A failed lookup is cached and retried only after this many days (SS.com
+# street text is stable; hammering Nominatim daily with the same miss is
+# pointless). 2026-09-30: failures used to be retried EVERY run.
+GEOCODE_RETRY_FAILED_DAYS = 30
+# Health check: below this share of listings with coordinates the geocoder
+# is probably broken (a parser/transliteration change), not the data.
+GEOCODE_MIN_COVERAGE_PCT = 85
 
 # ----------------------------------------------------------------------------
 # 6. DIGEST / SITE settings (website only — nothing is emailed)

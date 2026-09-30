@@ -45,28 +45,33 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:zolitude:anninmuizhas 20": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9428044,
+    "lon": 24.0172292,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:zolitude:anninmuizhas 5": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9477821,
+    "lon": 24.0121091,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:zolitude:augshzemes 5": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9441429,
+    "lon": 24.0235054,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:zolitude:anninmuizhas 13": {
-    "lat": null,
-    "lon": null,
+    "lat": 56.9456796,
+    "lon": 24.0146746,
+    "precision": "house",
     "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:anninmuizhas boule..": {
-    "lat": null,
-    "lon": null,
+    "lat": 56.9538644,
+    "lon": 24.0090109,
+    "precision": "street",
     "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:dammes 1": {
@@ -200,9 +205,10 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:zolitude:irlavas 5": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9387299,
+    "lon": 24.0387245,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:zolitude:biezina 11": {
     "lat": 56.9464473,
@@ -210,9 +216,10 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:zolitude:anninmuizhas 7": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9466564,
+    "lon": 24.013012,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:zolitude:biezina 7": {
     "lat": 56.9452046,
@@ -275,9 +282,10 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:imanta:jurmalas g. 82/2": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9523931,
+    "lon": 24.0064974,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:kurzemes pr. 36": {
     "lat": 56.9606942,
@@ -305,8 +313,9 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:imanta:kurzemes pr. 104a": {
-    "lat": null,
-    "lon": null,
+    "lat": 56.9669578,
+    "lon": 24.0110746,
+    "precision": "house",
     "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:akaciju 2f": {
@@ -335,14 +344,16 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:imanta:anninmuizhas stree..": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.943615,
+    "lon": 24.0160481,
+    "precision": "street",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:jurmalas g. 74a": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.95171,
+    "lon": 24.0207242,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:kurzemes pr. 118": {
     "lat": 56.9607965,
@@ -350,9 +361,10 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:imanta:jurmalas g. 113b": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9540091,
+    "lon": 23.9895438,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:kleistu 777": {
     "lat": 56.9643447,
@@ -400,14 +412,16 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:sampeteris:astras 10a": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9303358,
+    "lon": 24.0522966,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:sampeteris:spares 6": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9286663,
+    "lon": 24.0506402,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:sampeteris:kalnciema 106": {
     "lat": 56.9361486,
@@ -415,9 +429,10 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:sampeteris:spares 3": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9289514,
+    "lon": 24.0512294,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:sampeteris:lielirbes 15": {
     "lat": 56.9365874,
@@ -520,9 +535,10 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:zolitude:anninmuizhas 4": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-15"
+    "lat": 56.9468389,
+    "lon": 24.0098328,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:zolitude:rostokas 42": {
     "lat": 56.9479237,
@@ -545,8 +561,9 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:zolitude:imantas 16. l. 18": {
-    "lat": null,
-    "lon": null,
+    "lat": 56.9442858,
+    "lon": 24.00834,
+    "precision": "house",
     "fetched_at": "2026-09-30"
   },
   "ss.com:zolitude:apuzes 41": {
@@ -565,9 +582,10 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:sampeteris:apuzes 51a": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9419923,
+    "lon": 24.0207159,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:sampeteris:zalves 35": {
     "lat": 56.9379586,
@@ -585,9 +603,10 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:sampeteris:shampetera 23": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-14"
+    "lat": 56.9395886,
+    "lon": 24.0317402,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:sampeteris:stendes 10": {
     "lat": 56.9403708,
@@ -605,9 +624,10 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:sampeteris:apuzes 41": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9395614,
+    "lon": 24.0231046,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:sampeteris:irlavas 4": {
     "lat": 56.9372373,
@@ -680,14 +700,16 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:imanta:jurmalas g. 82k1": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9526366,
+    "lon": 24.00715,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:kurzemes pr. 108a": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9674611,
+    "lon": 24.0102914,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:dammes 29": {
     "lat": 56.9650765,
@@ -695,8 +717,9 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:imanta:m. krūmu 18": {
-    "lat": null,
-    "lon": null,
+    "lat": 56.9612923,
+    "lon": 24.0039879,
+    "precision": "house",
     "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:kleistu 21": {
@@ -710,9 +733,10 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:imanta:m. krūmu 9": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-12"
+    "lat": 56.9586382,
+    "lon": 24.0046672,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:jurmalas g. 101": {
     "lat": 56.9533673,
@@ -725,8 +749,9 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:imanta:m. krūmu 10": {
-    "lat": null,
-    "lon": null,
+    "lat": 56.9592459,
+    "lon": 24.0038893,
+    "precision": "house",
     "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:rigondas g. 3": {
@@ -805,8 +830,9 @@
     "fetched_at": "2026-09-05"
   },
   "ss.com:imanta:m. krūmu 20": {
-    "lat": null,
-    "lon": null,
+    "lat": 56.961089,
+    "lon": 24.0050754,
+    "precision": "house",
     "fetched_at": "2026-09-30"
   },
   "ss.com:zolitude:rostokas 20": {
@@ -855,9 +881,10 @@
     "fetched_at": "2026-09-07"
   },
   "ss.com:sampeteris:apuzes 28": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9368358,
+    "lon": 24.0257576,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:zentenes 4": {
     "lat": 56.9592885,
@@ -900,9 +927,10 @@
     "fetched_at": "2026-09-08"
   },
   "ss.com:sampeteris:kauguru 7": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-10"
+    "lat": 56.9365552,
+    "lon": 24.0504806,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:sampeteris:volguntes 27a": {
     "lat": 56.9372219,
@@ -910,9 +938,10 @@
     "fetched_at": "2026-09-08"
   },
   "ss.com:imanta:jurmalas g. 82k2": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9523931,
+    "lon": 24.0064974,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:kleistu 10": {
     "lat": 56.961147,
@@ -920,14 +949,16 @@
     "fetched_at": "2026-09-08"
   },
   "ss.com:imanta:imantas 3. l. c": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-09"
+    "lat": 56.9501703,
+    "lon": 24.0315682,
+    "precision": "street",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:jurmalas g. 1x": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9515822,
+    "lon": 24.0450488,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:sampeteris:stendes 1 k-6": {
     "lat": 56.9403411,
@@ -935,9 +966,10 @@
     "fetched_at": "2026-09-08"
   },
   "ss.com:sampeteris:pleskodales 1a": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-08"
+    "lat": 56.9314105,
+    "lon": 24.0260191,
+    "precision": "house",
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:imantas 3. l. 11": {
     "lat": 56.9527715,
@@ -1154,11 +1186,6 @@
     "lon": 24.0469784,
     "fetched_at": "2026-09-14"
   },
-  "izsoles.ta.gov.lv:riga:1/2 domājamā daļa no višķu iela 11": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-23"
-  },
   "ss.com:imanta:dubultu 20": {
     "lat": 56.9584181,
     "lon": 24.0059629,
@@ -1203,11 +1230,6 @@
     "lat": 56.9576243,
     "lon": 23.9998934,
     "fetched_at": "2026-09-17"
-  },
-  "izsoles.ta.gov.lv:riga:186/1000 dom. daļas no lāčplēša iela 62": {
-    "lat": null,
-    "lon": null,
-    "fetched_at": "2026-09-21"
   },
   "izsoles.ta.gov.lv:riga:vilhelma kreslera iela 1": {
     "lat": 56.9633791,
@@ -1330,8 +1352,9 @@
     "fetched_at": "2026-09-30"
   },
   "ss.com:zolitude:anninmuizhas 6": {
-    "lat": null,
-    "lon": null,
+    "lat": 56.9464214,
+    "lon": 24.0102396,
+    "precision": "house",
     "fetched_at": "2026-09-30"
   },
   "ss.com:sampeteris:zasulauka 26": {
