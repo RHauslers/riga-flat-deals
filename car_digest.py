@@ -384,8 +384,12 @@ function __carBudgetInit() {
       }
       out.push(item);
     });
-    return out.filter(function (x) { return x.good; }).sort(function (a, b) {
-      return (b.score - a.score) || ((b.savings || 0) - (a.savings || 0)) ||
+    // All matching candidates are returned (not only qualifying ones) —
+    // a filtered view that shows "0 qualifying" without the rest of the
+    // market is misleading: e.g. every Passat at market price.
+    return out.sort(function (a, b) {
+      return ((b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score)) ||
+             ((b.savings || 0) - (a.savings || 0)) ||
              (a.r[idx.price_eur] - b.r[idx.price_eur]);
     });
   }
@@ -460,26 +464,40 @@ function __carBudgetInit() {
     return td;
   }
 
-  function render(qualified, maxPrice, defaultCeiling) {
+  function describeFilters(f) {
+    var parts = [];
+    if (f.make) parts.push('make=' + f.make);
+    if (f.model) parts.push('model ~' + f.model);
+    if (f.fuel) parts.push('fuel=' + f.fuel);
+    if (f.gearbox) parts.push('gearbox=' + f.gearbox);
+    if (f.minYear) parts.push('year ≥' + f.minYear);
+    if (f.maxKm) parts.push('km ≤' + f.maxKm.toLocaleString('en-US'));
+    if (f.minPrice) parts.push('min €' + f.minPrice.toLocaleString('en-US'));
+    return parts.join(', ');
+  }
+
+  function render(items, qualified, maxPrice, defaultCeiling, filters) {
     customView.innerHTML = '';
+    var fdesc = filters ? describeFilters(filters) : '';
     var h2 = document.createElement('h2');
     h2.textContent = (defaultCeiling
       ? 'Within the default €' + maxPrice.toLocaleString('en-US') + ' ceiling'
       : 'Within your €' + maxPrice.toLocaleString('en-US') + ' budget') +
-      ' — ' + qualified.length + ' qualifying deal(s)';
+      (fdesc ? ' · ' + fdesc : '') +
+      ' — ' + qualified.length + ' qualifying deal(s)' +
+      (items.length > qualified.length
+        ? ' of ' + items.length + ' matching' : '');
     customView.appendChild(h2);
     var note = document.createElement('p');
     note.className = 'note';
-    note.textContent = 'Recomputed in your browser from today\\'s market snapshot (' +
-      market.length + ' eligible listings). Same rules as the daily ranking; ' +
-      'filters only choose which cars can be candidates — comparable pools ' +
-      'still cover the whole market. Badges and cross-source links appear ' +
-      'in the default view only.';
+    note.textContent = 'Every matching listing from the market snapshot (' +
+      market.length + ' eligible), scored against its comparable pool — ' +
+      'green score = qualifying deal, “—” = too few comps to appraise. ' +
+      'Badges and cross-source links appear in the default view only.';
     customView.appendChild(note);
-    if (!qualified.length) {
+    if (!items.length) {
       var p = document.createElement('p');
-      p.textContent = 'No listing is at least ' + cfg.goodDiscount +
-        '% (≥€' + cfg.goodSavings + ') below its comparable median within this budget today.';
+      p.textContent = 'No matching listing within this budget today.';
       customView.appendChild(p);
       return;
     }
@@ -500,7 +518,7 @@ function __carBudgetInit() {
       hr.appendChild(th);
     });
     table.appendChild(hr);
-    qualified.forEach(function (item) {
+    items.forEach(function (item) {
       var r = item.r;
       var tr = document.createElement('tr');
       var td = document.createElement('td');
@@ -580,9 +598,12 @@ function __carBudgetInit() {
       }
       tr.appendChild(compsTd);
       tr.appendChild(cell(fmtEur(item.savings), item.savings, true));
-      tr.appendChild(cell(item.discount.toFixed(1) + '%', item.discount, true));
-      var scTd = cell(String(item.score), item.score, false);
+      tr.appendChild(cell(item.discount != null
+        ? item.discount.toFixed(1) + '%' : '—', item.discount, true));
+      var scTd = cell(item.score != null ? String(item.score) : '—',
+        item.score, false);
       scTd.style.fontWeight = 'bold';
+      if (item.good) scTd.style.color = '#1a7a3a';
       tr.appendChild(scTd);
       table.appendChild(tr);
     });
@@ -610,13 +631,17 @@ function __carBudgetInit() {
     if (defaultCeiling) maxPrice = cfg.defaultMax;
     maxPrice = Math.max(cfg.minPrice, Math.min(cfg.compMax, maxPrice));
     var t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-    var qualified = compute(maxPrice, filters);
+    var items = compute(maxPrice, filters);
+    var qualified = items.filter(function (x) { return x.good; });
     var ms = Math.round(((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0));
-    render(qualified, maxPrice, defaultCeiling);
+    render(items, qualified, maxPrice, defaultCeiling, filters);
     defaultView.style.display = 'none';
     customView.style.display = '';
     if (statusEl) {
-      statusEl.textContent = qualified.length + ' deal(s) · recomputed in ' + ms + ' ms';
+      var fdesc = describeFilters(filters);
+      statusEl.textContent = qualified.length + ' deal(s) of ' +
+        items.length + ' matching' + (fdesc ? ' · ' + fdesc : '') +
+        ' · recomputed in ' + ms + ' ms';
     }
   }
 

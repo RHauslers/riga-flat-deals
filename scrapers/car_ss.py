@@ -19,8 +19,11 @@ Row structure (verified):
 Pagination (verified): page 2+ lives at "<list_url>pageN.html"; "?page=N"
 repeats the first page's ads and must not be used.
 """
+import json
+import os
 import re
 import time
+from datetime import date
 
 import requests
 from bs4 import BeautifulSoup
@@ -33,6 +36,7 @@ MAKE_LINK_RE = re.compile(r"^/lv/transport/cars/([a-z0-9-]+)/sell/$")
 NON_MAKE_SLUGS = {"new", "search", "exchange", "sell"}
 AD_HREF_RE = re.compile(r"/transport/cars/([a-z0-9-]+)/([a-z0-9-]+)/[^/]+\.html")
 MODEL_HREF_RE = re.compile(r"/msg/lv/transport/cars/([a-z0-9-]+)/([a-z0-9-]+)/")
+CAT_MODEL_RE = re.compile(r"^/lv/transport/cars/([a-z0-9-]+)/([a-z0-9-]+)/sell/$")
 BUY_TITLE_RE = re.compile(r"^\s*(pērk\w*|pirks\w*|mainu\b|maina\b|maiņ\w*|izīr\w*)", re.I)
 TITLE_LPG_RE = re.compile(
     r"\b(?:benzin\w*\s*(?:\+|/|un)\s*gaz\w*|gaz\w*\s*(?:\+|/|un)\s*benzin\w*|lpg)\b",
@@ -209,12 +213,63 @@ def _row_to_listing(tr):
     }
 
 
-def _scrape_pages(start_url, cap, results, seen_ids, model_counts=None):
+def _load_model_scans():
+    """{make|model: ISO date} — last deep-scan per model."""
+    try:
+        with open(config.CAR_MODEL_SCAN_JSON, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_model_scans(state):
+    path = config.CAR_MODEL_SCAN_JSON
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, separators=(",", ":"))
+    except OSError:
+        pass
+
+
+def _scan_age(key, state):
+    d = state.get(f"{key[0]}|{key[1]}")
+    try:
+        return (date.today() - date.fromisoformat(d)).days if d else 10 ** 6
+    except (ValueError, TypeError):
+        return 10 ** 6
+
+
+def _rank_models(model_counts, candidates, state, cap):
+    """Pick which model pages to deep-scan this run, two tiers:
+
+    stale  — not deep-scanned within CAR_SS_MODEL_RESCAN_DAYS (or never),
+             oldest first. Their backlog ads are unreachable from the
+             make's newest-ads pages, so this is the only coverage they get.
+    fresh  — recently scanned, ranked by today's observed ad volume.
+
+    The make scan already catches every freshly-listed ad, so a deep-scan
+    mainly adds a model's existing backlog — staleness beats volume.
+    """
+    days = config.CAR_SS_MODEL_RESCAN_DAYS
+    stale = [k for k in candidates if _scan_age(k, state) > days]
+    fresh = [k for k in candidates if _scan_age(k, state) <= days]
+    stale.sort(key=lambda k: (state.get(f"{k[0]}|{k[1]}", ""),
+                              -model_counts.get(k, 0), k))
+    fresh.sort(key=lambda k: (-model_counts.get(k, 0), k))
+    return (stale + fresh)[:max(0, cap)]
+
+
+def _scrape_pages(start_url, cap, results, seen_ids, model_counts=None,
+                  sidebar_models=None):
     """Walk at most `cap` list pages starting at start_url. When
     model_counts is given, tally (make, model) URL slugs seen in ad links —
-    used to rank which model pages deserve a deeper scan. Stops as soon as
-    a page adds nothing new: ss.com repeats page 1 for page numbers beyond
-    the last real page, so 'no new ids' means 'end of listings'."""
+    used to rank which model pages deserve a deeper scan. On page 1 the
+    a_category sidebar links are collected into sidebar_models — every
+    model ss.com knows under this make, even with zero ads today. Stops
+    as soon as a page adds nothing new: ss.com repeats page 1 for page
+    numbers beyond the last real page, so 'no new ids' means 'end of
+    listings'."""
     for page_no in range(1, cap + 1):
         url = start_url if page_no == 1 else f"{start_url}page{page_no}.html"
         try:
@@ -229,6 +284,11 @@ def _scrape_pages(start_url, cap, results, seen_ids, model_counts=None):
                 key = (make, model)
                 model_counts[key] = model_counts.get(key, 0) + 1
         soup = BeautifulSoup(html, "lxml")
+        if page_no == 1 and sidebar_models is not None:
+            for a in soup.select("a.a_category[href]"):
+                m = CAT_MODEL_RE.match(a["href"])
+                if m and m.group(2) not in NON_MAKE_SLUGS:
+                    sidebar_models.add((m.group(1), m.group(2)))
         new_on_page = 0
         for tr in soup.select("tr[id^='tr_']"):
             item = _row_to_listing(tr)
@@ -279,24 +339,36 @@ def scrape(max_pages_per_make=None, max_pages_per_model=None, max_models=None):
     results = []
     seen_ids = set()
     model_counts = {}
+    sidebar_models = set()
 
     if cap_make:
         for make in _discover_makes():
             url = f"{config.CAR_SS_BASE}/lv/transport/cars/{make}/sell/"
-            _scrape_pages(url, cap_make, results, seen_ids, model_counts)
+            _scrape_pages(url, cap_make, results, seen_ids, model_counts,
+                          sidebar_models)
 
-    if cap_model and model_counts:
-        ranked = sorted(model_counts.items(),
-                        key=lambda kv: (-kv[1], kv[0]))[:max(0, cap_models)]
-        for (make, model), _count in ranked:
+    if cap_model:
+        # Candidates: models observed in today's ads plus EVERY model in
+        # the make sidebars — the sidebar is how never-before-seen models
+        # enter rotation at all.
+        candidates = set(model_counts) | sidebar_models
+        state = _load_model_scans()
+        ranked = _rank_models(model_counts, candidates, state, cap_models)
+        today = date.today().isoformat()
+        for make, model in ranked:
             url = f"{config.CAR_SS_BASE}/lv/transport/cars/{make}/{model}/sell/"
             _scrape_pages(url, cap_model, results, seen_ids)
-        skipped = len(model_counts) - len(ranked)
+            state[f"{make}|{model}"] = today
+        _save_model_scans(state)
+        skipped = len(candidates) - len(ranked)
         if skipped > 0:
             print(f"[car ss.com] model deep-scan skipped {skipped} "
-                  f"lower-volume model(s) (cap {cap_models})")
+                  f"candidate(s) (cap {cap_models}) — they rotate in "
+                  f"within {config.CAR_SS_MODEL_RESCAN_DAYS} d")
         print(f"[car ss.com] deep-scanned {len(ranked)} model page(s) "
-              f"of {len(model_counts)} observed")
+              f"of {len(candidates)} candidates "
+              f"({len(model_counts)} observed, "
+              f"{len(sidebar_models)} sidebar)")
 
     print(f"[car ss.com] {len(results)} seller listings scraped")
     return results

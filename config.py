@@ -11,6 +11,11 @@ CAR_SS_MAKES_URL = "https://www.ss.com/lv/transport/cars/sell/"
 CAR_SS_MAX_PAGES_PER_MAKE = 2
 CAR_SS_MAX_PAGES_PER_MODEL = 2
 CAR_SS_MAX_MODELS = 200
+# Deep-scan backlog rotation: a model page whose last deep-scan is older
+# than this (or never happened) jumps the deep-scan queue, because its
+# backlog ads are unreachable from the make's newest-ads pages. Fresh
+# ads still arrive via the make scan regardless.
+CAR_SS_MODEL_RESCAN_DAYS = 4
 CAR_SS_REQUEST_DELAY_SECONDS = 1.0
 CAR_PP_LIST_URL = "https://pp.lv/lv/transports-un-tehnika/vieglie-auto/?maxPrice=8%C2%A0000"
 CAR_PP_MAX_PAGES = 12
@@ -282,6 +287,7 @@ CAR_MARKET_SNAPSHOT_JSON = os.path.join(DATA_DIR, "car_market_snapshot.json")
 CAR_MARKET_STATS_JSON = os.path.join(DATA_DIR, "car_market_stats.json")
 CAR_MARKET_HISTORY_JSON = os.path.join(DATA_DIR, "car_market_history.json")
 CAR_MARKET_HISTORY_MAX_POINTS = 120  # days of per-model median kept
+CAR_MODEL_SCAN_JSON = os.path.join(DATA_DIR, "car_model_scans.json")
 FLAT_MARKET_STATS_JSON = os.path.join(DATA_DIR, "flat_market_stats.json")
 PRICE_HISTORY_JSON = os.path.join(DATA_DIR, "price_history.json")
 GEOCODE_CACHE_JSON = os.path.join(DATA_DIR, "geocode_cache.json")

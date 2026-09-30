@@ -131,7 +131,10 @@ class TestSSDiscoveryAndPagination(unittest.TestCase):
             fetched.append(url)
             return pages[url]
 
-        with mock.patch.object(car_ss, "_fetch", side_effect=fake_fetch):
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(config, "CAR_MODEL_SCAN_JSON",
+                               os.path.join(td, "scans.json")), \
+             mock.patch.object(car_ss, "_fetch", side_effect=fake_fetch):
             results = car_ss.scrape(max_pages_per_make=1,
                                     max_pages_per_model=1, max_models=10)
         self.assertIn("https://www.ss.com/lv/transport/cars/volkswagen/passat/sell/",
@@ -162,13 +165,61 @@ class TestSSDiscoveryAndPagination(unittest.TestCase):
             fetched.append(url)
             return pages[url]
 
-        with mock.patch.object(car_ss, "_fetch", side_effect=fake_fetch):
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(config, "CAR_MODEL_SCAN_JSON",
+                               os.path.join(td, "scans.json")), \
+             mock.patch.object(car_ss, "_fetch", side_effect=fake_fetch):
             car_ss.scrape(max_pages_per_make=1, max_pages_per_model=1,
                           max_models=1)
         self.assertIn("https://www.ss.com/lv/transport/cars/volkswagen/golf-5/sell/",
                       fetched)
         self.assertNotIn("https://www.ss.com/lv/transport/cars/volkswagen/polo/sell/",
                          fetched)
+
+    def test_stale_model_jumps_deep_scan_queue(self):
+        """A model never deep-scanned (or scanned > RESCAN_DAYS ago) beats
+        a hot model scanned today — backlog coverage rotates."""
+        state = {"volkswagen|golf-5": date.today().isoformat()}
+        model_counts = {("volkswagen", "golf-5"): 50,
+                        ("volkswagen", "passat-b7"): 1}
+        candidates = set(model_counts)
+        ranked = car_ss._rank_models(model_counts, candidates, state, 1)
+        self.assertEqual(ranked, [("volkswagen", "passat-b7")])
+        # scanned today -> stays fresh; volume wins again
+        state["volkswagen|passat-b7"] = date.today().isoformat()
+        ranked = car_ss._rank_models(model_counts, candidates, state, 1)
+        self.assertEqual(ranked, [("volkswagen", "golf-5")])
+
+    def test_sidebar_models_join_candidates(self):
+        """The a_category sidebar adds never-listed model slugs as
+        deep-scan candidates — that is how quiet models enter rotation."""
+        makes_index = '<a href="/lv/transport/cars/volkswagen/sell/">VW</a>'
+        base = "https://www.ss.com/lv/transport/cars/volkswagen/sell/"
+        sidebar = ('<a href="/lv/transport/cars/volkswagen/passat-b7/sell/"'
+                   ' class="a_category">Passat B7</a>')
+        pages = {
+            config.CAR_SS_MAKES_URL: makes_index,
+            base: f"<table>{_ss_row(1)}{_ss_row(2)}</table>" + sidebar,
+            "https://www.ss.com/lv/transport/cars/volkswagen/passat-b7/sell/":
+                f"<table>{_ss_row(9)}</table>",
+        }
+        fetched = []
+
+        def fake_fetch(url):
+            fetched.append(url)
+            return pages.get(url, "<table></table>")
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(config, "CAR_MODEL_SCAN_JSON",
+                               os.path.join(td, "scans.json")), \
+             mock.patch.object(car_ss, "_fetch", side_effect=fake_fetch):
+            car_ss.scrape(max_pages_per_make=1, max_pages_per_model=1,
+                          max_models=5)
+            self.assertIn(
+                "https://www.ss.com/lv/transport/cars/volkswagen/passat-b7/sell/",
+                fetched)
+            state = json.load(open(os.path.join(td, "scans.json")))
+            self.assertIn("volkswagen|passat-b7", state)
 
 
 class TestSSParsing(unittest.TestCase):
@@ -867,7 +918,8 @@ class TestBudgetTool(unittest.TestCase):
             "var wiring = {children: elements['car-custom-view'].children.length,\n"
             "  defaultHidden: elements['car-default-view'].style.display,\n"
             "  customShown: elements['car-custom-view'].style.display};\n"
-            "var res = global.window.__carBudget.compute(5000);\n"
+            "var res = global.window.__carBudget.compute(5000)\n"
+            "  .filter(function (x) { return x.good; });\n"
             "console.log(JSON.stringify({wiring: wiring, deals:\n"
             "  res.map(function(x) { return {k: x.r[0] + ':' + x.r[1],\n"
             "    score: x.score, median: x.median, savings: x.savings}; })}));\n"
@@ -1014,15 +1066,21 @@ class TestBudgetTool(unittest.TestCase):
                                  capture_output=True, text=True, timeout=60)
         self.assertEqual(out.returncode, 0, out.stderr)
         res = json.loads(out.stdout.strip())
-        self.assertEqual(set(res["all"]), {"ss.com:c1", "ss.com:c2"})
-        self.assertEqual(res["diesel"], ["ss.com:c1"])
-        self.assertEqual(res["skoda"], ["ss.com:c2"])
-        self.assertEqual(res["auto"], ["ss.com:c2"])
+        dies = {f"pp.lv:d{i}" for i in range(4)}
+        skods = {f"pp.lv:g{i}" for i in range(4)}
+        # compute() now returns every matching candidate, qualified or not —
+        # the two ss.com cars are deals; the 4+4 peers are at market price.
+        self.assertEqual(set(res["all"]),
+                         {"ss.com:c1", "ss.com:c2"} | dies | skods)
+        self.assertEqual(set(res["diesel"]), {"ss.com:c1"} | dies)
+        self.assertEqual(set(res["skoda"]), {"ss.com:c2"} | skods)
+        self.assertEqual(set(res["auto"]), {"ss.com:c2"} | skods)
         self.assertEqual(res["year"], [])
         self.assertEqual(res["km"], [])
-        self.assertEqual(res["mOct"], ["ss.com:c2"])
-        self.assertEqual(res["mPass"], ["ss.com:c1"])
-        self.assertEqual(res["minP"], [])
+        self.assertEqual(set(res["mOct"]), {"ss.com:c2"} | skods)
+        self.assertEqual(set(res["mPass"]), {"ss.com:c1"} | dies)
+        # the 3500 floor drops the two 3000 deals; the peers remain
+        self.assertEqual(set(res["minP"]), dies | skods)
 
     def test_watchlist_ui_present(self):
         html_text = self._build()

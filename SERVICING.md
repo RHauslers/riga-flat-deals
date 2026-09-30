@@ -430,6 +430,29 @@ the daily Actions job has a 25-min timeout including the flat pipeline —
 if it starts timing out, lower CAR_SS_MAX_MODELS or
 CAR_SS_MAX_PAGES_PER_MODEL.
 
+Follow-up 2026-09-30 (cap removal + market sub-tabs + model rotation):
+per the user, price ceilings are now "believable" bounds only. Flats:
+MIN_SALE_PRICE_EUR=5000 floor stays; the €85k exceptional cap is gone
+(removed from main.py's max_price map) — the embed now carries all
+plausible flats and the budget tool searches rows+extra with a dynamic
+ceiling = real data max. Cars: CAR_COMPARABLE_MAX_PRICE_EUR raised to
+€1,000,000 (pure plausibility bound — must be a real number for the
+browser scorer); eligible pool 2,348 → ~4,589 ads; market table covers
+~144 models. Default car view still gates candidates at
+CAR_PRICE_CEILING_EUR=5000 — that is the user's affordability setting,
+NOT a scrape bound. market.html now has Cars/Flats sub-tabs (?m=flats /
+#flats deep-links); each side renders independently when the other's
+stats file is missing. The car custom-budget view now lists ALL matching
+candidates (qualifying deals flagged) and reports "N qualifying of M
+matching" — a model with zero underpriced listings still shows its
+at-market listings instead of a bare 0. scrapers/car_ss.py deep-scan now
+uses a persistent rotation state (data/car_model_scans.json,
+make|model → last-scan ISO date): candidates = observed models + every
+model in the make sidebars; ranking prefers never-scanned/stale models
+(CAR_SS_MODEL_RESCAN_DAYS=4) so mid-volume models like passat-b7 get
+covered on a cycle instead of starving under the volume ranking.
+86 tests pass.
+
 Known caveats: PP coverage = newest 12 pages, SS = newest 2 pages/make plus
 a bounded deep scan of the 200 highest-volume model pages — deliberately
 not exhaustive; the digest says so. Gearbox/body on ss.com are inferred
