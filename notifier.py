@@ -1045,16 +1045,27 @@ function __flatWatchInit() {
       }
       var meta = document.createElement('span');
       meta.style.fontSize = '12px';
+      var delta = null;
       if (cur) {
         meta.style.color = '#777';
         meta.textContent = ' — ' + fmtEur(cur[idx.price_eur]) +
           ' · still listed today';
+        var p0 = Number(w0.price), p1 = Number(cur[idx.price_eur]);
+        if (isFinite(p0) && isFinite(p1) && Math.abs(p1 - p0) >= 1) {
+          delta = document.createElement('span');
+          delta.style.color = p1 < p0 ? '#1a7a3a' : '#c0392b';
+          delta.style.fontWeight = 'bold';
+          delta.style.fontSize = '12px';
+          delta.textContent = ' ' + (p1 < p0 ? '▼' : '▲') + ' ' +
+            fmtEur(Math.abs(p1 - p0)) + ' since starred';
+        }
       } else {
         meta.style.color = '#c0392b';
         meta.textContent = ' — last seen ' + fmtEur(w0.price) +
           ' · NO LONGER LISTED (sold or expired)';
       }
       td.appendChild(meta);
+      if (delta) td.appendChild(delta);
       var since = document.createElement('span');
       since.style.color = '#aaa';
       since.style.fontSize = '11px';
@@ -1161,7 +1172,8 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             "to pin it here — stars are saved in this browser only "
             "(localStorage), never sent anywhere. A watched flat missing "
             "from today's scan shows <b>no longer listed</b> — sold or the "
-            "ad expired (the link may still open briefly).</p></details>"
+            "ad expired (the link may still open briefly). Price moves "
+            "since you starred it show as ▼/▲.</p></details>"
             "<div id='flat-custom-view' style='display:none'></div>")
 
     # Map section (Leaflet.js with OpenStreetMap tiles — free, no API key)

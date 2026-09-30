@@ -23,6 +23,7 @@ from datetime import date, timedelta
 import config
 import car_value
 import car_digest
+import car_market
 from scrapers import car_ss, car_pp
 
 SOURCES = (("ss.com", car_ss), ("pp.lv", car_pp))
@@ -204,6 +205,11 @@ def run():
         if entry:
             l["_first_seen"] = entry.get("first_seen")
             l["_price_hist"] = entry.get("prices") or []
+
+    # Per-model market stats for the Market tab (docs/market.html),
+    # rendered by website.build() from this JSON.
+    car_market.save_stats(car_market.compute_market_stats(deduped, qualified),
+                          today, len(deduped))
 
     html_text = car_digest.build_html(qualified, assessed, source_counts,
                                       source_errors, badges, today,

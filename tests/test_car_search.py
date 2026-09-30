@@ -21,6 +21,7 @@ from bs4 import BeautifulSoup
 import config
 import car_value
 import car_digest
+import car_market
 import cars
 import notifier
 import website
@@ -408,12 +409,16 @@ class _TempPaths(unittest.TestCase):
         self.seen_json = os.path.join(self.tmp.name, "car_seen.json")
         self.snapshot_json = os.path.join(self.tmp.name,
                                           "car_market_snapshot.json")
+        self.stats_json = os.path.join(self.tmp.name,
+                                       "car_market_stats.json")
         os.makedirs(self.digest_dir)
         self._patches = [
             mock.patch.object(config, "DIGEST_DIR", self.digest_dir),
             mock.patch.object(config, "CAR_SEEN_JSON", self.seen_json),
             mock.patch.object(config, "CAR_MARKET_SNAPSHOT_JSON",
                               self.snapshot_json),
+            mock.patch.object(config, "CAR_MARKET_STATS_JSON",
+                              self.stats_json),
         ]
         for p in self._patches:
             p.start()
@@ -618,6 +623,40 @@ class TestWebsiteBuild(_TempPaths):
         self.assertEqual(open(os.path.join(self.digest_dir,
                                            f"digest_{today}.html"),
                               encoding="utf-8").read(), flat)
+
+    def test_market_tab_built_with_nav(self):
+        today = date.today().isoformat()
+        self._write(f"digest_{today}.html",
+                    "<html><body><h1>digest</h1></body></html>")
+        self._write(f"cars_{today}.html",
+                    "<html><body><h1>cars</h1></body></html>")
+        stats_path = os.path.join(self.tmp.name, "stats.json")
+        car_market.save_stats(
+            [{"make": "VW", "model": "Golf", "ads": 4,
+              "median_price": 4000, "min_price": 3000,
+              "min_url": "https://www.ss.com/x", "median_year": 2012.0,
+              "median_km": 200000.0, "deals": 1}],
+            today, 4, path=stats_path)
+        with mock.patch.object(config, "CAR_MARKET_STATS_JSON",
+                               stats_path):
+            website.build()
+        page = open(os.path.join(self.docs_dir, "market.html"),
+                    encoding="utf-8").read()
+        self.assertIn('href="market.html"', page)
+        self.assertIn('aria-current="page"', page)
+        self.assertIn("Golf", page)
+        # the other tabs must link to it too
+        index = open(os.path.join(self.docs_dir, "index.html"),
+                     encoding="utf-8").read()
+        self.assertIn('href="market.html"', index)
+        # missing stats -> placeholder, still navigable
+        with mock.patch.object(config, "CAR_MARKET_STATS_JSON",
+                               os.path.join(self.tmp.name, "none.json")):
+            website.build()
+        page = open(os.path.join(self.docs_dir, "market.html"),
+                    encoding="utf-8").read()
+        self.assertIn("Not generated yet", page)
+        self.assertIn('href="index.html"', page)
 
     def test_yesterday_car_digest_shows_stale_banner(self):
         today = date.today().isoformat()
@@ -1040,7 +1079,10 @@ class TestBudgetTool(unittest.TestCase):
             "console.log(JSON.stringify({\n"
             "  storedKeys: Object.keys(stored).sort(),\n"
             "  count: elements['car-watch-count'].textContent,\n"
-            "  rows: tbl ? tbl.children.length : 0\n"
+            "  rows: tbl ? tbl.children.length : 0,\n"
+            # p1 was starred at data-price 3000 but the embedded market
+            # row carries 4200 -> a "since starred" delta must render.
+            "  delta: txt.indexOf('since starred')\n"
             "}));\n"
         )
         with tempfile.TemporaryDirectory() as tmp:
@@ -1057,6 +1099,7 @@ class TestBudgetTool(unittest.TestCase):
         self.assertEqual(res["storedKeys"], ["pp.lv:p1", "ss.com:gone1"])
         self.assertEqual(res["count"], "(2)")
         self.assertEqual(res["rows"], 2)
+        self.assertGreaterEqual(res["delta"], 0)
 
     def test_flat_budget_tool_embedded(self):
         listing = {"source": "ss.com", "id": "f1", "district": "Zolitude",
@@ -1246,6 +1289,47 @@ class TestBudgetTool(unittest.TestCase):
         res = json.loads(out.stdout.strip())
         self.assertGreaterEqual(res["still"], 0)
         self.assertEqual(res["gone"], -1)
+
+    def test_market_stats_compute_groups_models(self):
+        pool = ([_car("ss.com", f"a{i}", p, make="volkswagen",
+                      model="passat-b7")
+                 for i, p in enumerate([3000, 3500, 4000])]
+                + [_car("pp.lv", "g1", 2500, make="volkswagen",
+                        model="golf-6")]
+                + [_car("ss.com", f"s{i}", p, make="skoda",
+                        model="octavia")
+                   for i, p in enumerate([5000, 5200, 5400, 5600])])
+        stats = car_market.compute_market_stats(pool, [pool[0]])
+        # golf-6 has 1 ad (< CAR_MARKET_MIN_LISTINGS) -> dropped
+        self.assertEqual(len(stats), 2)
+        passat = next(s for s in stats if s["model"] == "passat-b7")
+        octavia = next(s for s in stats if s["model"] == "octavia")
+        self.assertEqual(passat["ads"], 3)
+        self.assertEqual(passat["median_price"], 3500)
+        self.assertEqual(passat["min_price"], 3000)
+        self.assertIn("/x/a0", passat["min_url"])
+        self.assertEqual(passat["deals"], 1)
+        self.assertEqual(octavia["deals"], 0)
+        self.assertEqual(octavia["median_km"], 230000)
+        # passat (1 deal) sorts before octavia (0)
+        self.assertEqual(stats[0]["model"], "passat-b7")
+
+    def test_market_page_render_and_placeholder(self):
+        stats = [{"make": "Volkswagen", "model": "Passat B7", "ads": 5,
+                  "median_price": 4000, "min_price": 3000,
+                  "min_url": "https://www.ss.com/x/a0",
+                  "median_year": 2012.0, "median_km": 230000.0,
+                  "deals": 2}]
+        html_text = car_market.build_market_html(stats, "2026-09-30", 100)
+        self.assertIn("id='car-market'", html_text)
+        self.assertIn("sortTable('car-market'", html_text)
+        self.assertIn("Passat B7", html_text)
+        self.assertIn("https://www.ss.com/x/a0", html_text)
+        self.assertIn("Deals today", html_text)
+        # missing stats file -> placeholder page
+        with tempfile.TemporaryDirectory() as td:
+            html2 = car_market.build_page(os.path.join(td, "none.json"))
+        self.assertIn("Not generated yet", html2)
 
     def test_all_qualifying_header_and_no_relimit(self):
         qualified = [_car("ss.com", f"q{i}", 3000 + i) for i in range(30)]

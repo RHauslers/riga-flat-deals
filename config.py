@@ -48,6 +48,9 @@ CAR_SEEN_TTL_DAYS = 45
 CAR_PRICE_HISTORY_MAX_POINTS = 60  # [date, price] points kept per listing
 CAR_SNAPSHOT_FIELDS = ("source", "id", "make", "model", "year", "mileage_km",
                        "fuel", "engine_l", "gearbox", "body", "price_eur")
+# Market tab (docs/market.html): per-model stats over the whole eligible
+# pool. Models with fewer ads than this are omitted as noise.
+CAR_MARKET_MIN_LISTINGS = 3
 
 # ----------------------------------------------------------------------------
 # 1. TARGET DISTRICTS (Riga, Latvia)
@@ -270,6 +273,7 @@ SEEN_DEALS_JSON = os.path.join(DATA_DIR, "seen_deals.json")
 LAST_DIGEST_JSON = os.path.join(DATA_DIR, "last_digest.json")
 CAR_SEEN_JSON = os.path.join(DATA_DIR, "car_seen.json")
 CAR_MARKET_SNAPSHOT_JSON = os.path.join(DATA_DIR, "car_market_snapshot.json")
+CAR_MARKET_STATS_JSON = os.path.join(DATA_DIR, "car_market_stats.json")
 PRICE_HISTORY_JSON = os.path.join(DATA_DIR, "price_history.json")
 GEOCODE_CACHE_JSON = os.path.join(DATA_DIR, "geocode_cache.json")
 DIGEST_DIR = os.path.join(DATA_DIR, "digests")

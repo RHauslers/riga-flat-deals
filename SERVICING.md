@@ -2,6 +2,27 @@
 
 Living document. Updated after each Devin session. Read this first.
 
+## Session 2026-09-30 #3 — watchlist price deltas + Market tab
+
+- Watchlist entries now flag price movement since starring: a bold
+  green ▼ / red ▲ with the € delta ("▼ €1,200 since starred") appears
+  next to still-listed items whose current price differs from the
+  starred price. Pure JS change in CAR_WATCH_JS / FLAT_WATCH_JS —
+  compares w0.price (snapshot at star time) with today's embedded price.
+- New tab: docs/market.html ("Market"), rendered by website.build()
+  from data/car_market_stats.json, which cars.run() writes each scan
+  via car_market.compute_market_stats(deduped, qualified). Per
+  make+model: ad count, median ask, cheapest ad (link), median year,
+  median km, and how many of today's qualifying deals it has. Models
+  with < CAR_MARKET_MIN_LISTINGS (3) ads are dropped as noise. Sortable
+  columns, same mechanism as the digests. Not archived — a live view.
+- cars.run() now calls car_market.save_stats(...); when the car scan
+  fails entirely stats keep their previous date and website.build()
+  shows the stale banner on the Market tab. Tests patch
+  config.CAR_MARKET_STATS_JSON into the temp dir (added to _TempPaths).
+- Note: today's stats were backfilled from the car digest's embedded
+  market JSON (identical pool) instead of a 4th SS.com scrape.
+
 ## Session 2026-09-30 #2 — watchlist stars on both tabs
 
 - Every deal row (cars: default table + custom-budget view; flats: top

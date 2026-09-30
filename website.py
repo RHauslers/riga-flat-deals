@@ -23,6 +23,7 @@ from datetime import date, timedelta
 from html import escape
 
 import config
+import car_market
 
 
 DOCS_DIR = os.path.join(config.BASE_DIR, "docs")
@@ -92,6 +93,7 @@ def _nav_html(prefix, active):
     style_off = "background:#eaf1f7;color:#1a5276"
     flats_cur = ' aria-current="page"' if active == "flats" else ""
     cars_cur = ' aria-current="page"' if active == "cars" else ""
+    market_cur = ' aria-current="page"' if active == "market" else ""
     return (
         f'<nav class="site-nav" aria-label="Sections" '
         f'style="margin:0 0 16px 0">'
@@ -99,6 +101,8 @@ def _nav_html(prefix, active):
         f'style="{style_base};{style_on if active == "flats" else style_off}">Flats</a>'
         f'<a href="{prefix}cars.html"{cars_cur} '
         f'style="{style_base};{style_on if active == "cars" else style_off}">Cars</a>'
+        f'<a href="{prefix}market.html"{market_cur} '
+        f'style="{style_base};{style_on if active == "market" else style_off}">Market</a>'
         f'<a href="{prefix}archive.html" '
         f'style="{style_base};{style_off}">Archive</a>'
         f'</nav>\n'
@@ -251,6 +255,17 @@ def build():
         with open(os.path.join(DOCS_DIR, "cars.html"), "w",
                   encoding="utf-8") as f:
             f.write(_cars_placeholder_html())
+
+    # Market tab: per-model stats rendered from the JSON cars.run() writes.
+    # Not archived — it is a live view, not a dated digest.
+    market_path = os.path.join(DOCS_DIR, "market.html")
+    with open(market_path, "w", encoding="utf-8") as f:
+        f.write(car_market.build_page())
+    market_stale = ""
+    stats = car_market.load_stats()
+    if stats and stats.get("date") and stats["date"] != today:
+        market_stale = _stale_digest_banner("market", stats["date"], today)
+    _inject_nav(market_path, "market", "", extra_top=market_stale)
 
     _inject_nav(os.path.join(DOCS_DIR, "index.html"), "flats", "",
                 extra_top=flat_stale_banner)

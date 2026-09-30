@@ -363,16 +363,27 @@ function __flatWatchInit() {
       }
       var meta = document.createElement('span');
       meta.style.fontSize = '12px';
+      var delta = null;
       if (cur) {
         meta.style.color = '#777';
         meta.textContent = ' — ' + fmtEur(cur[idx.price_eur]) +
           ' · still listed today';
+        var p0 = Number(w0.price), p1 = Number(cur[idx.price_eur]);
+        if (isFinite(p0) && isFinite(p1) && Math.abs(p1 - p0) >= 1) {
+          delta = document.createElement('span');
+          delta.style.color = p1 < p0 ? '#1a7a3a' : '#c0392b';
+          delta.style.fontWeight = 'bold';
+          delta.style.fontSize = '12px';
+          delta.textContent = ' ' + (p1 < p0 ? '▼' : '▲') + ' ' +
+            fmtEur(Math.abs(p1 - p0)) + ' since starred';
+        }
       } else {
         meta.style.color = '#c0392b';
         meta.textContent = ' — last seen ' + fmtEur(w0.price) +
           ' · NO LONGER LISTED (sold or expired)';
       }
       td.appendChild(meta);
+      if (delta) td.appendChild(delta);
       var since = document.createElement('span');
       since.style.color = '#aaa';
       since.style.fontSize = '11px';
@@ -406,7 +417,7 @@ if (document.readyState === 'loading') {
 }
 </script>
 </head><body>
-<nav class="site-nav" aria-label="Sections" style="margin:0 0 16px 0"><a href="index.html" aria-current="page" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#1a5276;color:#fff;font-weight:bold">Flats</a><a href="cars.html" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#eaf1f7;color:#1a5276">Cars</a><a href="archive.html" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#eaf1f7;color:#1a5276">Archive</a></nav>
+<nav class="site-nav" aria-label="Sections" style="margin:0 0 16px 0"><a href="index.html" aria-current="page" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#1a5276;color:#fff;font-weight:bold">Flats</a><a href="cars.html" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#eaf1f7;color:#1a5276">Cars</a><a href="market.html" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#eaf1f7;color:#1a5276">Market</a><a href="archive.html" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#eaf1f7;color:#1a5276">Archive</a></nav>
 
 <h2>Riga flat deals - 2026-09-30 18:26 (Riga time)</h2>
 <p>Districts: Zolitude, Sampeteris, Imanta &middot; Sources:
