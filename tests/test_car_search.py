@@ -938,7 +938,8 @@ class TestBudgetTool(unittest.TestCase):
     def test_filter_controls_present(self):
         html_text = self._build()
         for el in ("car-filter-make", "car-filter-model", "car-filter-fuel",
-                   "car-filter-gearbox", "car-filter-year", "car-filter-km"):
+                   "car-filter-gearbox", "car-filter-year", "car-filter-km",
+                   "car-filter-min"):
             self.assertIn(f"id='{el}'", html_text)
 
     @unittest.skipUnless(shutil.which("node"), "node not available")
@@ -995,7 +996,9 @@ class TestBudgetTool(unittest.TestCase):
             "  auto: ids(B.compute(5000, {gearbox:'automatic'})),\n"
             # 'Octavia' must match model 'octavia-2' (normalized compare)
             "  mOct: ids(B.compute(5000, {model:'Octavia'})),\n"
-            "  mPass: ids(B.compute(5000, {model:'passat b7'}))\n"
+            "  mPass: ids(B.compute(5000, {model:'passat b7'})),\n"
+            # both candidates cost 3000 -> a 3500 floor empties the result
+            "  minP: ids(B.compute(5000, {minPrice:3500}))\n"
             "}));\n"
         )
         with tempfile.TemporaryDirectory() as tmp:
@@ -1017,6 +1020,7 @@ class TestBudgetTool(unittest.TestCase):
         self.assertEqual(res["km"], [])
         self.assertEqual(res["mOct"], ["ss.com:c2"])
         self.assertEqual(res["mPass"], ["ss.com:c1"])
+        self.assertEqual(res["minP"], [])
 
     def test_watchlist_ui_present(self):
         html_text = self._build()

@@ -7,6 +7,7 @@ run_date) -> str
 """
 import html
 import json
+from collections import Counter
 from datetime import date, datetime
 from urllib.parse import urlparse
 
@@ -261,6 +262,7 @@ function __carBudgetInit() {
   var yearInput = document.getElementById('car-filter-year');
   var kmInput = document.getElementById('car-filter-km');
   var modelInput = document.getElementById('car-filter-model');
+  var minInput = document.getElementById('car-filter-min');
 
   // 'Passat B7' / 'passat-b7' / 'passat b7' must all match: compare on
   // alphanumeric-only lowercase forms.
@@ -315,18 +317,22 @@ function __carBudgetInit() {
       fuel: fuelSel && fuelSel.value ? fuelSel.value : '',
       gearbox: gbSel && gbSel.value ? gbSel.value : '',
       minYear: yearInput ? (parseInt(yearInput.value, 10) || 0) : 0,
-      maxKm: kmInput ? (parseInt(kmInput.value, 10) || 0) : 0
+      maxKm: kmInput ? (parseInt(kmInput.value, 10) || 0) : 0,
+      minPrice: minInput ? (parseInt(minInput.value, 10) || 0) : 0
     };
   }
 
   function anyFilterSet(f) {
-    return !!(f.make || f.model || f.fuel || f.gearbox || f.minYear || f.maxKm);
+    return !!(f.make || f.model || f.fuel || f.gearbox || f.minYear ||
+              f.maxKm || f.minPrice);
   }
 
   function passesFilters(r, f) {
     if (f.make && r[idx.make] !== f.make) return false;
     if (f.model && norm(r[idx.model]).indexOf(norm(f.model)) < 0)
       return false;
+    if (f.minPrice && (r[idx.price_eur] == null ||
+                       r[idx.price_eur] < f.minPrice)) return false;
     if (f.fuel && r[idx.fuel] !== f.fuel) return false;
     if (f.gearbox && r[idx.gearbox] !== f.gearbox) return false;
     if (f.minYear && (r[idx.year] == null || r[idx.year] < f.minYear)) return false;
@@ -625,13 +631,13 @@ function __carBudgetInit() {
   [makeSel, fuelSel, gbSel].forEach(function (el) {
     if (el) el.addEventListener('change', scheduleApply);
   });
-  [yearInput, kmInput, modelInput].forEach(function (el) {
+  [yearInput, kmInput, modelInput, minInput].forEach(function (el) {
     if (el) el.addEventListener('input', scheduleApply);
   });
   var resetBtn = document.getElementById('car-budget-reset');
   if (resetBtn) resetBtn.addEventListener('click', function () {
     input.value = '';
-    [makeSel, fuelSel, gbSel, yearInput, kmInput, modelInput]
+    [makeSel, fuelSel, gbSel, yearInput, kmInput, modelInput, minInput]
       .forEach(function (el) {
         if (el) el.value = '';
       });
@@ -661,6 +667,7 @@ function __carBudgetInit() {
   var urlActive = !!urlMax;
   urlActive = urlSet('make', makeSel) || urlActive;
   urlActive = urlSet('model', modelInput) || urlActive;
+  urlActive = urlSet('min', minInput) || urlActive;
   urlActive = urlSet('fuel', fuelSel) || urlActive;
   urlActive = urlSet('gearbox', gbSel) || urlActive;
   urlActive = urlSet('year', yearInput) || urlActive;
@@ -946,8 +953,16 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             f"Coverage: {coverage}.</p>")
     else:
         rows = "".join(_row(l, badges) for l in qualified)
+        badge_counts = Counter(badges.values())
+        badge_bits = " · ".join(
+            f"{badge_counts[b]} {b.lower()}"
+            for b in ("NEW", "PRICE DROP", "REAPPEARED", "STILL ACTIVE")
+            if badge_counts.get(b))
+        badge_line = (f"<p class='note' style='margin-top:0'>Today: "
+                      f"{badge_bits}.</p>" if badge_bits else "")
         top_html = (
             f"<h2>All qualifying deals ({len(qualified)})</h2>"
+            f"{badge_line}"
             "<p class='note'>Click a column header to sort; click again to "
             "reverse. Ranking below is the default (score, then savings). "
             f"A Comps value with <b style='color:#a08c00'>~</b> means fewer "
@@ -1008,7 +1023,10 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "#b8c4cf;border-radius:4px;width:85px'> "
             "<input type='number' id='car-filter-km' placeholder='max km' "
             "min='0' step='10000' style='padding:5px;border:1px solid "
-            "#b8c4cf;border-radius:4px;width:105px'>"
+            "#b8c4cf;border-radius:4px;width:105px'> "
+            "<input type='number' id='car-filter-min' placeholder='min €' "
+            f"min='{config.CAR_MIN_PRICE_EUR}' step='500' style='padding:5px;"
+            "border:1px solid #b8c4cf;border-radius:4px;width:80px'>"
             "</div>"
             "<p class='note' style='margin:6px 0 0'>Enter a maximum price "
             f"(€{config.CAR_MIN_PRICE_EUR:,}–{config.CAR_COMPARABLE_MAX_PRICE_EUR:,}) "
