@@ -22,6 +22,15 @@ Living document. Updated after each Devin session. Read this first.
   config.CAR_MARKET_STATS_JSON into the temp dir (added to _TempPaths).
 - Note: today's stats were backfilled from the car digest's embedded
   market JSON (identical pool) instead of a 4th SS.com scrape.
+- Later in the same session: model text-filter on Cars (normalized
+  substring match, ?model= URL param); Market make/model cells link into
+  cars.html?make=/\?model= filtered views; min-€ filter (?min=); badge
+  summary line under the deals heading ("Today: N new · M still active");
+  Comps < CAR_THIN_POOL_COMPS (8) rendered amber with "~" + tooltip —
+  120/219 deals today are thin-pool, worth watching whether the marker
+  is too liberal; and tests/test_flats_pipeline.py added — 12 unit tests
+  for classify badge priority + scoring z-score fallback (the flats
+  pipeline's first real coverage). 75 tests total, all passing.
 
 ## Session 2026-09-30 #2 — watchlist stars on both tabs
 
