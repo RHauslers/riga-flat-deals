@@ -16,6 +16,11 @@ CAR_PP_LIST_URL = "https://pp.lv/lv/transports-un-tehnika/vieglie-auto/?maxPrice
 CAR_PP_MAX_PAGES = 12
 CAR_PP_REQUEST_DELAY_SECONDS = 5.0
 CAR_SOURCE_TIMEOUT_SECONDS = 30
+# Transient-network resilience (2026-09-30: an SS.com ConnectTimeout window
+# killed the whole flat scrape from the CI runner). Retries apply ONLY to
+# connection/timeout errors — 403/429 still abort immediately.
+REQUEST_RETRIES = 2            # extra attempts per request on conn errors
+REQUEST_RETRY_DELAY_SECONDS = 10
 CAR_MIN_YEAR = 2005
 CAR_MAX_MILEAGE_KM = 400000
 CAR_HIGH_MILEAGE_WARNING_KM = 300000

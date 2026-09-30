@@ -1,6 +1,17 @@
 {
-  "date": "2026-09-29",
+  "date": "2026-09-30",
   "sale": [
+    {
+      "key": "ss.com:57967069",
+      "score": 1.606376231261337,
+      "price": 73000.0,
+      "district": "Zolitude",
+      "rooms": 3,
+      "area_m2": 82.0,
+      "floor": "4/9",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/ejkcb.html",
+      "source": "ss.com"
+    },
     {
       "key": "ss.com:57421130",
       "score": 1.4369676291708369,
@@ -10,17 +21,6 @@
       "area_m2": 81.0,
       "floor": "7/10",
       "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/bxhkl.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:57967069",
-      "score": 1.4180116861442167,
-      "price": 81000.0,
-      "district": "Zolitude",
-      "rooms": 3,
-      "area_m2": 82.0,
-      "floor": "4/9",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/ejkcb.html",
       "source": "ss.com"
     },
     {
@@ -79,6 +79,17 @@
       "source": "ss.com"
     },
     {
+      "key": "city24.lv:2443318",
+      "score": 0.9419034800499505,
+      "price": 54000.0,
+      "district": "Imanta",
+      "rooms": 2,
+      "area_m2": 50.0,
+      "floor": "6/9",
+      "url": "https://www.city24.lv/real-estate/apartments-for-sale/riga-imanta-maza-krumu-iela/8875425",
+      "source": "city24.lv"
+    },
+    {
       "key": "ss.com:58111109",
       "score": 0.9400575656366285,
       "price": 68000.0,
@@ -90,25 +101,14 @@
       "source": "ss.com"
     },
     {
-      "key": "ss.com:58111894",
-      "score": 0.8198979521675046,
-      "price": 50500.0,
-      "district": "Zolitude",
-      "rooms": 1,
-      "area_m2": 46.0,
-      "floor": "2/9",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/ghngh.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:57843757",
-      "score": 0.8024358592750475,
-      "price": 73000.0,
+      "key": "ss.com:58129094",
+      "score": 0.8495269955543275,
+      "price": 71000.0,
       "district": "Zolitude",
       "rooms": 2,
       "area_m2": 61.0,
       "floor": "3/9",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/afelb.html",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/zolitude/aixof.html",
       "source": "ss.com"
     },
     {
@@ -211,6 +211,17 @@
       "source": "ss.com"
     },
     {
+      "key": "ss.com:58094065",
+      "score": 0.521120422349412,
+      "price": 74000.0,
+      "district": "Imanta",
+      "rooms": 3,
+      "area_m2": 60.0,
+      "floor": "5/5",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/bemobb.html",
+      "source": "ss.com"
+    },
+    {
       "key": "ss.com:57613879",
       "score": 0.5142720936726608,
       "price": 52000.0,
@@ -244,6 +255,17 @@
       "source": "ss.com"
     },
     {
+      "key": "ss.com:58098076",
+      "score": 0.4895037541795939,
+      "price": 51500.0,
+      "district": "Imanta",
+      "rooms": 3,
+      "area_m2": 60.0,
+      "floor": "5/5",
+      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/bdplkh.html",
+      "source": "ss.com"
+    },
+    {
       "key": "ss.com:58054305",
       "score": 0.482101190825317,
       "price": 34000.0,
@@ -252,28 +274,6 @@
       "area_m2": 45.0,
       "floor": "1/2",
       "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/ghilc.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:58043539",
-      "score": 0.46112147096281686,
-      "price": 43000.0,
-      "district": "Sampeteris",
-      "rooms": 1,
-      "area_m2": 33.0,
-      "floor": "5/5",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/shampeteris-pleskodale/elkmf.html",
-      "source": "ss.com"
-    },
-    {
-      "key": "ss.com:58047434",
-      "score": 0.4599346348796629,
-      "price": 48500.0,
-      "district": "Imanta",
-      "rooms": 2,
-      "area_m2": 49.0,
-      "floor": "3/5",
-      "url": "https://www.ss.com/msg/en/real-estate/flats/riga/imanta/achbe.html",
       "source": "ss.com"
     }
   ]

@@ -2,6 +2,35 @@
 
 Living document. Updated after each Devin session. Read this first.
 
+## Session 2026-09-30 — SS.com ConnectTimeout in CI + nav-injection fix
+
+- SYMPTOM: Flats tab showed the stale-digest banner; Cars tab showed
+  "source outage". Cause: SS.com ConnectTimeout (network-level, 30 s
+  connect timeout) from the GitHub Actions runner this morning — the
+  flat scrape yielded 0 listings (city24 also empty) so main() took the
+  "no flat digest rather than a fake one" path and website.build()
+  stamped the stale banner; cars.run() saved a PP.lv-only digest with
+  the outage box. SS.com was reachable locally minutes later — a
+  transient window (or brief filtering of GH/Azure IPs), not a ban.
+- FIX TODAY: full local main.run() regenerated digest_2026-09-30 +
+  cars_2026-09-30 (219 deals, both sources) and pushed.
+- HARDENING: ss_com._fetch and car_ss._fetch now retry connection/
+  timeout errors twice with 10 s backoff (REQUEST_RETRIES /
+  REQUEST_RETRY_DELAY_SECONDS in config.py). 403/429 still abort at
+  once; HTTP errors are never retried.
+- SEPARATE BUG FOUND 09-28 (user report "no tabs"): website._inject_nav
+  regexed the first literal <body> — which also appears inside the
+  budget JS comment in <head> — so nav landed inside the script element
+  and never rendered. _real_body_tag() now skips <script>/<style>/<!--
+  --> regions; JS comments no longer contain the literal. A regression
+  test covers it (test_nav_ignores_body_text_inside_script).
+- Windows gotcha seen this session: `2>NUL` in Git Bash creates a REAL
+  file named NUL which then breaks `git add` (mmap Invalid argument).
+  Use `2>/dev/null` in bash; `2>NUL` is cmd-only.
+- ESP32 question answered: static files could technically be served off
+  one, but the pipeline can't run there and Pages hosting is free —
+  not sensible; any PC/Pi can self-host docs/ if ever wanted.
+
 ## Session 2026-09-28 #3 — car price history + filters
 
 - car_seen.json entries now keep a `prices` trail ([date, price] per ask

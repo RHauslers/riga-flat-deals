@@ -62,22 +62,34 @@ class SourceBlocked(RuntimeError):
 
 
 def _fetch(url):
-    elapsed = time.monotonic() - _last_request_ts[0]
-    wait = max(1.0, config.CAR_SS_REQUEST_DELAY_SECONDS) - elapsed
-    if wait > 0:
-        time.sleep(wait)
-    r = requests.get(
-        url,
-        headers={"User-Agent": config.SS_COM_USER_AGENT,
-                 "Accept-Language": "lv,en;q=0.8"},
-        timeout=config.CAR_SOURCE_TIMEOUT_SECONDS,
-    )
-    _last_request_ts[0] = time.monotonic()
-    if r.status_code in (403, 429):
-        raise SourceBlocked(f"HTTP {r.status_code} for {url}")
-    r.encoding = "utf-8"
-    r.raise_for_status()
-    return r.text
+    """Rate-limited GET. Connection/timeout errors retry a couple of times
+    (usually transient); 403/429 still abort the scrape immediately."""
+    last = None
+    for attempt in range(config.REQUEST_RETRIES + 1):
+        elapsed = time.monotonic() - _last_request_ts[0]
+        wait = max(1.0, config.CAR_SS_REQUEST_DELAY_SECONDS) - elapsed
+        if wait > 0:
+            time.sleep(wait)
+        try:
+            r = requests.get(
+                url,
+                headers={"User-Agent": config.SS_COM_USER_AGENT,
+                         "Accept-Language": "lv,en;q=0.8"},
+                timeout=config.CAR_SOURCE_TIMEOUT_SECONDS,
+            )
+        except (requests.ConnectionError, requests.Timeout) as e:
+            last = e
+            _last_request_ts[0] = time.monotonic()
+            if attempt < config.REQUEST_RETRIES:
+                time.sleep(config.REQUEST_RETRY_DELAY_SECONDS)
+            continue
+        _last_request_ts[0] = time.monotonic()
+        if r.status_code in (403, 429):
+            raise SourceBlocked(f"HTTP {r.status_code} for {url}")
+        r.encoding = "utf-8"
+        r.raise_for_status()
+        return r.text
+    raise last
 
 
 def _parse_mileage(text):

@@ -67,7 +67,7 @@
   "ss.com:imanta:anninmuizhas boule..": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-29"
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:dammes 1": {
     "lat": 56.9608492,
@@ -307,7 +307,7 @@
   "ss.com:imanta:kurzemes pr. 104a": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-20"
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:akaciju 2f": {
     "lat": 56.9523265,
@@ -547,7 +547,7 @@
   "ss.com:zolitude:imantas 16. l. 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-29"
+    "fetched_at": "2026-09-30"
   },
   "ss.com:zolitude:apuzes 41": {
     "lat": 56.9395614,
@@ -697,7 +697,7 @@
   "ss.com:imanta:m. krūmu 18": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-29"
+    "fetched_at": "2026-09-30"
   },
   "ss.com:imanta:kleistu 21": {
     "lat": 56.9645798,
@@ -807,7 +807,7 @@
   "ss.com:imanta:m. krūmu 20": {
     "lat": null,
     "lon": null,
-    "fetched_at": "2026-09-29"
+    "fetched_at": "2026-09-30"
   },
   "ss.com:zolitude:rostokas 20": {
     "lat": 56.9481208,
@@ -1322,6 +1322,11 @@
   "ss.com:imanta:jurmalas g. 95": {
     "lat": 56.9533673,
     "lon": 24.0032246,
-    "fetched_at": "2026-09-29"
+    "fetched_at": "2026-09-30"
+  },
+  "ss.com:imanta:kurzemes pr. 38": {
+    "lat": 56.9607965,
+    "lon": 23.9982688,
+    "fetched_at": "2026-09-30"
   }
 }

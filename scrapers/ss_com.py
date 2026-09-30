@@ -13,6 +13,8 @@ We fetch the "today" page for each deal type, parse every row, then keep only
 rows whose district matches one of our target districts (config.DISTRICTS).
 """
 import re
+import time
+
 import requests
 from bs4 import BeautifulSoup
 
@@ -173,15 +175,25 @@ def _to_float(text):
 
 
 def _fetch(url):
-    r = requests.get(
-        url,
-        headers={"User-Agent": config.SS_COM_USER_AGENT,
-                 "Accept-Language": "en-US,en;q=0.9"},
-        timeout=config.SS_COM_TIMEOUT,
-    )
-    r.encoding = "utf-8"
-    r.raise_for_status()
-    return r.text
+    """GET one page. Connection/timeout errors get a couple of retries —
+    they are usually a transient blip. HTTP errors propagate at once."""
+    last = None
+    for attempt in range(config.REQUEST_RETRIES + 1):
+        try:
+            r = requests.get(
+                url,
+                headers={"User-Agent": config.SS_COM_USER_AGENT,
+                         "Accept-Language": "en-US,en;q=0.9"},
+                timeout=config.SS_COM_TIMEOUT,
+            )
+            r.encoding = "utf-8"
+            r.raise_for_status()
+            return r.text
+        except (requests.ConnectionError, requests.Timeout) as e:
+            last = e
+            if attempt < config.REQUEST_RETRIES:
+                time.sleep(config.REQUEST_RETRY_DELAY_SECONDS)
+    raise last
 
 
 def _next_page_url(soup, base_url):
