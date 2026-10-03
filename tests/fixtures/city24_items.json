@@ -1,0 +1,47 @@
+[
+  {
+    "id": 111,
+    "friendly_id": "ab12cd",
+    "address": {
+      "district_name": "Imanta",
+      "street_name": "Anniņmuižas bulvāris",
+      "house_number": "10"
+    },
+    "room_count": 2,
+    "property_size": 45.0,
+    "price": 50000,
+    "price_per_unit": 1111.11,
+    "latitude": 56.9496,
+    "longitude": 24.0105,
+    "attributes": {"FLOOR": 3, "TOTAL_FLOORS": 5},
+    "project": {"project_name": "Jaunais"},
+    "slogans": ["Gaišs 2-istabu dzīvoklis"]
+  },
+  {
+    "id": 222,
+    "friendly_id": "ef34gh",
+    "address": {
+      "district_name": "Centrs",
+      "street_name": "Brīvības iela",
+      "house_number": "1"
+    },
+    "room_count": 3,
+    "property_size": 70.0,
+    "price": 90000,
+    "price_per_unit": 1285.71,
+    "attributes": {"FLOOR": 4, "TOTAL_FLOORS": 6}
+  },
+  {
+    "id": 333,
+    "friendly_id": "ij56kl",
+    "address": {
+      "district_name": "Zolitūde",
+      "street_name": "Rostokas iela",
+      "house_number": "5"
+    },
+    "room_count": 1,
+    "property_size": null,
+    "price": 30000,
+    "attributes": {"FLOOR": 2, "TOTAL_FLOORS": 9}
+  }
+]

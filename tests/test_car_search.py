@@ -84,6 +84,19 @@ def _ss_row(lid, title="Volkswagen Passat 2.0 TDI", mileage="254 tūkst."):
         .replace("254 tūkst.", mileage)
 
 
+def _read(path, mode="r"):
+    """Read a whole file (properly closed) — kills ResourceWarnings."""
+    if "b" not in mode:
+        with open(path, mode, encoding="utf-8") as f:
+            return f.read()
+    with open(path, mode) as f:
+        return f.read()
+
+
+def _read_json(path):
+    return json.loads(_read(path))
+
+
 class TestSSDiscoveryAndPagination(unittest.TestCase):
     def test_discover_makes_excludes_non_make_links(self):
         with mock.patch.object(car_ss, "_fetch", return_value=MAKES_HTML):
@@ -218,7 +231,7 @@ class TestSSDiscoveryAndPagination(unittest.TestCase):
             self.assertIn(
                 "https://www.ss.com/lv/transport/cars/volkswagen/passat-b7/sell/",
                 fetched)
-            state = json.load(open(os.path.join(td, "scans.json")))
+            state = _read_json(os.path.join(td, "scans.json"))
             self.assertIn("volkswagen|passat-b7", state)
 
 
@@ -483,22 +496,22 @@ class TestCarsRun(_TempPaths):
                                       "last_seen": "2026-09-01",
                                       "last_price": 3000,
                                       "last_shown": "2026-09-01"}}, f)
-        before = open(self.seen_json, "rb").read()
+        before = _read(self.seen_json, "rb")
         with open(self.snapshot_json, "w", encoding="utf-8") as f:
             f.write('{"date": "2000-01-01", "listings": []}')
-        snap_before = open(self.snapshot_json, "rb").read()
+        snap_before = _read(self.snapshot_json, "rb")
         with mock.patch.object(cars.car_ss, "scrape",
                                side_effect=RuntimeError("ss boom")), \
              mock.patch.object(cars.car_pp, "scrape",
                                side_effect=RuntimeError("pp boom")):
             status = cars.run()
         self.assertIn("failed", status)
-        self.assertEqual(open(self.seen_json, "rb").read(), before)
-        self.assertEqual(open(self.snapshot_json, "rb").read(), snap_before)
+        self.assertEqual(_read(self.seen_json, "rb"), before)
+        self.assertEqual(_read(self.snapshot_json, "rb"), snap_before)
         today = date.today().isoformat()
         out = os.path.join(self.digest_dir, f"cars_{today}.html")
         self.assertTrue(os.path.exists(out))
-        html_text = open(out, encoding="utf-8").read()
+        html_text = _read(out)
         self.assertIn("no current data", html_text.lower())
         self.assertIn("ss.com", html_text)
         self.assertIn("pp.lv", html_text)
@@ -511,9 +524,8 @@ class TestCarsRun(_TempPaths):
         self.assertFalse(os.path.exists(self.seen_json))
         self.assertFalse(os.path.exists(self.snapshot_json))
         today = date.today().isoformat()
-        html_text = open(os.path.join(self.digest_dir,
-                                      f"cars_{today}.html"),
-                         encoding="utf-8").read()
+        html_text = _read(os.path.join(self.digest_dir,
+                                       f"cars_{today}.html"))
         self.assertIn("no current data", html_text.lower())
         self.assertIn("no eligible car listings", html_text)
 
@@ -527,15 +539,14 @@ class TestCarsRun(_TempPaths):
             status = cars.run()
         self.assertIn("ss boom", status)
         today = date.today().isoformat()
-        html_text = open(os.path.join(self.digest_dir, f"cars_{today}.html"),
-                         encoding="utf-8").read()
+        html_text = _read(os.path.join(self.digest_dir, f"cars_{today}.html"))
         self.assertIn("ource outage", html_text)
         self.assertIn("ss.com", html_text)
         self.assertIn("NEW", html_text)
-        seen = json.load(open(self.seen_json, encoding="utf-8"))
+        seen = cars._read_seen(self.seen_json)
         self.assertEqual(seen["pp.lv:c1"]["last_shown"], today)
 
-        snap = json.load(open(self.snapshot_json, encoding="utf-8"))
+        snap = cars.load_snapshot(self.snapshot_json)
         self.assertEqual(snap["date"], today)
         self.assertEqual(len(snap["listings"]), 5)
         for item in snap["listings"]:
@@ -543,7 +554,9 @@ class TestCarsRun(_TempPaths):
                              set(config.CAR_SNAPSHOT_FIELDS))
             for field in ("year", "mileage_km", "price_eur"):
                 self.assertIsInstance(item[field], (int, float))
-        self.assertNotIn("url", snap["listings"][0])
+        # url is kept (the gone section needs a link); heavy fields
+        # like title/street stay out of the snapshot
+        self.assertIn("url", snap["listings"][0])
         self.assertNotIn("title", snap["listings"][0])
 
     def test_same_day_second_run_keeps_new_badge(self):
@@ -555,11 +568,10 @@ class TestCarsRun(_TempPaths):
             cars.run()
             cars.run()
         today = date.today().isoformat()
-        html_text = open(os.path.join(self.digest_dir, f"cars_{today}.html"),
-                         encoding="utf-8").read()
+        html_text = _read(os.path.join(self.digest_dir, f"cars_{today}.html"))
         self.assertIn("NEW", html_text)
         self.assertNotIn("STILL ACTIVE", html_text)
-        seen = json.load(open(self.seen_json, encoding="utf-8"))
+        seen = cars._read_seen(self.seen_json)
         self.assertEqual(seen["pp.lv:c1"]["first_shown"], today)
         self.assertEqual(seen["pp.lv:c1"]["last_shown"], today)
 
@@ -577,12 +589,11 @@ class TestCarsRun(_TempPaths):
         with mock.patch.object(cars.car_ss, "scrape", return_value=[]), \
              mock.patch.object(cars.car_pp, "scrape", return_value=listings):
             cars.run()
-        seen = json.load(open(self.seen_json, encoding="utf-8"))
+        seen = cars._read_seen(self.seen_json)
         self.assertEqual(seen["pp.lv:c1"]["prices"],
                          [[yday, 5000], [today, 4000]])
-        html_text = open(os.path.join(self.digest_dir,
-                                      f"cars_{today}.html"),
-                         encoding="utf-8").read()
+        html_text = _read(os.path.join(self.digest_dir,
+                                       f"cars_{today}.html"))
         self.assertIn("PRICE DROP", html_text)
         self.assertIn("seen 1 d", html_text)
         self.assertIn("→", html_text)          # €5,000 → €4,000 trail
@@ -598,7 +609,7 @@ class TestCarsRun(_TempPaths):
         with mock.patch.object(cars.car_ss, "scrape", return_value=[]), \
              mock.patch.object(cars.car_pp, "scrape", return_value=listings):
             cars.run()
-        seen = json.load(open(self.seen_json, encoding="utf-8"))
+        seen = cars._read_seen(self.seen_json)
         self.assertEqual(seen["pp.lv:c1"]["prices"], [[today, 2800]])
 
     def test_unparseable_source_counts_as_failure(self):
@@ -611,10 +622,9 @@ class TestCarsRun(_TempPaths):
             status = cars.run()
         self.assertIn("no eligible car listings", status)
         today = date.today().isoformat()
-        html_text = open(os.path.join(self.digest_dir, f"cars_{today}.html"),
-                         encoding="utf-8").read()
+        html_text = _read(os.path.join(self.digest_dir, f"cars_{today}.html"))
         self.assertIn("ource outage", html_text)
-        seen = json.load(open(self.seen_json, encoding="utf-8"))
+        seen = cars._read_seen(self.seen_json)
         self.assertEqual(seen["pp.lv:c1"]["last_shown"], today)
 
 
@@ -643,12 +653,9 @@ class TestWebsiteBuild(_TempPaths):
 
         website.build()
 
-        index = open(os.path.join(self.docs_dir, "index.html"),
-                     encoding="utf-8").read()
-        cars_html = open(os.path.join(self.docs_dir, "cars.html"),
-                         encoding="utf-8").read()
-        archive = open(os.path.join(self.docs_dir, "archive.html"),
-                       encoding="utf-8").read()
+        index = _read(os.path.join(self.docs_dir, "index.html"))
+        cars_html = _read(os.path.join(self.docs_dir, "cars.html"))
+        archive = _read(os.path.join(self.docs_dir, "archive.html"))
         self.assertIn('href="index.html"', index)
         self.assertIn('href="cars.html"', index)
         self.assertIn('href="archive.html"', index)
@@ -661,19 +668,16 @@ class TestWebsiteBuild(_TempPaths):
         self.assertIn(f"archive/cars_{today}.html", archive)
         self.assertIn("(today)", archive)
 
-        arch_flat = open(os.path.join(self.arch_dir,
-                                      f"digest_{today}.html"),
-                         encoding="utf-8").read()
-        arch_car = open(os.path.join(self.arch_dir, f"cars_{today}.html"),
-                        encoding="utf-8").read()
+        arch_flat = _read(os.path.join(self.arch_dir,
+                                       f"digest_{today}.html"))
+        arch_car = _read(os.path.join(self.arch_dir, f"cars_{today}.html"))
         self.assertIn('href="../index.html"', arch_flat)
         self.assertIn('href="../cars.html"', arch_flat)
         self.assertIn('href="../archive.html"', arch_car)
         self.assertNotIn("stale-warning", arch_car)
 
-        self.assertEqual(open(os.path.join(self.digest_dir,
-                                           f"digest_{today}.html"),
-                              encoding="utf-8").read(), flat)
+        self.assertEqual(_read(os.path.join(self.digest_dir,
+                                            f"digest_{today}.html")), flat)
 
     def test_market_tab_built_with_nav(self):
         today = date.today().isoformat()
@@ -691,14 +695,12 @@ class TestWebsiteBuild(_TempPaths):
         with mock.patch.object(config, "CAR_MARKET_STATS_JSON",
                                stats_path):
             website.build()
-        page = open(os.path.join(self.docs_dir, "market.html"),
-                    encoding="utf-8").read()
+        page = _read(os.path.join(self.docs_dir, "market.html"))
         self.assertIn('href="market.html"', page)
         self.assertIn('aria-current="page"', page)
         self.assertIn("Golf", page)
         # the other tabs must link to it too
-        index = open(os.path.join(self.docs_dir, "index.html"),
-                     encoding="utf-8").read()
+        index = _read(os.path.join(self.docs_dir, "index.html"))
         self.assertIn('href="market.html"', index)
         # missing stats -> placeholder, still navigable
         with mock.patch.object(config, "CAR_MARKET_STATS_JSON",
@@ -706,8 +708,7 @@ class TestWebsiteBuild(_TempPaths):
              mock.patch.object(car_market.flat_market, "load_stats",
                                return_value=None):
             website.build()
-        page = open(os.path.join(self.docs_dir, "market.html"),
-                    encoding="utf-8").read()
+        page = _read(os.path.join(self.docs_dir, "market.html"))
         self.assertIn("Not generated yet", page)
         self.assertIn('href="index.html"', page)
 
@@ -721,20 +722,17 @@ class TestWebsiteBuild(_TempPaths):
 
         website.build()
 
-        cars_html = open(os.path.join(self.docs_dir, "cars.html"),
-                         encoding="utf-8").read()
+        cars_html = _read(os.path.join(self.docs_dir, "cars.html"))
         self.assertIn("stale-warning", cars_html)
         self.assertIn(yesterday, cars_html)
         self.assertIn("no fresh car digest", cars_html)
 
-        archive = open(os.path.join(self.docs_dir, "archive.html"),
-                       encoding="utf-8").read()
+        archive = _read(os.path.join(self.docs_dir, "archive.html"))
         self.assertIn(f"archive/cars_{yesterday}.html", archive)
         self.assertIn(f"{yesterday} (latest)", archive)
         self.assertNotIn(f"{yesterday} (today)", archive)
 
-        arch_car = open(os.path.join(self.arch_dir, f"cars_{yesterday}.html"),
-                        encoding="utf-8").read()
+        arch_car = _read(os.path.join(self.arch_dir, f"cars_{yesterday}.html"))
         self.assertNotIn("stale-warning", arch_car)
 
     def test_yesterday_flat_digest_stale_banner(self):
@@ -747,24 +745,20 @@ class TestWebsiteBuild(_TempPaths):
 
         website.build()
 
-        index = open(os.path.join(self.docs_dir, "index.html"),
-                     encoding="utf-8").read()
+        index = _read(os.path.join(self.docs_dir, "index.html"))
         self.assertIn("stale-warning", index)
         self.assertIn(yesterday, index)
         self.assertIn("no fresh flat digest", index)
 
-        archive = open(os.path.join(self.docs_dir, "archive.html"),
-                       encoding="utf-8").read()
+        archive = _read(os.path.join(self.docs_dir, "archive.html"))
         self.assertIn(f"{yesterday} (latest)", archive)
         self.assertNotIn(f"{yesterday} (today)", archive)
 
-        arch_flat = open(os.path.join(self.arch_dir,
-                                      f"digest_{yesterday}.html"),
-                         encoding="utf-8").read()
+        arch_flat = _read(os.path.join(self.arch_dir,
+                                       f"digest_{yesterday}.html"))
         self.assertNotIn("stale-warning", arch_flat)
 
-        cars_html = open(os.path.join(self.docs_dir, "cars.html"),
-                         encoding="utf-8").read()
+        cars_html = _read(os.path.join(self.docs_dir, "cars.html"))
         self.assertNotIn("stale-warning", cars_html)
         self.assertIn('href="index.html"', cars_html)
 
@@ -784,7 +778,7 @@ class TestWebsiteBuild(_TempPaths):
                   f"archive{os.sep}digest_{today}.html",
                   f"archive{os.sep}cars_{today}.html"):
             path = os.path.join(self.docs_dir, f)
-            content = open(path, encoding="utf-8").read()
+            content = _read(path)
             nav_at = content.find('class="site-nav"')
             real_body = content.find("<body>")
             self.assertGreaterEqual(nav_at, 0, f)
@@ -794,8 +788,7 @@ class TestWebsiteBuild(_TempPaths):
     def test_no_car_digest_placeholder(self):
         self._write("digest_2026-09-26.html", "<html><body>x</body></html>")
         website.build()
-        cars_html = open(os.path.join(self.docs_dir, "cars.html"),
-                         encoding="utf-8").read()
+        cars_html = _read(os.path.join(self.docs_dir, "cars.html"))
         self.assertIn("Not generated yet", cars_html)
         self.assertIn('href="index.html"', cars_html)
 
@@ -984,8 +977,10 @@ class TestBudgetTool(unittest.TestCase):
         self.assertIn("_first_seen", payload["fields"])
         self.assertIn("_price_hist", payload["fields"])
         row = payload["rows"][0]
-        self.assertEqual(row[payload["fields"].index("_first_seen")],
-                         "2026-09-20")
+        # dictionary-encoded column: the row carries an index into
+        # payload["dict"]["_first_seen"], decoded by the page's JS
+        v = row[payload["fields"].index("_first_seen")]
+        self.assertEqual(payload["dict"]["_first_seen"][v], "2026-09-20")
         self.assertEqual(row[payload["fields"].index("_price_hist")][-1],
                          ["2026-09-26", 3000])
 
@@ -1361,8 +1356,10 @@ class TestBudgetTool(unittest.TestCase):
         self.assertEqual(len(payload["extra"]), 1)
         f = payload["fields"]
         ex = payload["extra"][0]
-        self.assertEqual(ex[f.index("source")] + ":" + ex[f.index("id")],
-                         "ss.com:f2")
+        src = ex[f.index("source")]
+        if isinstance(src, int):          # dictionary-encoded column
+            src = payload["dict"]["source"][src]
+        self.assertEqual(src + ":" + ex[f.index("id")], "ss.com:f2")
         self.assertIsNone(ex[f.index("score")])
         # no all_listings -> extra is empty
         payload2 = json.loads(re.search(
@@ -1624,6 +1621,104 @@ class TestArchivePruning(unittest.TestCase):
             self.assertEqual(removed, 0)
             self.assertTrue(os.path.exists(
                 os.path.join(digests, "cars_2026-01-01.html")))
+
+
+class TestStateCompaction(_TempPaths):
+    """car_seen v2 (short keys + day-offsets) and snapshot v2 (columnar)
+    read old formats transparently, write the compact ones."""
+
+    def test_seen_v2_roundtrip(self):
+        seen = {"pp.lv:c1": {
+            "first_seen": "2026-09-20", "last_seen": "2026-10-03",
+            "last_price": 3900, "last_shown": "2026-10-02",
+            "first_shown": "2026-09-21",
+            "prices": [["2026-09-20", 4200], ["2026-10-01", 3900]]}}
+        cars._write_seen(seen, self.seen_json)
+        raw = _read_json(self.seen_json)
+        self.assertEqual(raw["v"], 2)
+        e = raw["entries"]["pp.lv:c1"]
+        self.assertIsInstance(e["fs"], int)
+        back = cars._read_seen(self.seen_json)
+        self.assertEqual(back, seen)
+
+    def test_seen_v1_migrates_on_read(self):
+        old = {"ss.com:x": {"first_seen": "2026-09-01",
+                            "last_seen": "2026-09-02", "last_price": 1,
+                            "last_shown": None, "first_shown": None,
+                            "prices": [["2026-09-01", 1]]}}
+        with open(self.seen_json, "w", encoding="utf-8") as f:
+            json.dump(old, f)
+        self.assertEqual(cars._read_seen(self.seen_json), old)
+
+    def test_snapshot_v2_roundtrip_and_v1(self):
+        lst = [_car("pp.lv", "c1", 3900)]
+        cars._write_json(self.snapshot_json,
+                         {"v": 2, "date": "2026-10-03",
+                          "fields": list(config.CAR_SNAPSHOT_FIELDS),
+                          "rows": [[l.get(f) for f in
+                                    config.CAR_SNAPSHOT_FIELDS]
+                                   for l in lst]})
+        snap = cars.load_snapshot(self.snapshot_json)
+        self.assertEqual(snap["date"], "2026-10-03")
+        self.assertEqual(len(snap["listings"]), 1)
+        self.assertEqual(snap["listings"][0]["id"], "c1")
+        # v1 layout still reads
+        with open(self.snapshot_json, "w", encoding="utf-8") as f:
+            json.dump({"date": "2026-10-02", "listings": lst}, f)
+        snap = cars.load_snapshot(self.snapshot_json)
+        self.assertEqual(snap["listings"][0]["id"], "c1")
+
+
+class TestCarGoneSection(_TempPaths):
+    def test_gone_rows_source_scoped(self):
+        import gone
+        prev = gone.car_snapshot_rows(
+            [_car("ss.com", "s1", 3000), _car("pp.lv", "p1", 3000)])
+        out = gone.gone_rows(prev, {"pp.lv:p1"}, {"pp.lv"}, 20)
+        self.assertEqual(out, [])          # ss.com silent -> not 'gone'
+        out = gone.gone_rows(prev, {"pp.lv:p1"}, {"ss.com", "pp.lv"}, 20)
+        self.assertEqual([r["k"] for r in out], ["ss.com:s1"])
+
+    def test_gone_section_in_digest(self):
+        rows = [{"k": "ss.com:s1", "p": 3900, "mk": "vw", "mo": "golf-5",
+                 "y": 2007, "u": "https://www.ss.com/x"}]
+        seen = {"ss.com:s1": {"first_seen": "2026-09-20"}}
+        html_text = car_digest.build_html(
+            [], [], {}, {}, {}, "2026-10-03", gone=rows, seen=seen)
+        self.assertIn("Gone since yesterday", html_text)
+        self.assertIn("golf-5", html_text)
+        self.assertIn("13 d", html_text)
+        self.assertIn("https://www.ss.com/x", html_text)
+        plain = car_digest.build_html([], [], {}, {}, {}, "2026-10-03")
+        self.assertNotIn("Gone since yesterday", plain)
+
+    def test_archive_copy_loses_market_embed(self):
+        """website.build() strips car-market-data from docs/archive copies
+        (the embed is ~800 KB/day of churn; live pages keep it)."""
+        market = [_car("pp.lv", "c1", 3000)]
+        today = date.today().isoformat()
+        html_text = car_digest.build_html([], [], {}, {}, {}, today,
+                                          market=market)
+        os.makedirs(self.digest_dir, exist_ok=True)
+        with open(os.path.join(self.digest_dir, f"cars_{today}.html"),
+                  "w", encoding="utf-8") as f:
+            f.write(html_text)
+        docs = os.path.join(self.tmp.name, "docs")
+        arch = os.path.join(docs, "archive")
+        with mock.patch.object(website, "DOCS_DIR", docs), \
+             mock.patch.object(website, "ARCHIVE_DIR", arch):
+            website.build()
+        live = _read(os.path.join(docs, "cars.html"))
+        archived = _read(os.path.join(arch, f"cars_{today}.html"))
+        self.assertIn('id="car-market-data"', live)
+        # the JSON script element is stripped (the dead JS id references
+        # in the budget/watch scripts remain — harmless ~30 B)
+        self.assertNotIn('id="car-market-data"', archived)
+        self.assertNotIn('"rows"', archived.split("</body>")[0])
+        # original in data/digests keeps the embed
+        self.assertIn('id="car-market-data"',
+                      _read(os.path.join(self.digest_dir,
+                                         f"cars_{today}.html")))
 
 
 if __name__ == "__main__":

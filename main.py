@@ -18,6 +18,7 @@ nothing is emailed):
 Run locally:  python -X utf8 -m main
 Run in CI:    python -X utf8 -m main
 """
+import os
 import sys
 import traceback
 from datetime import date
@@ -34,21 +35,53 @@ import price_history
 import geocode
 import cars
 import flat_market
+import gone
 from scrapers import ss_com, city24, izsoles
 
 
 def _inject_chat(message):
-    """Copy a status prompt to the clipboard so it can be pasted into the chat.
-    (Per global rule 4 - best-effort, never fatal.)"""
+    """Copy a status prompt to the clipboard, then paste it into the chat
+    window when one is in the foreground (Windows only, best-effort;
+    global rule 4 — never fatal)."""
     if not config.CHAT_INJECT_ENABLED:
         return
     try:
         import pyperclip
         pyperclip.copy(message)
-        print("\n[chat] Status message copied to clipboard - paste into the chat:\n"
-              f"    {message}\n")
     except Exception as e:
         print(f"[chat] clipboard inject skipped ({e})")
+        return
+    if os.environ.get("GITHUB_ACTIONS") or sys.platform != "win32":
+        print("\n[chat] Status message copied to clipboard - paste into the chat:\n"
+              f"    {message}\n")
+        return
+    try:
+        import ctypes
+        import re
+        user32 = ctypes.windll.user32
+        hwnd = user32.GetForegroundWindow()
+        buf = ctypes.create_unicode_buffer(512)
+        user32.GetWindowTextW(hwnd, buf, 512)
+        title = buf.value or ""
+        if re.search(config.CHAT_INJECT_WINDOW_RE, title, re.I):
+            keyup = 0x0002  # KEYEVENTF_KEYUP
+            vk_ctrl, vk_v, vk_ret = 0x11, 0x56, 0x0D
+            user32.keybd_event(vk_ctrl, 0, 0, 0)
+            user32.keybd_event(vk_v, 0, 0, 0)
+            user32.keybd_event(vk_v, 0, keyup, 0)
+            user32.keybd_event(vk_ctrl, 0, keyup, 0)
+            if config.CHAT_INJECT_SUBMIT:
+                user32.keybd_event(vk_ret, 0, 0, 0)
+                user32.keybd_event(vk_ret, 0, keyup, 0)
+            print(f"\n[chat] status pasted into '{title}' "
+                  f"({'submitted' if config.CHAT_INJECT_SUBMIT else 'review + Enter to send'})\n")
+        else:
+            print("\n[chat] Status message copied to clipboard — no chat "
+                  f"window in focus ('{title[:60]}'). Paste it yourself:\n"
+                  f"    {message}\n")
+    except Exception as e:
+        print(f"[chat] paste skipped ({e}); message is on the clipboard:\n"
+              f"    {message}\n")
 
 
 def run():
@@ -233,16 +266,34 @@ def run():
     auctions_html = notifier.build_auctions_html(auctions)
     print(f"[main] auctions section built")
 
-    # 6b. District-level market stats for the Market tab (docs/market.html)
+    # 6f. District-level market stats for the Market tab (docs/market.html)
     flat_market.save_stats(
         flat_market.compute_district_stats(all_listings, price_data, today),
         today, len(all_listings))
+
+    # 6g. "Disappeared — likely sold/removed": yesterday's live-ad ids
+    #     minus today's, restricted to sources that produced data today.
+    #     Today's rows are then written for tomorrow's comparison.
+    prev_active = utils.read_json(config.FLAT_ACTIVE_JSON, {})
+    gone_rows = gone.gone_rows(
+        prev_active.get("rows"),
+        {gone.listing_key(l) for l in all_listings},
+        {s for s, n in source_counts.items() if n > 0},
+        config.GONE_MAX_ROWS)
+    utils.write_json(config.FLAT_ACTIVE_JSON,
+                     {"date": today,
+                      "rows": gone.flat_active_rows(all_listings)},
+                     indent=None)
+    gone_html = notifier.build_gone_html(gone_rows, price_data, today)
+    if gone_rows:
+        print(f"[main] {len(gone_rows)} flat ad(s) disappeared since yesterday")
 
     # 7. Save today's digest (pass price history + map markers + sections)
     _path, info = notifier.save_digest(main_deals, still_active, comparison_html,
                                        status_note, price_data, map_markers,
                                        newest_html, near_school_html,
-                                       auctions_html, all_scored, all_listings)
+                                       auctions_html, all_scored, all_listings,
+                                       gone_html)
 
     # 8. Build hosted site (latest digest -> docs/index.html + archive)
     website.build()

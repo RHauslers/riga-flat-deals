@@ -435,6 +435,187 @@ class TestDigestEscaping(unittest.TestCase):
         self.assertNotIn("<\\/script><svg", page.split("var markers")[0])
 
 
+class TestGoneTracking(unittest.TestCase):
+    """gone.py — 'Disappeared — likely sold/removed' flat section."""
+
+    def _prev(self):
+        return [
+            {"k": "ss.com:1", "p": 50000, "d": "Imanta", "s": "A iela 1",
+             "u": "https://www.ss.com/a"},
+            {"k": "ss.com:2", "p": 60000, "d": "Imanta", "s": "B iela 2",
+             "u": "https://www.ss.com/b"},
+            {"k": "city24.lv:9", "p": 70000, "d": "Zolitude", "s": "C iela",
+             "u": "https://city24.lv/c"},
+        ]
+
+    def test_gone_only_for_sources_with_data(self):
+        import gone
+        # ss.com:1 vanished, ss.com:2 still live; city24 produced nothing
+        # today -> its ad must NOT be reported as gone.
+        out = gone.gone_rows(self._prev(), {"ss.com:2"}, {"ss.com"}, 25)
+        self.assertEqual([r["k"] for r in out], ["ss.com:1"])
+
+    def test_gone_empty_when_no_prev_or_no_sources(self):
+        import gone
+        self.assertEqual(gone.gone_rows([], {"x"}, {"ss.com"}, 25), [])
+        self.assertEqual(gone.gone_rows(self._prev(), set(), set(), 25), [])
+        # a silent source's ads are never 'gone'
+        self.assertEqual(gone.gone_rows(self._prev(), set(),
+                                        {"ss.com"}, 25),
+                         [r for r in self._prev()
+                          if r["k"].startswith("ss.com")])
+
+    def test_gone_cap(self):
+        import gone
+        prev = [{"k": f"ss.com:{i}", "p": 1, "d": "", "s": "", "u": ""}
+                for i in range(30)]
+        self.assertEqual(len(gone.gone_rows(prev, set(), {"ss.com"}, 25)),
+                         25)
+
+    def test_flat_active_rows_shape(self):
+        import gone
+        rows = gone.flat_active_rows([_flat(lid="f9", district="Imanta")])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["k"], "ss.com:f9")
+        self.assertEqual(rows[0]["d"], "Imanta")
+        self.assertTrue(rows[0]["u"].startswith("https://"))
+        self.assertEqual(gone.flat_active_rows([{"source": None}]), [])
+
+    def test_gone_html_section(self):
+        rows = [{"k": "ss.com:1", "p": 55000, "d": "Imanta",
+                 "s": "Zalves iela 3", "u": "https://www.ss.com/x"}]
+        price_data = {"ss.com:1": {"first_seen": "2026-09-20"}}
+        html = notifier.build_gone_html(rows, price_data, "2026-10-03")
+        self.assertIn("Disappeared", html)
+        self.assertIn("Zalves iela 3", html)
+        self.assertIn("13 d", html)
+        self.assertIn("https://www.ss.com/x", html)
+        self.assertEqual(notifier.build_gone_html([]), "")
+
+    def test_gone_html_escapes(self):
+        evil = "<script>x</script>"
+        rows = [{"k": "ss.com:1", "p": 1, "d": evil, "s": evil,
+                 "u": "javascript:x"}]
+        html = notifier.build_gone_html(rows, {})
+        self.assertNotIn("<script>x", html)
+        self.assertNotIn("javascript:", html)
+
+
+class TestAuctionUrgency(unittest.TestCase):
+    """Auctions ending soon sort first and get a red ENDS badge."""
+
+    def _auction(self, lid, end, km=None):
+        a = _flat(source="izsoles.ta.gov.lv", lid=lid)
+        a.update({"title": f"Flat {lid}", "series": "Auction",
+                  "auction_start_price": 20000, "auction_end": end,
+                  "_school_km": km})
+        return a
+
+    def test_ending_soon_badge_and_sort(self):
+        soon = (date.today() + timedelta(days=1)).isoformat()
+        far = (date.today() + timedelta(days=30)).isoformat()
+        a_soon = self._auction("u1", soon, km=5.0)   # far but urgent
+        a_far = self._auction("u2", far, km=0.5)     # near but not urgent
+        html = notifier.build_auctions_html([a_far, a_soon])
+        self.assertIn("ENDS IN 1d", html)
+        self.assertIn("ending &le;3d", html)
+        # urgent row sorts before the nearer non-urgent one
+        self.assertLess(html.index("Flat u1"), html.index("Flat u2"))
+
+    def test_ends_today_label(self):
+        a = self._auction("u1", date.today().isoformat())
+        html = notifier.build_auctions_html([a])
+        self.assertIn("ENDS TODAY", html)
+
+    def test_not_urgent_no_badge(self):
+        far = (date.today() + timedelta(days=30)).isoformat()
+        html = notifier.build_auctions_html([self._auction("u1", far)])
+        self.assertNotIn("ENDS IN", html)
+
+
+class TestFlatMarketTrends(unittest.TestCase):
+    """flat_market history append + Δ7d/Trend columns."""
+
+    def test_append_history_same_day_updates(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "hist.json")
+            stats = [{"district": "Imanta", "median_ppu": 900,
+                      "median_price": 45000, "ads": 10}]
+            flat_market._append_history(stats, "2026-10-02", path)
+            stats2 = [{"district": "Imanta", "median_ppu": 950,
+                       "median_price": 46000, "ads": 11}]
+            flat_market._append_history(stats2, "2026-10-02", path)
+            flat_market._append_history(stats2, "2026-10-03", path)
+            hist = flat_market.load_history(path)
+            pts = hist["Imanta"]
+            self.assertEqual(len(pts), 2)          # same-day updated
+            self.assertEqual(pts[0][1], 950)
+            self.assertEqual(pts[1][0], "2026-10-03")
+
+    def test_delta_7d(self):
+        # base = newest point >= 7 days before the latest (09-20, 900)
+        pts = [["2026-09-20", 900, 50000, 5],
+               ["2026-09-27", 880, 45000, 6],
+               ["2026-10-03", 810, 40000, 7]]
+        self.assertAlmostEqual(flat_market._delta_7d(pts), -10.0, places=1)
+        self.assertIsNone(flat_market._delta_7d(pts[:1]))
+        self.assertIsNone(flat_market._delta_7d([]))
+
+    def test_section_renders_trend_columns(self):
+        stats = [{"district": "Imanta", "ads": 10, "median_ppu": 900,
+                  "median_price": 45000, "min_price": 30000,
+                  "min_url": "https://x", "new_today": 2}]
+        hist = {"Imanta": [["2026-09-20", 1000, 50000, 5],
+                           ["2026-10-03", 900, 45000, 10]]}
+        html = flat_market.flat_section_html(stats, "2026-10-03", hist)
+        self.assertIn("Δ 7d", html)
+        self.assertIn("<svg", html)
+        self.assertIn("-10.0%", html)
+
+
+class TestCarHealth(unittest.TestCase):
+    def test_low_eligible_flagged(self):
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            keys = health.check_cars(
+                {"ss.com": {"raw": 100, "eligible": 2}}, {})
+        self.assertEqual(keys, ["low_eligible:ss.com"])
+        self.assertIn("ISSUE (cars) low_eligible:ss.com", buf.getvalue())
+
+    def test_source_failed_flagged(self):
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            keys = health.check_cars({}, {"pp.lv": "RuntimeError: boom"})
+        self.assertEqual(keys, ["source_failed:pp.lv"])
+        self.assertIn("boom", buf.getvalue())
+
+    def test_healthy_no_issues(self):
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            keys = health.check_cars(
+                {"ss.com": {"raw": 100, "eligible": 60},
+                 "_drop_reasons": {"x": 1}}, {})
+        self.assertEqual(keys, [])
+        self.assertEqual(buf.getvalue(), "")
+
+
+class TestFlatTimelineSparkline(unittest.TestCase):
+    def test_timeline_has_sparkline(self):
+        import price_history
+        key = "ss.com:f1"
+        hist = {key: {"cenumednieks": None, "first_seen": "2026-09-01",
+                      "our_tracking": [{"date": "2026-09-01", "price": 60000},
+                                       {"date": "2026-09-20", "price": 55000}]}}
+        html = price_history.format_price_timeline_html(
+            {"source": "ss.com", "id": "f1", "price_eur": 55000}, hist)
+        self.assertIn("<svg", html)
+        self.assertIn("55,000", html)
+
+
 class TestAuctionShare(unittest.TestCase):
     def test_parse_ownership_share(self):
         s, rest = izsoles.parse_ownership_share(

@@ -11,7 +11,12 @@ publishes the result as a static site on GitHub Pages:
 - **Cars** — ss.com + pp.lv seller ads up to €8,000, deduplicated across the
   two sites, with every car scored against comparable ads of the same
   model/fuel/year/mileage/engine; low mileage and newer year lift the score.
-- **Archive** — the last 30 days of both digests.
+- **Trends & gone** — per-district price trends (7-day delta + sparkline),
+  price sparklines on each flat row, auction countdown badges, and a
+  "recently gone" section for sold/delisted flats and cars.
+- **Archive** — the last 30 days of both digests. Archived car pages have
+  the large embedded market JSON stripped (the budget tool is a live-page
+  feature); tables and gone sections stay intact.
 
 Website only: nothing is emailed, there are no hourly scans, and the site
 holds no credentials.
@@ -28,10 +33,18 @@ State lives in the repo so it survives between runs:
 | file | purpose |
 |---|---|
 | `data/history.csv` | every flat listing ever seen — training data |
-| `data/seen_deals.json`, `data/last_digest.json` | NEW / PRICE DROP / STILL ACTIVE badges for flats |
-| `data/price_history.json`, `data/geocode_cache.json` | price timelines, cached coordinates |
-| `data/car_seen.json`, `data/car_market_snapshot.json` | car badges and the frozen comparable pool behind each score |
+| `data/seen_deals.json`, `data/last_digest.json` | NEW / PRICE DROP / STILL ACTIVE badges + gone tracking for flats |
+| `data/price_history.json`, `data/geocode_cache.json` | price timelines (row sparklines), cached coordinates |
+| `data/flat_market_history.json`, `data/car_market_history.json` | per-district / per-model median-price history for trend Δ7d + sparklines |
+| `data/car_seen.json` | car badges + gone tracking — v2 compact format (`v2` keys, epoch days); v1 files migrate on read |
+| `data/car_market_snapshot.json` | frozen comparable pool — v2 columnar format (`{v, date, fields, rows}`); v1 files migrate on read |
+| `data/car_market_stats.json` | per-model market stats behind the browser-side budget scorer |
 | `data/digests/` → `docs/` | generated HTML; pruned after `ARCHIVE_KEEP_DAYS` |
+
+`helper_scripts/compact_state.py` backs up and rewrites the legacy v1 state
+files to the v2 formats (safe to run repeatedly; v1 files also migrate
+transparently on first read). The embedded market JSON inside the digests is
+dictionary-encoded and decoded by the page's own JavaScript.
 
 ## Local run
 
@@ -43,6 +56,13 @@ python -X utf8 -c "import cars; cars.run()"  # cars only
 python -X utf8 -c "import website; website.build()"
 python -X utf8 -m unittest discover -s tests -v
 ```
+
+`.github/workflows/tests.yml` runs the same unittest discover command on
+pushes to `main` and pull requests (scraper tests are fully mocked — no
+network or Playwright browser needed). `tests/test_parsers.py` pins each
+parser's expected output against saved fixtures in `tests/fixtures/`, so a
+site markup change shows up as a parser test failure before the daily run
+silently finds nothing.
 
 All tunables live at the top of `config.py`. `SERVICING.md` is the living
 maintenance log — read it first when picking the project up.

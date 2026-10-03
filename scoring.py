@@ -22,6 +22,7 @@ to strategy 1 automatically.
 import statistics
 
 import config
+import utils
 
 try:
     import numpy as np
@@ -31,17 +32,11 @@ except ImportError:
 
 
 def _to_float(v):
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        return None
+    return utils.to_float(v)
 
 
 def _to_int(v):
-    try:
-        return int(float(v))
-    except (TypeError, ValueError):
-        return None
+    return utils.to_int(v)
 
 
 # ---------------------------------------------------------------------------

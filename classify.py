@@ -20,28 +20,19 @@ Badges (priority order, first match wins):
   3. STILL_ACTIVE- key was in yesterday's top-N (last_digest) -> separate section
   4. REAPPEARED  - key in seen_deals but not in yesterday's top-N -> main table
 """
-from datetime import date, datetime
+from datetime import date
 
 import config
+import utils
 
 
 def _to_float(v):
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        return None
+    return utils.to_float(v)
 
 
 def _days_since(date_str, today=None):
     """Return days between today and date_str (ISO), or None if unparseable."""
-    if not date_str or date_str == "unknown":
-        return None
-    try:
-        d = datetime.fromisoformat(date_str).date()
-    except (ValueError, TypeError):
-        return None
-    today = today or date.today()
-    return (today - d).days
+    return utils.days_since(date_str, today)
 
 
 def _pct_drop(old_price, new_price):

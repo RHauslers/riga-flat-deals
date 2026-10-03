@@ -175,6 +175,40 @@ h1{{color:#1a5276}}a{{color:#2874a6}}
 </body></html>"""
 
 
+_CAR_MARKET_DATA_RE = re.compile(
+    r'<script type="application/json" id="car-market-data">.*?</script>',
+    re.S)
+
+
+def _strip_archive_embeds():
+    """Remove the embedded market JSON from archived car digests.
+
+    The embed is ~800 KB of JSON per day — ~290 MB/yr of git churn —
+    while the budget/watch tools it feeds are a live-page feature.
+    Archive copies keep their rendered tables; the originals in
+    data/digests/ and docs/cars.html keep the embed.
+    """
+    if not os.path.isdir(ARCHIVE_DIR):
+        return
+    for f in os.listdir(ARCHIVE_DIR):
+        if not (f.startswith("cars_") and f.endswith(".html")):
+            continue
+        path = os.path.join(ARCHIVE_DIR, f)
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                content = fh.read()
+        except OSError:
+            continue
+        stripped, n = _CAR_MARKET_DATA_RE.subn("", content)
+        if not n:
+            continue
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(stripped)
+        except OSError:
+            pass
+
+
 def _extract_summary(html):
     """Extract a short summary (deal counts) from a digest HTML file."""
     text = re.sub(r"<[^>]+>", " ", html)
@@ -255,6 +289,10 @@ def build():
         with open(os.path.join(DOCS_DIR, "cars.html"), "w",
                   encoding="utf-8") as f:
             f.write(_cars_placeholder_html())
+
+    # Archive copies of car digests lose the ~800 KB embedded market JSON
+    # (the budget tool is a live-page feature; tables stay intact).
+    _strip_archive_embeds()
 
     # Market tab: per-model stats rendered from the JSON cars.run() writes.
     # Not archived — it is a live view, not a dated digest.
@@ -354,7 +392,7 @@ for {config.ARCHIVE_KEEP_DAYS} days.</p>
     with open(os.path.join(DOCS_DIR, "archive.html"), "w", encoding="utf-8") as f:
         f.write(archive_html)
 
-    print(f"[site] built: index.html (digest {latest_date}), cars.html "
+    print(f"[site] built: index.html ({'digest ' + latest_date if latest_date else 'no flat digest'}), cars.html "
           f"({car_archive_name or 'placeholder'}), archive.html "
           f"({len(archive_files)} flat + {len(car_archive_files)} car digests)")
 

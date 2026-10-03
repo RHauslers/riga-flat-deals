@@ -19,8 +19,6 @@ Row structure (verified):
 Pagination (verified): page 2+ lives at "<list_url>pageN.html"; "?page=N"
 repeats the first page's ads and must not be used.
 """
-import json
-import os
 import re
 import time
 from datetime import date
@@ -215,19 +213,12 @@ def _row_to_listing(tr):
 
 def _load_model_scans():
     """{make|model: ISO date} — last deep-scan per model."""
-    try:
-        with open(config.CAR_MODEL_SCAN_JSON, encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return {}
+    return utils.read_json(config.CAR_MODEL_SCAN_JSON, {})
 
 
 def _save_model_scans(state):
-    path = config.CAR_MODEL_SCAN_JSON
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(state, f, ensure_ascii=False, separators=(",", ":"))
+        utils.write_json(config.CAR_MODEL_SCAN_JSON, state, indent=None)
     except OSError:
         pass
 

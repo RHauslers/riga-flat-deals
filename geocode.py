@@ -12,7 +12,6 @@ Two approaches:
 Results are cached in data/geocode_cache.json so we only geocode each
 address once (streets don't move).
 """
-import json
 import math
 import os
 import re
@@ -20,17 +19,17 @@ import time
 from datetime import date, datetime
 
 import requests
-from html import escape as _escape
 
 import config
+import utils
 from utils import safe_url
 
 
 def _e(v):
-    return _escape(str(v if v is not None else ""), quote=True)
+    return utils.esc(v)
 
 
-GEOCODE_CACHE_JSON = os.path.join(config.DATA_DIR, "geocode_cache.json")
+GEOCODE_CACHE_JSON = config.GEOCODE_CACHE_JSON
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 NOMINATIM_USER_AGENT = "FlatSearcher/1.0 (riga-flat-deals)"
@@ -75,19 +74,11 @@ def proximity_score(listing):
 
 
 def _read_json(path, default):
-    if not os.path.exists(path):
-        return default
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return default
+    return utils.read_json(path, default)
 
 
 def _write_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    utils.write_json(path, data, indent=2)
 
 
 def load_cache():

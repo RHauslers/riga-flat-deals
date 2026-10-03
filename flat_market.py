@@ -9,28 +9,20 @@ from it, so no extra scraping is involved.
 
 import json
 import os
-import statistics
+from datetime import date, timedelta
 from html import escape as _e
 from urllib.parse import quote as _q
 
 import config
+import utils
 
 
 def _fmt_eur(v):
-    if v is None:
-        return "—"
-    try:
-        return "€{:,.0f}".format(float(v))
-    except (TypeError, ValueError):
-        return "—"
+    return utils.fmt_eur(v)
 
 
 def _median(values):
-    vals = [float(v) for v in values if v is not None]
-    try:
-        return statistics.median(vals) if vals else None
-    except (TypeError, ValueError):
-        return None
+    return utils.median(values)
 
 
 def compute_district_stats(listings, price_data=None, today=None):
@@ -74,13 +66,35 @@ def compute_district_stats(listings, price_data=None, today=None):
     return stats
 
 
-def flat_section_html(stats, run_date=None):
+def _delta_7d(points):
+    """% change of median_ppu vs the newest point >= 7 days old.
+
+    points = [[date, ppu, price, ads], ...] (ascending). None when the
+    series has no point old enough to compare against."""
+    if len(points) < 2:
+        return None
+    try:
+        latest_date = date.fromisoformat(str(points[-1][0]))
+    except (ValueError, TypeError):
+        return None
+    cutoff = (latest_date - timedelta(days=7)).isoformat()
+    base = None
+    for p in points:
+        if str(p[0]) <= cutoff:
+            base = p
+    if base is None or not base[1] or not points[-1][1]:
+        return None
+    return 100.0 * (points[-1][1] - base[1]) / base[1]
+
+
+def flat_section_html(stats, run_date=None, history=None):
     """The flats block for the Market page — '' when no stats."""
     if not stats:
         return ""
+    history = history or {}
     as_of = f" — as of {_e(str(run_date))}" if run_date else ""
-    headers = ["District", "Ads", "New", "Median €/m²", "Median ask",
-               "Cheapest"]
+    headers = ["District", "Ads", "New", "Median €/m²", "Δ 7d", "Trend",
+               "Median ask", "Cheapest"]
     head = "".join(
         "<th class='sort-th' style='padding:6px;{align}' "
         "onclick=\"sortTable('flat-market', {i})\">{name}</th>".format(
@@ -97,6 +111,17 @@ def flat_section_html(stats, run_date=None):
         dist_l = (f"<a href='index.html?district={_q(str(s['district']))}'>"
                   f"{d}</a>")
         ppu = s["median_ppu"]
+        pts = history.get(str(s["district"]), [])
+        delta = _delta_7d(pts)
+        delta_html = "—"
+        delta_sort = 0.0
+        if delta is not None:
+            delta_sort = delta
+            color = "#c0392b" if delta < 0 else \
+                "#27ae60" if delta > 0 else "#7f8c8d"
+            delta_html = f"<span style='color:{color}'>{delta:+.1f}%</span>"
+        spark = utils.sparkline_svg(
+            [(p[0], p[1]) for p in pts], title="median €/m²")
         rows.append(
             f"<tr{zebra}>"
             f"<td style='padding:6px' data-sort='{d}'>{dist_l}</td>"
@@ -109,6 +134,10 @@ def flat_section_html(stats, run_date=None):
             f"data-sort='{ppu or 0}'>"
             + (f"€{int(round(ppu)):,}" if ppu else "—") + "</td>"
             f"<td style='padding:6px;text-align:right' "
+            f"data-sort='{delta_sort:.2f}'>{delta_html}</td>"
+            f"<td style='padding:6px' data-sort='{delta_sort:.2f}'>"
+            f"{spark}</td>"
+            f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['median_price'] or 0}'>"
             f"{_fmt_eur(s['median_price'])}</td>"
             f"<td style='padding:6px;text-align:right' "
@@ -118,20 +147,52 @@ def flat_section_html(stats, run_date=None):
         f"<h2 id='flats'>Riga flat market — by district{as_of}</h2>"
         "<p class='note'>All in-budget sale listings from today's scan, "
         "grouped by district. Median €/m² is the asking-price reality "
-        "check; <b>New</b> = ads first seen today. Clicking a district "
-        "opens the Flats tab filtered to it.</p>"
+        "check; <b>New</b> = ads first seen today; <b>Δ 7d</b> = median "
+        "€/m² change over the last week; <b>Trend</b> = the same as a "
+        "sparkline. Clicking a district opens the Flats tab filtered to "
+        "it.</p>"
         f"<table id='flat-market'><tr>{head}</tr>{''.join(rows)}</table>")
 
 
 def save_stats(stats, run_date, total_ads, path=None):
-    """Persist district stats for website.build()."""
+    """Persist district stats for website.build(). Also appends today's
+    per-district medians to flat_market_history.json so the page can draw
+    trend sparklines once a district has been tracked on multiple days."""
     path = path or config.FLAT_MARKET_STATS_JSON
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"date": run_date, "total": total_ads,
                    "districts": stats}, f,
                   ensure_ascii=False, separators=(",", ":"))
+    _append_history(stats, run_date)
     return path
+
+
+def _append_history(stats, run_date, path=None):
+    """flat_market_history.json: {district: [[date, median_ppu,
+    median_price, ads], ...]}, capped at FLAT_MARKET_HISTORY_MAX_POINTS."""
+    path = path or config.FLAT_MARKET_HISTORY_JSON
+    hist = utils.read_json(path, {})
+    for s in stats:
+        if s.get("median_ppu") is None:
+            continue
+        pts = hist.setdefault(str(s["district"]), [])
+        point = [run_date, s["median_ppu"], s.get("median_price"),
+                 s["ads"]]
+        if pts and pts[-1][0] == run_date:
+            pts[-1] = point                  # same-day re-run updates
+        else:
+            pts.append(point)
+        del pts[:-config.FLAT_MARKET_HISTORY_MAX_POINTS]
+    try:
+        utils.write_json(path, hist, indent=None)
+    except OSError:
+        pass
+
+
+def load_history(path=None):
+    """{district: [[date, median_ppu, median_price, ads], ...]}."""
+    return utils.read_json(path or config.FLAT_MARKET_HISTORY_JSON, {})
 
 
 def load_stats(path=None):

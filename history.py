@@ -11,11 +11,11 @@ The data/ folder is committed back to the repo by GitHub Actions so state
 persists across daily runs.
 """
 import csv
-import json
 import os
 from datetime import date
 
 import config
+import utils
 
 
 def _ensure_dirs():
@@ -28,19 +28,12 @@ def _listing_key(listing):
 
 
 def _read_json(path, default):
-    if not os.path.exists(path):
-        return default
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return default
+    return utils.read_json(path, default)
 
 
 def _write_json(path, data):
     _ensure_dirs()
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    utils.write_json(path, data, indent=2)
 
 
 # ---------------------------------------------------------------------------
@@ -73,10 +66,7 @@ def update_seen_deals(scored_by_type, seen_deals):
 
 
 def _to_float(v):
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        return None
+    return utils.to_float(v)
 
 
 # ---------------------------------------------------------------------------

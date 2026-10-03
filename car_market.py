@@ -12,38 +12,24 @@ website.build() renders docs/market.html from it and injects the nav.
 
 import json
 import os
-import statistics
 from html import escape as _e
 from urllib.parse import quote as _q
 
 import config
 import flat_market
+import utils
 
 
 def _fmt_eur(v):
-    if v is None:
-        return "—"
-    try:
-        return "€{:,.0f}".format(float(v))
-    except (TypeError, ValueError):
-        return "—"
+    return utils.fmt_eur(v)
 
 
 def _fmt_num(v):
-    if v is None:
-        return "—"
-    try:
-        return "{:,}".format(int(round(float(v))))
-    except (TypeError, ValueError):
-        return "—"
+    return utils.fmt_num(v)
 
 
 def _median(values):
-    vals = [float(v) for v in values if v is not None]
-    try:
-        return statistics.median(vals) if vals else None
-    except (TypeError, ValueError):
-        return None
+    return utils.median(values)
 
 
 def _group_key(listing):
@@ -137,20 +123,9 @@ def _spark_html(points):
     if len(vals) < 2 or not vals[0]:
         return "", 0
     pct = (vals[-1] - vals[0]) / vals[0] * 100
-    w, h = 64, 16
-    lo, hi = min(vals), max(vals)
-    span = (hi - lo) or 1
-    coords = " ".join(
-        f"{i * (w - 4) / (len(vals) - 1) + 2:.1f},"
-        f"{h - 3 - (v - lo) / span * (h - 6):.1f}"
-        for i, v in enumerate(vals))
-    color = ("#c0392b" if vals[-1] < vals[0]
-             else "#27ae60" if vals[-1] > vals[0] else "#7f8c8d")
-    return (f"<svg width='{w}' height='{h}' viewBox='0 0 {w} {h}' "
-            f"style='vertical-align:-3px' "
-            f"title='{pct:+.1f}% since {points[0][0]}'>"
-            f"<polyline points='{coords}' fill='none' "
-            f"stroke='{color}' stroke-width='1.5'/></svg>", pct)
+    svg = utils.sparkline_svg(
+        points, title=f"{pct:+.1f}% since {points[0][0]}")
+    return svg, pct
 
 
 def build_market_html(stats, run_date, total_ads, history=None,
@@ -217,7 +192,8 @@ def build_market_html(stats, run_date, total_ads, history=None,
         "<p>No models with enough ads to summarise yet.</p>")
 
     flat_section = flat_market.flat_section_html(
-        flat_stats.get("districts"), flat_stats.get("date")) \
+        flat_stats.get("districts"), flat_stats.get("date"),
+        flat_market.load_history()) \
         if flat_stats else ("<p class='note'>No flat stats yet — they are "
                             "written by the daily flat scan.</p>")
 

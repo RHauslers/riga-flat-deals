@@ -20,8 +20,6 @@ appended every run.
 Only SS.com listings can be enriched with CenuMednieks data (it tracks SS.lv
 only). City24 listings get our own tracking only.
 """
-import json
-import os
 import re
 import time
 from datetime import date, datetime
@@ -30,11 +28,12 @@ import requests
 from bs4 import BeautifulSoup
 
 import config
+import utils
 
 # ---------------------------------------------------------------------------
 # File paths
 # ---------------------------------------------------------------------------
-PRICE_HISTORY_JSON = os.path.join(config.DATA_DIR, "price_history.json")
+PRICE_HISTORY_JSON = config.PRICE_HISTORY_JSON
 
 # ---------------------------------------------------------------------------
 # CenuMednieks.lv scraper
@@ -49,10 +48,8 @@ CENU_DELAY = 1.0  # seconds between requests (be respectful)
 
 
 def _safe_float(v, default=0.0):
-    try:
-        return float(v) if v is not None else default
-    except (TypeError, ValueError):
-        return default
+    r = utils.to_float(v)
+    return default if r is None else r
 
 
 def _parse_price(text):
@@ -177,19 +174,11 @@ def fetch_cenumednieks(ss_id):
 # Price history storage (data/price_history.json)
 # ---------------------------------------------------------------------------
 def _read_json(path, default):
-    if not os.path.exists(path):
-        return default
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return default
+    return utils.read_json(path, default)
 
 
 def _write_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    utils.write_json(path, data, indent=2)
 
 
 def load_price_history():
@@ -484,7 +473,11 @@ def format_price_timeline_html(listing, history=None):
         header = (f'<div style="font-size:11px;color:#666;margin:2px 0">'
                   f'On market: <b>{days_market} days</b></div>')
 
-    timeline_html = '<div style="margin:2px 0">' + ''.join(parts) + '</div>'
+    spark = utils.sparkline_svg(
+        [(t['date'], t['price']) for t in current_timeline])
+
+    timeline_html = '<div style="margin:2px 0">' + ''.join(parts) + \
+        spark + '</div>'
     return header + timeline_html + prev_html
 
 

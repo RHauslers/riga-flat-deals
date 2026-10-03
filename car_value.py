@@ -5,14 +5,12 @@ import unicodedata
 from datetime import date
 
 import config
+import utils
 
 
 def _number(value):
-    try:
-        value = float(value)
-    except (TypeError, ValueError):
-        return None
-    return value if math.isfinite(value) else None
+    v = utils.to_float(value)
+    return v if v is not None and math.isfinite(v) else None
 
 
 def canonical_make(raw):
@@ -89,6 +87,10 @@ def _same_car(a, b):
 def dedupe_cross_source(listings):
     result = []
     seen_ids = set()
+    # _same_car only ever matches within one (make, model, year, fuel)
+    # bucket — index survivors by that key so each listing is compared
+    # against a handful of candidates instead of the whole result list.
+    bucket_index = {}
     merged = 0
     for item in listings:
         key = (item.get("source"), str(item.get("id", "")))
@@ -96,7 +98,11 @@ def dedupe_cross_source(listings):
             continue
         seen_ids.add(key)
         listing = dict(item)
-        for index, current in enumerate(result):
+        bkey = (listing.get("make"), listing.get("model"),
+                listing.get("year"), listing.get("fuel"))
+        candidates = bucket_index.setdefault(bkey, [])
+        for index in candidates:
+            current = result[index]
             sources = {current["source"]} | {entry["source"] for entry in current.get("also_on", [])}
             if listing["source"] in sources or not _same_car(current, listing):
                 continue
@@ -110,6 +116,7 @@ def dedupe_cross_source(listings):
             merged += 1
             break
         else:
+            candidates.append(len(result))
             result.append(listing)
     return result, merged
 
@@ -135,11 +142,20 @@ def _comparable(target, peer):
 
 def score_and_rank(listings):
     market = [item for item in listings if eligible(item)]
+    # _comparable only matches inside one (make, model, fuel) bucket —
+    # pre-group the market so each listing scans its own model pool,
+    # not all ~1.5k cars (was O(n²) over the whole market).
+    pools = {}
+    for item in market:
+        key = (item.get("make"), item.get("model"), item.get("fuel"))
+        pools.setdefault(key, []).append(item)
     assessed = []
     for listing in market:
         if not eligible(listing, config.CAR_PRICE_CEILING_EUR):
             continue
-        peers = [item for item in market if _comparable(listing, item)]
+        key = (listing.get("make"), listing.get("model"), listing.get("fuel"))
+        pool = pools.get(key, ())
+        peers = [item for item in pool if _comparable(listing, item)]
         scored = dict(listing)
         scored["_comps"] = len(peers)
         scored["_median"] = None

@@ -76,3 +76,32 @@ def check(source_counts, total, context="daily", geocoded=None):
     for issue_key, message in issues:
         print(f"[health] ISSUE ({context}) {issue_key}: {message}")
     return [k for k, _ in issues]
+
+
+def check_cars(source_counts, source_errors):
+    """Car-source health (log-only; printed with context 'cars').
+
+      - source_failed:<name> : scraper raised or produced nothing eligible
+      - low_eligible:<name>  : source returned >= CAR_MIN_EXPECTED_RAW ads
+                               but the eligible share is implausibly low —
+                               the parser/field mapping is likely broken
+    """
+    issues = []
+    source_errors = source_errors or {}
+    for name, err in sorted(source_errors.items()):
+        issues.append((f"source_failed:{name}", str(err)))
+    for name, c in sorted((source_counts or {}).items()):
+        if name.startswith("_") or name in source_errors or \
+                not isinstance(c, dict):
+            continue
+        raw = c.get("raw", 0)
+        ok = c.get("eligible", 0)
+        if raw >= config.CAR_MIN_EXPECTED_RAW and ok < max(3, int(raw * 0.05)):
+            issues.append((
+                f"low_eligible:{name}",
+                f"Only {ok}/{raw} listing(s) eligible (<5%). If this is "
+                f"not a genuinely thin day the {name} parser or the "
+                f"eligible() field mapping is probably broken."))
+    for issue_key, message in issues:
+        print(f"[health] ISSUE (cars) {issue_key}: {message}")
+    return [k for k, _ in issues]

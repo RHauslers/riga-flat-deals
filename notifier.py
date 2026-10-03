@@ -17,6 +17,7 @@ from html import escape as _esc
 
 import config
 import price_history
+import utils
 from utils import safe_url
 
 try:
@@ -113,7 +114,7 @@ def _fmt_distance(listing, digits=1):
 
 def _t(v):
     """Escape scraped text for HTML (None -> '')."""
-    return _esc(str(v if v is not None else ""), quote=True)
+    return utils.esc(v)
 
 
 def _source_link(listing, extra=""):
@@ -585,6 +586,66 @@ def build_near_school_html(all_listings):
 
 
 # ---------------------------------------------------------------------------
+# "Disappeared — likely sold/removed" section (gone.py snapshot diff)
+# ---------------------------------------------------------------------------
+def build_gone_html(gone, price_data=None, today=None):
+    """Yesterday's flat ads that are no longer listed.
+
+    Each row: district, street, last asking price, days it was listed
+    (price_history first_seen -> today), link. '' when nothing vanished.
+    """
+    if not gone:
+        return ""
+    price_data = price_data or {}
+    try:
+        today_d = date.fromisoformat(str(today)) if today else date.today()
+    except ValueError:
+        today_d = date.today()
+
+    rows = []
+    for i, r in enumerate(gone):
+        zebra = ' style="background:#fafafa"' if i % 2 else ''
+        entry = price_data.get(r.get("k")) or {}
+        days = utils.days_since(entry.get("first_seen"), today_d)
+        listed = f"{days} d" if days is not None else "?"
+        url = safe_url(r.get("u"))
+        link = (f'<a href="{_t(url)}" target="_blank" '
+                f'rel="noopener noreferrer">view</a>') if url else "-"
+        src = _t(r.get("k", "").split(":", 1)[0])
+        rows.append(
+            f'<tr{zebra}>'
+            f"<td style='font-size:13px'>{_t(r.get('d') or '')}</td>"
+            f"<td style='font-size:13px'>{_t(r.get('s') or '—')}</td>"
+            f"<td style='text-align:right;font-weight:bold'>"
+            f"{_fmt_price(r.get('p')) if r.get('p') else '-'}</td>"
+            f"<td style='text-align:right;color:#666'>{listed}</td>"
+            f"<td style='font-size:12px;color:#999'>{src}</td>"
+            f"<td style='font-size:12px'>{link}</td>"
+            f'</tr>')
+
+    n = len(gone)
+    return (
+        '<div style="background:#fdf6ec;border:1px solid #e8d9b8;'
+        'border-radius:8px;padding:16px;margin:16px 0">'
+        '<h3 style="color:#9a6d0a;border:none;margin:0 0 8px 0">'
+        f'Disappeared — likely sold/removed ({n})</h3>'
+        '<p style="color:#666;font-size:12px;margin:0 0 10px 0">'
+        'Ads that were live yesterday but are gone from today\'s scan — '
+        'usually sold (or withdrawn). "Listed" is how long our tracker '
+        'saw the ad for.</p>'
+        "<table style='border-collapse:collapse;width:100%;font-size:14px'>"
+        "<tr style='background:#f0e6d2'>"
+        "<th style='text-align:left'>District</th>"
+        "<th style='text-align:left'>Street</th>"
+        "<th style='text-align:right'>Last ask</th>"
+        "<th style='text-align:right'>Listed</th>"
+        "<th>Source</th><th>Link</th></tr>"
+        f"{''.join(rows)}</table>"
+        '</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
 # "State & bailiff auctions" section (izsoles.ta.gov.lv)
 # ---------------------------------------------------------------------------
 def build_auctions_html(auctions, top_n=15):
@@ -606,11 +667,29 @@ def build_auctions_html(auctions, top_n=15):
             '</div>'
         )
 
+    today = date.today()
+
+    def days_to_end(a):
+        """Days until the auction ends (None when unparseable)."""
+        try:
+            return (date.fromisoformat(str(a.get("auction_end") or ""))
+                    - today).days
+        except ValueError:
+            return None
+
     def sort_key(a):
+        # Ending-soon auctions first (action needed now), then by distance.
+        d = days_to_end(a)
+        urgent = d is not None and d <= config.AUCTION_ENDING_SOON_DAYS
         km = a.get("_school_km")
-        return (km is None, km if km is not None else 0.0)
+        return (not urgent,
+                km is None, km if km is not None else 0.0)
 
     items = sorted(auctions, key=sort_key)
+    n_urgent = sum(
+        1 for a in items
+        if (lambda d: d is not None and d <= config.AUCTION_ENDING_SOON_DAYS)(
+            days_to_end(a)))
     hidden = max(0, len(items) - top_n)
     shown = items[:top_n]
 
@@ -638,6 +717,13 @@ def build_auctions_html(auctions, top_n=15):
         ap = a.get("auction_appraisal")
         ap_disp = _fmt_price(ap) if ap else "-"
         end = a.get("auction_end") or "-"
+        days_end = days_to_end(a)
+        if days_end is not None and days_end <= config.AUCTION_ENDING_SOON_DAYS:
+            label = "ENDS TODAY" if days_end <= 0 else f"ENDS IN {days_end}d"
+            end = (f"{_t(end)}<br><b style='color:#c0392b;font-size:11px'>"
+                   f"{label}</b>")
+        else:
+            end = _t(end)
         source = a.get("source", "")
 
         map_link = ""
@@ -656,7 +742,8 @@ def build_auctions_html(auctions, top_n=15):
             f"<td style='text-align:right' data-sort='{sp or 0}'>{sp_disp}</td>"
             f"<td style='text-align:right;{cb_style}' data-sort='{cb or 0}'>{cb_disp}</td>"
             f"<td style='text-align:right' data-sort='{ap or 0}'>{ap_disp}</td>"
-            f"<td style='text-align:right;font-size:12px'>{_t(end)}</td>"
+            f"<td style='text-align:right;font-size:12px' "
+            f"data-sort='{_t(str(a.get('auction_end') or ''))}'>{end}</td>"
             f"<td>{_source_link(a, map_link)}</td>"
             '</tr>'
         )
@@ -665,12 +752,16 @@ def build_auctions_html(auctions, top_n=15):
     n = len(auctions)
     more_note = (f' <span style="color:#999;font-size:11px">'
                  f'(+{hidden} more)</span>') if hidden else ''
+    urgent_note = (f' <b style="color:#c0392b">· {n_urgent} ending '
+                   f'&le;{config.AUCTION_ENDING_SOON_DAYS}d</b>'
+                   ) if n_urgent else ''
     tid = "tbl_auctions"
     return (
         '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
         'padding:16px;margin:16px 0">'
         '<h3 style="color:#8e44ad;border:none;margin:0 0 8px 0">'
-        f'State & bailiff auctions — Riga apartments ({n}){more_note}</h3>'
+        f'State & bailiff auctions — Riga apartments ({n}){urgent_note}'
+        f'{more_note}</h3>'
         '<p style="color:#666;font-size:12px;margin:0 0 10px 0">'
         'Forced-sale and state property auctions from '
         '<a href="https://izsoles.ta.gov.lv">izsoles.ta.gov.lv</a>. Starting '
@@ -730,6 +821,9 @@ def _watch_star(listing):
 _FLAT_FIELDS = ("district", "rooms", "area_m2", "floor", "price_eur",
                 "price_per_m2", "school_km", "score", "source", "url", "id")
 
+# Dictionary-encoded like the car embed (see car_digest._MARKET_DICT_FIELDS)
+_FLAT_DICT_FIELDS = ("district", "source")
+
 
 def _flat_market_data_html(all_scored, all_listings=None):
     """Embed every scored listing (not just the top-N shown in the tables)
@@ -767,12 +861,27 @@ def _flat_market_data_html(all_scored, all_listings=None):
             continue
         extra.append(_row(listing, None))
         embedded.add(key)
+    dict_idx = {f: _FLAT_FIELDS.index(f) for f in _FLAT_DICT_FIELDS}
+    dicts = {f: [] for f in _FLAT_DICT_FIELDS}
+    dict_map = {f: {} for f in _FLAT_DICT_FIELDS}
+    for row in rows + extra:
+        for f, i in dict_idx.items():
+            v = row[i]
+            if v is None:
+                continue
+            d = dict_map[f].get(v)
+            if d is None:
+                d = len(dicts[f])
+                dict_map[f][v] = d
+                dicts[f].append(v)
+            row[i] = d
     prices = [r[4] for r in rows + extra if r[4]]   # 4 = price_eur field
     payload = {
         "config": {"minPrice": config.MIN_SALE_PRICE_EUR,
                    # no fixed ceiling — the real data max is the bound
                    "maxPrice": max(prices) if prices else 0},
         "fields": list(_FLAT_FIELDS),
+        "dict": dicts,
         "rows": rows,
         "extra": extra,
     }
@@ -799,6 +908,15 @@ function __flatBudgetInit() {
   var payload = JSON.parse(dataEl.textContent);
   var cfg = payload.config, F = payload.fields, idx = {};
   F.forEach(function (f, i) { idx[f] = i; });
+  // Dictionary-encoded string columns -> real strings, before any reads.
+  if (payload.dict) {
+    Object.keys(payload.dict).forEach(function (f) {
+      var i = idx[f], dict = payload.dict[f];
+      (payload.rows || []).concat(payload.extra || []).forEach(function (r) {
+        if (r[i] != null) r[i] = dict[r[i]];
+      });
+    });
+  }
   // Budget search covers the WHOLE embedded market: scored rows plus the
   // unscored extras (near-school/overflow listings) — every flat kept by
   // today's sanity floor, regardless of price.
@@ -1029,6 +1147,14 @@ function __flatWatchInit() {
   var payload = JSON.parse(dataEl.textContent);
   var F = payload.fields, idx = {};
   F.forEach(function (f, i) { idx[f] = i; });
+  if (payload.dict) {
+    Object.keys(payload.dict).forEach(function (f) {
+      var i = idx[f], dict = payload.dict[f];
+      (payload.rows || []).concat(payload.extra || []).forEach(function (r) {
+        if (r[i] != null) r[i] = dict[r[i]];
+      });
+    });
+  }
   var byKey = {};
   payload.rows.forEach(function (r) {
     if (r[idx.source] != null && r[idx.id] != null)
@@ -1189,7 +1315,7 @@ if (document.readyState === 'loading') {
 def build_html(main_deals, still_active, comparison_html, status_note,
                price_data=None, map_markers=None,
                newest_html="", near_school_html="", auctions_html="",
-               all_scored=None, all_listings=None):
+               all_scored=None, all_listings=None, gone_html=""):
     today = date.today().isoformat()
     run_time = _now_header_str()
     sections = []
@@ -1366,6 +1492,7 @@ ss.com, city24.lv{', izsoles.ta.gov.lv (auctions)' if config.IZSOLES_ENABLED els
 Sales only — rentals are out of scope.</p>
 {flat_budget_html}
 {comparison_html}
+{gone_html}
 {map_html}
 {near_school_html}
 {auctions_html}
@@ -1480,11 +1607,12 @@ function showOnMap(markerId) {{
 def save_digest(main_deals, still_active, comparison_html, status_note,
                 price_data=None, map_markers=None, newest_html="",
                 near_school_html="", auctions_html="", all_scored=None,
-                all_listings=None):
+                all_listings=None, gone_html=""):
     """Build today's digest and write it to data/digests/. Returns (path, info)."""
     html = build_html(main_deals, still_active, comparison_html, status_note,
                       price_data, map_markers, newest_html,
-                      near_school_html, auctions_html, all_scored, all_listings)
+                      near_school_html, auctions_html, all_scored,
+                      all_listings, gone_html)
     today = date.today().isoformat()
     os.makedirs(config.DIGEST_DIR, exist_ok=True)
     digest_path = os.path.join(config.DIGEST_DIR, f"digest_{today}.html")

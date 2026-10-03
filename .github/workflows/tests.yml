@@ -1,0 +1,31 @@
+name: Tests
+
+# Unit tests on every code change. Scrapers are fully mocked, so no
+# Playwright browser install is needed; Node is preinstalled on the
+# ubuntu runners, so the JS parity tests run here too.
+on:
+  push:
+    branches: [main]
+    paths: ["**.py", "tests/**", "requirements.txt", ".github/workflows/tests.yml"]
+  pull_request:
+    paths: ["**.py", "tests/**", "requirements.txt"]
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -X utf8 -m unittest discover -s tests -v

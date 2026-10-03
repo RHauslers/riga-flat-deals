@@ -15,7 +15,6 @@ run() -> status string:
      data/car_seen.json, save data/digests/cars_YYYY-MM-DD.html, then update
      the seen state (only when at least one source produced eligible data).
 """
-import json
 import os
 import time
 import traceback
@@ -25,27 +24,99 @@ import config
 import car_value
 import car_digest
 import car_market
+import gone
+import health
+import utils
 from scrapers import car_ss, car_pp
 
 SOURCES = (("ss.com", car_ss), ("pp.lv", car_pp))
 
 
 def _read_json(path, default):
-    if not os.path.exists(path):
-        return default
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return default
+    return utils.read_json(path, default)
 
 
 def _write_json(path, data):
     """Compact JSON (no indent): car_seen/snapshot are ~1 MB each when
     pretty-printed and are rewritten every day into git history."""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
+    utils.write_json(path, data, indent=None)
+
+
+# ---------------------------------------------------------------------------
+# car_seen.json — v2 compact layout (short keys, dates as day-offsets from
+# _SEEN_EPOCH). Both files are rewritten daily into git history; the v1
+# key/value format duplicated its six long key names on every one of ~7k
+# entries. _read_seen() migrates v1 transparently on load.
+# ---------------------------------------------------------------------------
+_SEEN_EPOCH = date(2026, 1, 1)
+
+
+def _seen_day(iso):
+    """ISO date -> int days since _SEEN_EPOCH (None/unparseable -> None)."""
+    try:
+        return (date.fromisoformat(str(iso)) - _SEEN_EPOCH).days if iso else None
+    except (ValueError, TypeError):
+        return None
+
+
+def _seen_iso(n):
+    """Day offset -> ISO date (None -> None)."""
+    try:
+        return (_SEEN_EPOCH + timedelta(days=int(n))).isoformat() \
+            if n is not None else None
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
+def _read_seen(path=None):
+    """Load car_seen.json as the familiar {key: {first_seen, last_seen,
+    last_price, last_shown, first_shown, prices}} dict. Reads the compact
+    v2 layout and the old verbose one transparently."""
+    data = _read_json(path or config.CAR_SEEN_JSON, {})
+    if data.get("v") != 2:
+        return data
+    seen = {}
+    for key, e in (data.get("entries") or {}).items():
+        seen[key] = {
+            "first_seen": _seen_iso(e.get("fs")),
+            "last_seen": _seen_iso(e.get("ls")),
+            "last_price": e.get("lp"),
+            "last_shown": _seen_iso(e.get("lw")),
+            "first_shown": _seen_iso(e.get("fw")),
+            "prices": [[_seen_iso(p[0]), p[1]]
+                       for p in (e.get("pr") or []) if len(p) == 2],
+        }
+    return seen
+
+
+def _write_seen(seen, path=None):
+    """Persist seen state in the v2 layout."""
+    entries = {}
+    for key, e in seen.items():
+        entries[key] = {
+            "fs": _seen_day(e.get("first_seen")),
+            "ls": _seen_day(e.get("last_seen")),
+            "lp": e.get("last_price"),
+            "lw": _seen_day(e.get("last_shown")),
+            "fw": _seen_day(e.get("first_shown")),
+            "pr": [[_seen_day(p[0]), p[1]]
+                    for p in (e.get("prices") or [])
+                    if isinstance(p, (list, tuple)) and len(p) == 2],
+        }
+    _write_json(path or config.CAR_SEEN_JSON, {"v": 2, "entries": entries})
+
+
+def load_snapshot(path=None):
+    """Yesterday's market snapshot as {"date": ..., "listings": [...]}.
+    Reads both the old {"listings": [dict, ...]} layout and the columnar
+    v2 one ({v: 2, fields: [...], rows: [[...]]})."""
+    data = _read_json(path or config.CAR_MARKET_SNAPSHOT_JSON, {})
+    if data.get("v") == 2:
+        fields = data.get("fields") or []
+        return {"date": data.get("date"),
+                "listings": [dict(zip(fields, row))
+                             for row in data.get("rows") or []]}
+    return data
 
 
 def _ineligible_reason(l):
@@ -80,7 +151,7 @@ def _ineligible_reason(l):
 def _badge(entry, price, today=None):
     """Badge for a qualified listing based on its previous shown state."""
     today = today or date.today().isoformat()
-    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    yesterday = (date.fromisoformat(today) - timedelta(days=1)).isoformat()
     if not entry or not entry.get("last_shown"):
         return "NEW"
     prev = entry.get("last_price")
@@ -168,18 +239,31 @@ def run():
         print(f"[cars] {msg}")
         return msg
 
+    prev_snapshot = load_snapshot()  # before we overwrite: yesterday's ids
+                                   # feed the "gone since yesterday" section
+
     deduped, n_merged = car_value.dedupe_cross_source(eligible_listings)
     if n_merged:
         print(f"[cars] merged {n_merged} cross-source duplicate(s)")
 
+    # "Gone since yesterday": ids in yesterday's snapshot absent today —
+    # only for sources that produced data (a silent source may have
+    # failed, not sold out).
+    ok_source_names = {n for n, _ in SOURCES if n not in source_errors}
+    gone_car_rows = gone.gone_rows(
+        gone.car_snapshot_rows(prev_snapshot.get("listings")),
+        {gone.listing_key(l) for l in deduped},
+        ok_source_names, config.CAR_GONE_MAX_ROWS)
+
     qualified, assessed = car_value.score_and_rank(deduped)
 
-    snapshot = {"date": today, "listings": [
-        {field: l.get(field) for field in config.CAR_SNAPSHOT_FIELDS}
-        for l in deduped]}
-    _write_json(config.CAR_MARKET_SNAPSHOT_JSON, snapshot)
+    _write_json(config.CAR_MARKET_SNAPSHOT_JSON,
+                {"v": 2, "date": today,
+                 "fields": list(config.CAR_SNAPSHOT_FIELDS),
+                 "rows": [[l.get(f) for f in config.CAR_SNAPSHOT_FIELDS]
+                          for l in deduped]})
 
-    seen = _read_json(config.CAR_SEEN_JSON, {})
+    seen = _read_seen()
     badges = {}
     for l in qualified:
         key = f"{l.get('source')}:{l.get('id')}"
@@ -225,16 +309,19 @@ def run():
         car_market.compute_market_stats(deduped, qualified, today),
         today, len(deduped))
 
+    health.check_cars(source_counts, source_errors)
+
     html_text = car_digest.build_html(qualified, assessed, source_counts,
                                       source_errors, badges, today,
-                                      market=deduped)
+                                      market=deduped, gone=gone_car_rows,
+                                      seen=seen)
     path = _save_digest(html_text, today)
     cutoff = (date.today() - timedelta(days=config.CAR_SEEN_TTL_DAYS)).isoformat()
     stale = [k for k, v in seen.items()
              if (v.get("last_seen") or v.get("first_seen") or "") < cutoff]
     for k in stale:
         del seen[k]
-    _write_json(config.CAR_SEEN_JSON, seen)
+    _write_seen(seen)
 
     counts = ", ".join(f"{n} {source_counts[n]['raw']}->{source_counts[n]['eligible']}"
                        for n, _ in SOURCES)

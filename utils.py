@@ -1,9 +1,137 @@
 # -*- coding: utf-8 -*-
-"""Shared helpers: diacritic stripping, district matching, slugify."""
-import unicodedata
+"""Shared helpers: diacritic stripping, district matching, slugify,
+plus the small IO/format/stat helpers several modules used to carry
+private copies of."""
+import json
+import os
 import re
+import statistics
+import unicodedata
+from datetime import date, datetime
+from html import escape as _html_escape
 
 import config
+
+
+# ---------------------------------------------------------------------------
+# JSON IO (was duplicated in cars.py, history.py, geocode.py, price_history.py)
+# ---------------------------------------------------------------------------
+def read_json(path, default):
+    """json.load with tolerant defaults: missing/corrupt file -> default."""
+    if not os.path.exists(path):
+        return default
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return default
+
+
+def write_json(path, data, indent=2):
+    """Write JSON (UTF-8, non-ASCII preserved). indent=None -> compact."""
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        if indent is None:
+            json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
+        else:
+            json.dump(data, f, ensure_ascii=False, indent=indent)
+
+
+# ---------------------------------------------------------------------------
+# Number coercion (was duplicated as _to_float/_safe_float/_number everywhere)
+# ---------------------------------------------------------------------------
+def to_float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def to_int(v):
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Formatting
+# ---------------------------------------------------------------------------
+def esc(v):
+    """HTML-escape any value for embedding in digest markup."""
+    return _html_escape(str(v if v is not None else ""), quote=True)
+
+
+def fmt_eur(v):
+    """'€12,345' or '—' for missing values."""
+    if v is None:
+        return "—"
+    try:
+        return "€{:,.0f}".format(float(v))
+    except (TypeError, ValueError):
+        return "—"
+
+
+def fmt_num(v):
+    """'12,345' or '—'."""
+    if v is None:
+        return "—"
+    try:
+        return "{:,}".format(int(round(float(v))))
+    except (TypeError, ValueError):
+        return "—"
+
+
+def median(values):
+    """statistics.median over the non-None values, or None."""
+    vals = [float(v) for v in values if v is not None]
+    try:
+        return statistics.median(vals) if vals else None
+    except (TypeError, ValueError):
+        return None
+
+
+def days_since(date_str, today=None):
+    """Days between today and an ISO date string, or None if unparseable."""
+    if not date_str or date_str == "unknown":
+        return None
+    try:
+        d = datetime.fromisoformat(str(date_str)).date()
+    except (ValueError, TypeError):
+        return None
+    today = today or date.today()
+    return (today - d).days
+
+
+def sparkline_svg(points, w=64, h=16, title=None):
+    """Tiny inline-SVG price/value trail (red = dropping, green = rising,
+    grey = flat). ``points`` is any [(x, y), ...] sequence — only the y
+    values are drawn. '' when fewer than two usable values exist.
+    All values are numbers we generated, so no escaping is needed."""
+    pts = []
+    for point in points or []:
+        try:
+            pts.append(float(point[1]))
+        except (TypeError, ValueError, IndexError):
+            continue
+    if len(pts) < 2:
+        return ""
+    lo, hi = min(pts), max(pts)
+    span = (hi - lo) or 1.0
+    n = len(pts)
+    coords = " ".join(
+        f"{round(i * (w - 4) / (n - 1) + 2, 1)},"
+        f"{round(h - 3 - (v - lo) / span * (h - 6), 1)}"
+        for i, v in enumerate(pts))
+    color = ("#c0392b" if pts[-1] < pts[0]
+             else "#27ae60" if pts[-1] > pts[0] else "#7f8c8d")
+    title_attr = f" title='{esc(title)}'" if title else ""
+    return (f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" '
+            f'style="vertical-align:-3px;margin-left:4px"{title_attr}>'
+            f'<polyline points="{coords}" fill="none" stroke="{color}" '
+            f'stroke-width="1.5"/></svg>')
 
 
 def strip_diacritics(text):

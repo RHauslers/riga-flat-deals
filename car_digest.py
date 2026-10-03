@@ -12,6 +12,7 @@ from datetime import date, datetime
 from urllib.parse import urlparse
 
 import config
+import utils
 
 ALLOWED_HOSTS = {"www.ss.com", "ss.com", "pp.lv", "www.pp.lv"}
 
@@ -59,12 +60,7 @@ def _fmt(value, suffix=""):
 
 
 def _fmt_eur(value):
-    if value is None:
-        return "—"
-    try:
-        return f"€{int(round(float(value))):,}"
-    except (TypeError, ValueError):
-        return "—"
+    return utils.fmt_eur(value)
 
 
 def _spec_text(l):
@@ -133,31 +129,18 @@ _MARKET_FIELDS = ("source", "id", "make", "model", "year", "mileage_km",
                   "fuel", "engine_l", "gearbox", "body", "price_eur", "url",
                   "_first_seen", "_price_hist")
 
+# Repeated string columns are stored once in payload["dict"] with int
+# indices in the rows — make/model/fuel/gearbox/body/source/_first_seen
+# together were ~40% of the ~800 KB embed. The budget/watch JS decodes
+# them back to real strings at init, before anything reads the rows.
+_MARKET_DICT_FIELDS = ("source", "make", "model", "fuel", "gearbox",
+                       "body", "_first_seen")
+
 
 def _sparkline(hist, w=64, h=16):
     """Tiny inline-SVG price trail (red = dropping, green = rising, grey =
     flat). All values are numbers we generated, so no escaping needed."""
-    pts = []
-    for point in hist or []:
-        try:
-            pts.append(float(point[1]))
-        except (TypeError, ValueError, IndexError):
-            continue
-    if len(pts) < 2:
-        return ""
-    lo, hi = min(pts), max(pts)
-    span = (hi - lo) or 1.0
-    n = len(pts)
-    coords = " ".join(
-        f"{round(i * (w - 4) / (n - 1) + 2, 1)},"
-        f"{round(h - 3 - (v - lo) / span * (h - 6), 1)}"
-        for i, v in enumerate(pts))
-    color = ("#c0392b" if pts[-1] < pts[0]
-             else "#27ae60" if pts[-1] > pts[0] else "#7f8c8d")
-    return (f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" '
-            f'style="vertical-align:-3px;margin-left:4px">'
-            f'<polyline points="{coords}" fill="none" stroke="{color}" '
-            f'stroke-width="1.5"/></svg>')
+    return utils.sparkline_svg(hist, w, h)
 
 
 def _history_html(l, run_date=None):
@@ -198,11 +181,24 @@ def _market_data_html(market):
     scoring config, so the page can re-rank for any budget in the browser.
     URLs are allow-listed here — the same rule _link() applies to rows."""
     url_i = _MARKET_FIELDS.index("url")
+    dict_idx = {f: _MARKET_FIELDS.index(f) for f in _MARKET_DICT_FIELDS}
+    dicts = {f: [] for f in _MARKET_DICT_FIELDS}
+    dict_map = {f: {} for f in _MARKET_DICT_FIELDS}
     rows = []
     for l in market or []:
         row = [l.get(f) for f in _MARKET_FIELDS]
         if not _safe_url(row[url_i]):
             row[url_i] = ""
+        for f, i in dict_idx.items():
+            v = row[i]
+            if v is None:
+                continue
+            idx = dict_map[f].get(v)
+            if idx is None:
+                idx = len(dicts[f])
+                dict_map[f][v] = idx
+                dicts[f].append(v)
+            row[i] = idx
         rows.append(row)
     cfg = {
         "minPrice": config.CAR_MIN_PRICE_EUR,
@@ -226,7 +222,8 @@ def _market_data_html(market):
         "scoreMax": config.CAR_SCORE_MAX,
         "fuels": ["petrol", "diesel", "hybrid", "electric", "lpg"],
     }
-    payload = {"config": cfg, "fields": list(_MARKET_FIELDS), "rows": rows}
+    payload = {"config": cfg, "fields": list(_MARKET_FIELDS),
+               "dict": dicts, "rows": rows}
     text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     text = text.replace("</", "<\\/")  # keep JSON out of </script> parsing
     return ('<script type="application/json" id="car-market-data">'
@@ -255,6 +252,15 @@ function __carBudgetInit() {
   var payload = JSON.parse(dataEl.textContent);
   var cfg = payload.config, F = payload.fields, idx = {};
   F.forEach(function (f, i) { idx[f] = i; });
+  // Dictionary-encoded string columns -> real strings, before any reads.
+  if (payload.dict) {
+    Object.keys(payload.dict).forEach(function (f) {
+      var i = idx[f], dict = payload.dict[f];
+      payload.rows.forEach(function (r) {
+        if (r[i] != null) r[i] = dict[r[i]];
+      });
+    });
+  }
   var thisYear = new Date().getFullYear();
   var makeSel = document.getElementById('car-filter-make');
   var fuelSel = document.getElementById('car-filter-fuel');
@@ -725,6 +731,14 @@ function __carWatchInit() {
   var payload = JSON.parse(dataEl.textContent);
   var F = payload.fields, idx = {};
   F.forEach(function (f, i) { idx[f] = i; });
+  if (payload.dict) {
+    Object.keys(payload.dict).forEach(function (f) {
+      var i = idx[f], dict = payload.dict[f];
+      payload.rows.forEach(function (r) {
+        if (r[i] != null) r[i] = dict[r[i]];
+      });
+    });
+  }
   var byKey = {};
   payload.rows.forEach(function (r) {
     if (r[idx.source] != null && r[idx.id] != null)
@@ -927,6 +941,53 @@ def _row(l, badges):
     return "<tr>" + "".join(cells) + "</tr>"
 
 
+def _gone_html(gone, seen, run_date):
+    """'Gone since yesterday' — ads in yesterday's snapshot missing from
+    today's deduped pool (sold or withdrawn; source-scoped so a failed
+    scraper can't mass-report). '' when nothing vanished."""
+    if not gone:
+        return ""
+    seen = seen or {}
+    try:
+        today_d = date.fromisoformat(str(run_date)) if run_date \
+            else date.today()
+    except ValueError:
+        today_d = date.today()
+    rows = []
+    for i, r in enumerate(gone):
+        zebra = " style='background:#fafafa'" if i % 2 else ""
+        entry = seen.get(r.get("k")) or {}
+        days = utils.days_since(entry.get("first_seen"), today_d)
+        tracked = f"{days} d" if days is not None else "?"
+        url = _safe_url(r.get("u"))
+        link = (f'<a href="{html.escape(url, quote=True)}" target="_blank" '
+                f'rel="noopener noreferrer">view</a>') if url else "—"
+        label = " ".join(x for x in
+                         (_e(r.get("mk")), _e(r.get("mo")),
+                          _e(r.get("y"))) if x)
+        rows.append(
+            f"<tr{zebra}>"
+            f"<td style='padding:6px'>{label or '—'}</td>"
+            f"<td style='padding:6px;text-align:right;font-weight:bold'>"
+            f"{_fmt_eur(r.get('p'))}</td>"
+            f"<td style='padding:6px;text-align:right;color:#666'>"
+            f"{tracked}</td>"
+            f"<td style='padding:6px;font-size:12px;color:#999'>"
+            f"{_e(r.get('k', '').split(':', 1)[0])}</td>"
+            f"<td style='padding:6px'>{link}</td></tr>")
+    return (
+        "<div class='box' style='background:#fdf6ec;border-color:#e8d9b8'>"
+        f"<b>Gone since yesterday ({len(gone)})</b> — ads that were live "
+        "yesterday but are no longer listed (usually sold or withdrawn). "
+        "'Tracked' is how long our scan had seen the ad."
+        f"<table><tr style='background:#f0e6d2'>"
+        "<th style='text-align:left;padding:6px'>Car</th>"
+        "<th style='text-align:right;padding:6px'>Last ask</th>"
+        "<th style='text-align:right;padding:6px'>Tracked</th>"
+        "<th style='padding:6px'>Source</th><th style='padding:6px'>Link</th>"
+        f"</tr>{''.join(rows)}</table></div>")
+
+
 def _coverage_html(source_counts, source_errors):
     bits = []
     for name in ("ss.com", "pp.lv"):
@@ -951,7 +1012,7 @@ def _coverage_html(source_counts, source_errors):
 
 
 def build_html(qualified, assessed, source_counts, source_errors, badges, run_date,
-               market=None):
+               market=None, gone=None, seen=None):
     qualified = qualified or []
     assessed = assessed or []
     badges = badges or {}
@@ -1084,6 +1145,8 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
         top_html = (f"<div id='car-default-view'>{top_html}</div>"
                     "<div id='car-custom-view' style='display:none'></div>")
 
+    gone_html = _gone_html(gone, seen, run_date)
+
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Riga car deals — {_e(run_date)}</title>
@@ -1193,6 +1256,7 @@ selling prices, and mechanical/service condition cannot be verified from a
 listing.
 </div>
 {top_html}
+{gone_html}
 <div class="box">
 <b>Before buying:</b> check mileage and history in the CSDD register
 (e.csdd.lv), get an independent mechanical inspection, and verify all

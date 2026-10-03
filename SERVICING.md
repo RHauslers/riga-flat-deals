@@ -1,17 +1,94 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-09-30 22:40
+Last updated: 2026-10-03 23:55
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
 
+- 2026-10-03 23:55 — Session (megaplan): shared-utils refactor, car
+  dedupe/scoring O(n²)->bucketed, state v2 compaction (car_seen -56%,
+  snapshot -46%), dict-encoded digest embeds (-29%), gone/sold tracking
+  for flats+cars, flat market trends (Δ7d+sparkline), auction urgency
+  badges, per-row price sparklines, car health lines, guarded chat
+  injection (rule 4), tests.yml CI workflow, parser fixture tests.
+  138 tests. Details in the session section below.
 - 2026-09-30 22:40 — Session #6 (bug hunt): geocoder normalisation fix +
   failed-lookup cache fix, flat-digest HTML escaping, SHARE badge for
   co-ownership auctions, geocode coverage health check, '~' approximate
   distance marker. 102 tests. Details in the session section below.
 - (earlier sessions predate the changelog — see the dated session
   sections below, newest first)
+
+## Session 2026-10-03 — megaplan upgrade (bugs, perf, compaction, features, CI)
+
+Plan file: `~/.devin/plans/plan-da27699e144d5731.md`.
+
+- BUG FIXES: `cars._badge` derived "yesterday" from the machine date
+  instead of the `today` param (off by one in tests/edge cases).
+  `website.build()` logged a misleading message when no flat digest
+  existed. `geocode.GEOCODE_CACHE_JSON` / `price_history.PRICE_HISTORY_JSON`
+  were duplicated literals — now alias config constants. Test file
+  `open().read()` calls (ResourceWarnings) moved behind a `_read` helper.
+- REFACTOR: `utils.py` gained shared `read_json`/`write_json`,
+  `to_float`/`to_int`, `esc`, `fmt_eur`, `median`, `days_since`,
+  `strip_diacritics`, `sparkline_svg(title=...)`, `safe_url`. Seven
+  modules' duplicated private helpers now delegate there (public names
+  kept — tests only use public APIs).
+- PERF (car_value.py): cross-source dedupe and comparable-scan were
+  O(n²); both now bucket on the exact keys the old loops required equal
+  (dedupe: make+model+year+fuel; comparables: make+model+fuel), so
+  semantics are unchanged. Real data (4,589 listings): dedupe ~6 ms,
+  scoring ~47 ms (was ~seconds).
+- STATE COMPACTION (cars.py + helper_scripts/compact_state.py):
+  - `car_seen.json` v2: `{v:2, s:{src:{id:[first_day,last_day,days,best_price]}}}`
+    with epoch days — 1.05 MB -> 585 KB (-56%). v1 migrates on read;
+    written files are always v2.
+  - `car_market_snapshot.json` v2 columnar `{v:2, date, fields, rows}`
+    — 812 KB -> 372 KB (-46%). `cars.load_snapshot()` reads both
+    formats; `url` was added to CAR_SNAPSHOT_FIELDS (gone links need it).
+  - compact_state.py backs up (`*.v1.bak`) then rewrites; re-runnable.
+- DIGEST COMPACTION: the market JSON embedded in car and flat digests is
+  now dictionary-encoded (`{dicts:{col:[...]}, rows:[[...]]}`); both
+  pages' budget + watchlist JS decode it (Node parity tests cover the
+  real JS). Car embed ~432 KB -> ~306 KB on live data.
+- ARCHIVE: `website.build()` strips the `<script id="car-market-data">`
+  element from archived `docs/archive/cars_*.html` copies (dead JS id
+  references remain — harmless); originals in data/digests keep the
+  embed. Also fixed a pre-existing bug where the archive copy carried
+  the full embed into git history.
+- FEATURE — gone/sold (new `gone.py`): listings present in state but
+  absent from today's scan are marked gone after GONE_MIN_AGE_DAYS;
+  flats render a "Recently gone" section, cars a gone table. Gone rows
+  are kept GONE_KEEP_DAYS then dropped.
+- FEATURE — flat trends: `flat_market.py` now appends per-district
+  medians to `data/flat_market_history.json`; the Market section shows
+  a 7-day Δ column and trend sparkline. `car_market.py` likewise
+  appends to `data/car_market_history.json`.
+- FEATURE — auction urgency: auctions ending within
+  AUCTION_URGENT_DAYS (3) sort first with "ENDS TODAY"/"ENDS IN Nd"
+  badges; section header shows the urgent count.
+- FEATURE — flat price sparklines: `price_history.format_price_timeline_html`
+  renders an inline SVG of the tracked price points in the digest.
+- FEATURE — car health: `health.check_cars()` emits `[health] ISSUE
+  (cars) source_failed:<src>` lines like the flat checks; `cars.run()`
+  reports them.
+- FEATURE — chat injection (rule 4): `main._inject_chat_status()` on
+  Windows copies a status line to the clipboard and pastes it ONLY when
+  the foreground window title matches the Devin/Cascade/Windsurf
+  pattern; skipped in CI, never presses Enter, never fatal.
+- TESTS: 102 -> 138. New coverage for v2 migration, gone tracking,
+  auction urgency, trend deltas, sparklines, health lines, embed
+  dict round-trip, archive stripping, injection guards, plus
+  `tests/test_parsers.py` (14 fixture tests over tests/fixtures/) —
+  note `.gitignore` blocks `ss_*.html`/`city24_*.html`, so ss.com
+  fixtures are `sscom_*.html`.
+- CI: `.github/workflows/tests.yml` — unittest discover on push/PR
+  (py3.12, no Playwright needed; scrapers mocked).
+- CONFIG additions: GONE_MIN_AGE_DAYS, GONE_KEEP_DAYS,
+  AUCTION_URGENT_DAYS, CAR_SNAPSHOT_FIELDS (now incl. 'url'),
+  CHAT_INJECT_* knobs, FLAT/CAR_MARKET_HISTORY_JSON paths.
+- requirements.txt: floors+ceilings pinned (e.g. `requests>=2.31,<3`).
 
 ## Session 2026-09-30 #6 — geocoding bug (13% of flats had no position)
 
@@ -1082,6 +1159,19 @@ Verified locally:
 14. **last_digest staleness** — if a run is missed, `last_digest.json` is from
     the last successful run. The comparison header would compare against a
     stale date. The header includes the date so it's clear. Acceptable.
+15. **Concurrent `main` runs race on state+docs** — OBSERVED (2026-10-03):
+    two `python -m main` processes at once interleaved writes: `docs/cars.html`
+    ended up as a nav-only fragment and today's archive copy kept its market
+    embed. Fix after it happens: just re-run `python -c "import website;
+    website.build()"` — it is idempotent and rebuilds docs/ from the digests.
+    Prevention: never run two mains at once; the CI concurrency group already
+    serialises GitHub-side runs. (as of 2026-10-03)
+16. **v1 state files migrate transparently** — `car_seen.json` and
+    `car_market_snapshot.json` readers accept both v1 and v2; writes are
+    always v2. `helper_scripts/compact_state.py` rewrites old files with a
+    `.v1.bak` backup (gitignored). `flat_active.json` starts empty on the
+    first run — the flat "Disappeared" section appears from the second run
+    onward. (as of 2026-10-03)
 
 ## How to re-run / debug locally
 ```
