@@ -58,7 +58,8 @@ CAR_PRICE_HISTORY_MAX_POINTS = 60  # [date, price] points kept per listing
 # digest marks such comps counts with a "~" warning.
 CAR_THIN_POOL_COMPS = 8
 CAR_SNAPSHOT_FIELDS = ("source", "id", "make", "model", "year", "mileage_km",
-                       "fuel", "engine_l", "gearbox", "body", "price_eur")
+                       "fuel", "engine_l", "gearbox", "body", "price_eur",
+                       "url")
 # Market tab (docs/market.html): per-model stats over the whole eligible
 # pool. Models with fewer ads than this are omitted as noise.
 CAR_MARKET_MIN_LISTINGS = 3
@@ -267,6 +268,13 @@ ARCHIVE_KEEP_DAYS = 30
 #    can be pasted into the Cascade/Devin chat. Set to False to disable.
 # ----------------------------------------------------------------------------
 CHAT_INJECT_ENABLED = True
+# Auto-paste guard (Windows only): after copying, the message is pasted
+# with Ctrl+V only when the foreground window title matches this pattern
+# (the Cascade/Devin chat). Otherwise the clipboard copy is kept and a
+# hint is printed. Never submits — set CHAT_INJECT_SUBMIT to also press
+# Enter after pasting.
+CHAT_INJECT_WINDOW_RE = r"devin|cascade|windsurf"
+CHAT_INJECT_SUBMIT = False
 
 # ----------------------------------------------------------------------------
 # 9. STATE / BAILIFF AUCTIONS (izsoles.ta.gov.lv)
@@ -284,6 +292,10 @@ IZSOLES_TIMEOUT = 30       # seconds per request
 IZSOLES_DELAY = 1.0        # seconds between detail-page fetches (be polite)
 IZSOLES_MAX_PAGES = 5      # pagination cap (path-based: /2, /3, ...)
 IZSOLES_MAX_DETAILS = 30   # safety cap on detail pages fetched per run
+# Auctions ending within this many days get a red ENDS badge and sort to
+# the top of the section — a great deal at 17:00 tomorrow is useless if
+# you need to register and deposit first.
+AUCTION_ENDING_SOON_DAYS = 3
 
 # ----------------------------------------------------------------------------
 # 8. FILE PATHS (data dir is committed so history persists across CI runs)
@@ -300,6 +312,14 @@ CAR_MARKET_HISTORY_JSON = os.path.join(DATA_DIR, "car_market_history.json")
 CAR_MARKET_HISTORY_MAX_POINTS = 120  # days of per-model median kept
 CAR_MODEL_SCAN_JSON = os.path.join(DATA_DIR, "car_model_scans.json")
 FLAT_MARKET_STATS_JSON = os.path.join(DATA_DIR, "flat_market_stats.json")
+FLAT_MARKET_HISTORY_JSON = os.path.join(DATA_DIR, "flat_market_history.json")
+FLAT_MARKET_HISTORY_MAX_POINTS = 120  # days of per-district median kept
+FLAT_ACTIVE_JSON = os.path.join(DATA_DIR, "flat_active.json")
+GONE_MAX_ROWS = 25    # flats "Disappeared" section cap
+CAR_GONE_MAX_ROWS = 20  # cars "Gone since yesterday" section cap
+# Car health: a source with at least this many raw ads but under ~5%
+# eligible probably has a broken parser/field mapping.
+CAR_MIN_EXPECTED_RAW = 50
 PRICE_HISTORY_JSON = os.path.join(DATA_DIR, "price_history.json")
 GEOCODE_CACHE_JSON = os.path.join(DATA_DIR, "geocode_cache.json")
 DIGEST_DIR = os.path.join(DATA_DIR, "digests")
