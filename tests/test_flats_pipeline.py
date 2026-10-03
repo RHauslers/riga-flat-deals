@@ -628,5 +628,431 @@ class TestAuctionShare(unittest.TestCase):
                          (None, "Zalves iela 44A - 6"))
 
 
+class TestDigestCoverageBanner(unittest.TestCase):
+    """Flat digest outage banner + coverage line + title/lang (was: broken
+    sources only showed in CI logs, and the page had no <title> at all)."""
+
+    def test_coverage_line_and_health_box(self):
+        html = notifier.build_html(
+            {}, {}, "", "note",
+            source_counts={"ss.com": 0, "city24.lv": 31},
+            health_pairs=[("source_zero:ss.com", "returned 0 listings")],
+            n_auctions=4)
+        self.assertIn("scan:", html)
+        self.assertIn("city24.lv 31", html)
+        self.assertIn("4 auctions", html)
+        self.assertIn("source_zero:ss.com", html)
+        self.assertIn("coverage may be incomplete", html)
+
+    def test_no_issues_no_box(self):
+        html = notifier.build_html(
+            {}, {}, "", "note", source_counts={"ss.com": 10})
+        self.assertNotIn("coverage may be incomplete", html)
+
+    def test_title_and_lang(self):
+        html = notifier.build_html({}, {}, "", "note")
+        self.assertIn('<html lang="en">', html)
+        self.assertIn("<title>Riga flat deals", html)
+
+    def test_auction_failed_empty_state(self):
+        html = notifier.build_auctions_html([], failed=True)
+        self.assertIn("scan failed", html)
+        self.assertIn("No in-budget", notifier.build_auctions_html([]))
+
+
+class TestAuctionRegAndDeposit(unittest.TestCase):
+    """Register-by deadline + deposit surfaced in the auctions table; the
+    earliest actionable deadline drives urgency."""
+
+    def _auction(self, lid, end=None, reg=None, dep=None):
+        a = _flat(source="izsoles.ta.gov.lv", lid=lid)
+        a.update({"title": f"Flat {lid}", "auction_start_price": 20000,
+                  "auction_end": end, "auction_register_until": reg,
+                  "auction_deposit": dep})
+        return a
+
+    def test_reg_and_deposit_rendered(self):
+        a = self._auction(
+            "u1", end=(date.today() + timedelta(days=20)).isoformat(),
+            reg=(date.today() + timedelta(days=9)).isoformat(), dep=2000)
+        html = notifier.build_auctions_html([a])
+        self.assertIn("dep.", html)
+        self.assertIn("reg. by", html)
+        self.assertNotIn("REG IN", html)   # 9d is past the 3d window
+
+    def test_reg_deadline_drives_urgency(self):
+        urgent = self._auction(
+            "u1", end=(date.today() + timedelta(days=20)).isoformat(),
+            reg=(date.today() + timedelta(days=1)).isoformat())
+        calm = self._auction(
+            "u2", end=(date.today() + timedelta(days=20)).isoformat(),
+            reg=(date.today() + timedelta(days=15)).isoformat())
+        html = notifier.build_auctions_html([calm, urgent])
+        self.assertIn("REG IN 1d", html)
+        self.assertLess(html.index("Flat u1"), html.index("Flat u2"))
+
+
+class TestSeenDealsPrune(unittest.TestCase):
+    """seen_deals entries older than SEEN_DEALS_TTL_DAYS are dropped and the
+    file is written compactly."""
+
+    def test_old_entries_pruned_and_compact(self):
+        import history
+        import json as _json
+        import tempfile
+        old = (date.today()
+               - timedelta(days=config.SEEN_DEALS_TTL_DAYS + 10)).isoformat()
+        seen = {"ss.com:old": {"last_shown_date": old},
+                "ss.com:keep": {"last_shown_date":
+                                date.today().isoformat()}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "seen.json")
+            with mock.patch.object(config, "SEEN_DEALS_JSON", path):
+                history.update_seen_deals(
+                    {"sale": [(_flat(lid="keep"), 1.0, "z")]}, seen)
+            with open(path, encoding="utf-8") as f:
+                raw = f.read()
+            out = _json.loads(raw)
+        self.assertIn("ss.com:keep", out)
+        self.assertNotIn("ss.com:old", out)
+        self.assertNotIn("\n", raw.strip())   # compact write
+
+
+class TestPriceHistoryPrune(unittest.TestCase):
+    """price_history entries dead longer than PRICE_HISTORY_KEEP_DAYS are
+    dropped; legacy entries missing our_tracking are tolerated."""
+
+    def test_stale_entries_dropped(self):
+        import price_history
+        import json as _json
+        import tempfile
+        old = (date.today()
+               - timedelta(days=config.PRICE_HISTORY_KEEP_DAYS
+                           + 10)).isoformat()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "ph.json")
+            dead = {
+                "ss.com:dead": {"cenumednieks": {"fetched_at": old},
+                                "our_tracking": [{"date": old, "price": 1}],
+                                "first_seen": old},
+                "city24.lv:legacy": {},     # missing our_tracking
+            }
+            with open(path, "w", encoding="utf-8") as f:
+                _json.dump(dead, f)
+            listing = {"source": "city24.lv", "id": "legacy",
+                       "price_eur": 60000}
+            with mock.patch.object(price_history, "PRICE_HISTORY_JSON", path):
+                hist = price_history.update_price_history([listing])
+            with open(path, encoding="utf-8") as f:
+                raw = f.read()
+        self.assertIn("city24.lv:legacy", hist)
+        self.assertNotIn("ss.com:dead", hist)
+        self.assertNotIn("\n", raw.strip())  # compact write
+
+    def test_last_activity_picks_newest(self):
+        import price_history
+        e = {"our_tracking": [{"date": "2026-01-01"}],
+             "cenumednieks": {"fetched_at": "2026-03-01"},
+             "first_seen": "2025-12-01"}
+        self.assertEqual(price_history._entry_last_activity(e), "2026-03-01")
+        self.assertIsNone(price_history._entry_last_activity({}))
+
+
+class TestEndedAuctionGone(unittest.TestCase):
+    """Ended auctions are tracked like flats in the gone section."""
+
+    def test_auction_rows_in_active_snapshot(self):
+        import gone
+        a = {"source": "izsoles.ta.gov.lv", "id": "u1",
+             "price_eur": 33500, "district": "Riga",
+             "street": "A iela 1", "url": "https://izsoles.ta.gov.lv/x"}
+        rows = gone.flat_active_rows([a])
+        self.assertEqual(rows[0]["k"], "izsoles.ta.gov.lv:u1")
+        self.assertEqual(rows[0]["p"], 33500)
+
+    def test_ended_auction_reported_and_tagged(self):
+        import gone
+        prev = [{"k": "izsoles.ta.gov.lv:u1", "p": 33500, "d": "Riga",
+                 "s": "A iela 1", "u": "https://izsoles.ta.gov.lv/x"}]
+        out = gone.gone_rows(prev, set(), {"izsoles.ta.gov.lv"}, 25)
+        self.assertEqual(len(out), 1)
+        html = notifier.build_gone_html(out, {})
+        self.assertIn("auction", html)
+        # a failed auction scan must NOT report its old rows as gone
+        self.assertEqual(gone.gone_rows(prev, set(), {"ss.com"}, 25), [])
+
+
+class TestAlsoOnBadge(unittest.TestCase):
+    """Cross-source deduped flats show '(also on X)' next to the source."""
+
+    def test_source_link_shows_also_on(self):
+        l = _flat()
+        l["also_on"] = ["city24.lv"]
+        self.assertIn("also on city24.lv", notifier._source_link(l))
+        # dict-shaped entries (car-style) work too
+        l["also_on"] = [{"source": "city24.lv"}]
+        self.assertIn("also on city24.lv", notifier._source_link(l))
+        no_url = {**l, "url": "javascript:x"}
+        self.assertIn("also on", notifier._source_link(no_url))
+
+    def test_cheaper_duplicate_flagged(self):
+        # same flat €1k cheaper on city24 -> flag + green delta link
+        a = _flat(source="ss.com", lid="1", price=50000)
+        a.update({"street": "Dammes iela 12", "url": "https://www.ss.com/x"})
+        b = dict(a, source="city24.lv", id="9", price_eur=49000,
+                 url="https://www.city24.lv/y")
+        out, n = utils.dedupe_cross_source([a, b])
+        self.assertEqual(n, 1)
+        s = out[0]
+        self.assertEqual(s["source"], "ss.com")
+        self.assertEqual(s["also_cheaper"]["price"], 49000)
+        html = notifier._source_link(s)
+        self.assertIn("city24.lv/y", html)
+        self.assertIn("1 000 EUR on city24.lv", html)
+        # dearer duplicate -> no cheaper flag (fresh dicts: dedupe
+        # mutates the survivor in place)
+        a2 = _flat(source="ss.com", lid="1", price=50000)
+        a2.update({"street": "Dammes iela 12",
+                   "url": "https://www.ss.com/x"})
+        c = dict(a2, source="city24.lv", id="9", price_eur=51000,
+                 url="https://www.city24.lv/y")
+        out2, _ = utils.dedupe_cross_source([a2, c])
+        self.assertIsNone(out2[0].get("also_cheaper"))
+
+
+class TestFlatMarketBackfill(unittest.TestCase):
+    """helper_scripts/backfill_flat_market.py — seeds district trend series
+    from history.csv (sale+in-budget+no-new-build, deduped per source:id)."""
+
+    def test_rows_by_day_filters_and_dedupes(self):
+        import csv as _csv
+        import tempfile
+        from helper_scripts.backfill_flat_market import _rows_by_day
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "h.csv")
+            rows = [
+                {"scrape_date": "2026-10-01", "source": "ss.com", "id": "1",
+                 "deal_type": "sale", "district": "Imanta",
+                 "price_eur": "50000", "price_per_m2": "1000",
+                 "series": "Soviet", "title": "Flat"},
+                # same-day price change -> last row wins, not double-counted
+                {"scrape_date": "2026-10-01", "source": "ss.com", "id": "1",
+                 "deal_type": "sale", "district": "Imanta",
+                 "price_eur": "48000", "price_per_m2": "960",
+                 "series": "Soviet", "title": "Flat"},
+                # rent -> excluded
+                {"scrape_date": "2026-10-01", "source": "ss.com", "id": "2",
+                 "deal_type": "rent", "district": "Imanta",
+                 "price_eur": "600", "price_per_m2": "12",
+                 "series": "Soviet", "title": "Flat"},
+                # new build -> excluded
+                {"scrape_date": "2026-10-01", "source": "ss.com", "id": "3",
+                 "deal_type": "sale", "district": "Imanta",
+                 "price_eur": "80000", "price_per_m2": "1600",
+                 "series": "New", "title": "Flat"},
+                # below the price floor -> excluded
+                {"scrape_date": "2026-10-01", "source": "ss.com", "id": "4",
+                 "deal_type": "sale", "district": "Imanta",
+                 "price_eur": "3000", "price_per_m2": "60",
+                 "series": "Soviet", "title": "Flat"},
+            ]
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                w = _csv.DictWriter(f, fieldnames=config.HISTORY_COLUMNS)
+                w.writeheader()
+                for r in rows:
+                    w.writerow(r)
+            per_day = _rows_by_day(path)
+        imanta = per_day["2026-10-01"]["Imanta"]
+        self.assertEqual(list(imanta), ["ss.com:1"])
+        self.assertEqual(imanta["ss.com:1"]["price_eur"], "48000")
+
+
+class TestRunLock(unittest.TestCase):
+    """data/.main.lock prevents concurrent main.run() processes."""
+
+    def _write_lock(self, path, pid=9999, age_h=0):
+        import json as _j
+        info = {"pid": pid,
+                "ts": __import__("time").time() - age_h * 3600,
+                "date": "2026-10-03"}
+        with open(path, "w", encoding="utf-8") as f:
+            _j.dump(info, f)
+
+    def test_fresh_lock_aborts_run(self):
+        import tempfile, main
+        with tempfile.TemporaryDirectory() as td:
+            lock = os.path.join(td, ".main.lock")
+            self._write_lock(lock)
+            with mock.patch.object(config, "MAIN_LOCK_FILE", lock):
+                out = main.run()
+            self.assertIn("another run", out)
+
+    def test_stale_lock_taken_over_and_released(self):
+        import tempfile, time, main
+        with tempfile.TemporaryDirectory() as td:
+            lock = os.path.join(td, ".main.lock")
+            self._write_lock(lock, age_h=config.MAIN_LOCK_STALE_HOURS + 1)
+            with mock.patch.object(config, "MAIN_LOCK_FILE", lock):
+                self.assertTrue(main._acquire_run_lock())
+                main._release_run_lock()
+            self.assertFalse(os.path.exists(lock))
+
+    def test_foreign_lock_not_released(self):
+        import tempfile, main
+        with tempfile.TemporaryDirectory() as td:
+            lock = os.path.join(td, ".main.lock")
+            self._write_lock(lock, pid=-1)  # not our pid
+            with mock.patch.object(config, "MAIN_LOCK_FILE", lock):
+                main._release_run_lock()
+            self.assertTrue(os.path.exists(lock))
+
+
+class TestAuctionPrevBids(unittest.TestCase):
+    """Auction NEW badges and bid-move deltas from yesterday's snapshot."""
+
+    def _auctions(self):
+        return [{"source": "izsoles.ta.gov.lv", "id": "a1",
+                 "title": "Seen auction", "price_eur": 33000,
+                 "auction_start_price": 28000,
+                 "auction_current_bid": 33000,
+                 "auction_end": "2026-10-10"},
+                {"source": "izsoles.ta.gov.lv", "id": "a2",
+                 "title": "New auction", "price_eur": 40000,
+                 "auction_start_price": 40000,
+                 "auction_end": "2026-10-12"}]
+
+    def test_new_badge_and_bid_delta(self):
+        html = notifier.build_auctions_html(
+            self._auctions(),
+            prev_bids={"izsoles.ta.gov.lv:a1": 31000})
+        self.assertEqual(html.count("First seen in today's scan"), 1)
+        self.assertIn("&#9650; was", html)  # bid went up
+
+    def test_no_badges_without_tracking(self):
+        for prev in (None, {}):
+            html = notifier.build_auctions_html(
+                self._auctions(), prev_bids=prev)
+            self.assertNotIn("First seen in today's scan", html)
+            self.assertNotIn("&#9650; was", html)
+
+
+class TestMarketHistoryAppend(unittest.TestCase):
+    """_append_history keeps series date-sorted and replaces same-date."""
+
+    def test_sorted_insert_and_same_date_replace(self):
+        import json, tempfile
+        s = [{"district": "X", "median_ppu": 1000, "median_price": 50000,
+              "ads": 5}]
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "h.json")
+            flat_market._append_history(s, "2026-10-03", p)
+            flat_market._append_history(s, "2026-10-01", p)
+            flat_market._append_history(
+                [{"district": "X", "median_ppu": 1100,
+                  "median_price": 55000, "ads": 6}], "2026-10-03", p)
+            with open(p, encoding="utf-8") as f:
+                pts = json.load(f)["X"]
+        self.assertEqual([pt[0] for pt in pts],
+                         ["2026-10-01", "2026-10-03"])
+        self.assertEqual(pts[-1][1], 1100)  # re-run replaced the point
+
+
+class TestDelta7d(unittest.TestCase):
+    """utils.delta_7d shared by flat and car market trend columns."""
+
+    def test_change_vs_newest_point_7d_old(self):
+        pts = [["2026-09-20", 3000], ["2026-10-03", 3300]]
+        self.assertAlmostEqual(utils.delta_7d(pts), 10.0)
+        self.assertIsNone(utils.delta_7d([["2026-10-03", 3000]]))
+        # newest point too recent -> no 7d-old base -> None
+        self.assertIsNone(utils.delta_7d(
+            [["2026-10-01", 3000], ["2026-10-03", 3300]]))
+
+    def test_car_market_delta_column(self):
+        stats = [{"make": "BMW", "model": "320", "ads": 12,
+                  "median_price": 4500, "min_price": 3900, "min_url": "u",
+                  "median_year": 2008, "median_km": 250000,
+                  "deals": 3, "new_today": 1}]
+        hist = {"bmw|320": [["2026-09-20", 3000], ["2026-10-03", 3300]]}
+        html = car_market.build_market_html(
+            stats, "2026-10-03", 100, hist)
+        self.assertIn("+10.0%", html)
+        self.assertIn("Δ 7d", html)
+
+
+class TestAtomicWriteJson(unittest.TestCase):
+    """utils.write_json: tmp+replace so a failed write keeps the old file."""
+
+    def test_failed_write_preserves_existing_file(self):
+        import json, tempfile
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "x.json")
+            utils.write_json(p, {"a": 1}, indent=None)
+            self.assertEqual(json.load(open(p)), {"a": 1})
+            with self.assertRaises(TypeError):
+                utils.write_json(p, object())
+            self.assertEqual(json.load(open(p)), {"a": 1})
+            self.assertFalse(os.path.exists(p + ".tmp"))
+
+
+class TestPriceHistoryIdless(unittest.TestCase):
+    """Listings without source/id must not collapse into 'None' keys."""
+
+    def test_idless_skipped(self):
+        import tempfile, price_history
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "ph.json")
+            with mock.patch.object(price_history, "PRICE_HISTORY_JSON",
+                                   path):
+                out = price_history.update_price_history(
+                    [{"source": "ss.com", "price_eur": 100},
+                     {"id": "x", "price_eur": 100}])
+            self.assertEqual(out, {})
+
+
+class TestAuctionEndedLabel(unittest.TestCase):
+    """Ended auctions sink to the bottom and read ENDED, not ENDS TODAY."""
+
+    def _ended(self):
+        return {"source": "izsoles.ta.gov.lv", "id": "e1",
+                "title": "Over auc", "price_eur": 1,
+                "auction_start_price": 1, "auction_end": "2026-10-01"}
+
+    def test_ended_label_and_order(self):
+        live = {"source": "izsoles.ta.gov.lv", "id": "e2",
+                "title": "Live auc", "price_eur": 1,
+                "auction_start_price": 1, "auction_end": "2099-01-01"}
+        html = notifier.build_auctions_html([live, self._ended()])
+        self.assertIn("ENDED</b>", html)
+        self.assertLess(html.index("Live auc"), html.index("Over auc"))
+        self.assertNotIn("ending", html.split("State & bailiff auctions")[1]
+                         [:200])  # no "N ending ≤3d" for an ended row
+
+
+class TestCenuMissCaching(unittest.TestCase):
+    """A CenuMednieks miss is stamped and not re-fetched for a week."""
+
+    def test_miss_stamped_not_refetched(self):
+        import json, tempfile, price_history
+        calls = []
+        listing = {"url": "https://www.ss.com/msg/lv/x/abcde.html",
+                   "source": "ss.com", "id": "x", "price_eur": 50000}
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "ph.json")
+            with mock.patch.object(price_history, "fetch_cenumednieks",
+                                   lambda sid: (calls.append(sid), None)[1]
+                                   ), \
+                 mock.patch.object(price_history.time, "sleep",
+                                   lambda s: None), \
+                 mock.patch.object(price_history,
+                                   "PRICE_HISTORY_JSON", path):
+                price_history.update_price_history([listing])
+                price_history.update_price_history([listing])
+                self.assertEqual(len(calls), 1)  # one fetch total
+                with open(path, encoding="utf-8") as f:
+                    entry = json.load(f)["ss.com:x"]
+                self.assertTrue(entry.get("cenumednieks_attempt"))
+
+
 if __name__ == "__main__":
     unittest.main()

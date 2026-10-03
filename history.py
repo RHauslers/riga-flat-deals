@@ -12,7 +12,7 @@ persists across daily runs.
 """
 import csv
 import os
-from datetime import date
+from datetime import date, timedelta
 
 import config
 import utils
@@ -33,7 +33,9 @@ def _read_json(path, default):
 
 def _write_json(path, data):
     _ensure_dirs()
-    utils.write_json(path, data, indent=2)
+    # Compact JSON — these files are committed daily, pretty-printing was
+    # adding ~35% of dead whitespace (same reason car state went v2).
+    utils.write_json(path, data, indent=None)
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +64,17 @@ def update_seen_deals(scored_by_type, seen_deals):
                 "last_shown_score": float(score) if score is not None else None,
                 "deal_type": listing.get("deal_type", dt),
             }
+    # Prune entries not re-shown for SEEN_DEALS_TTL_DAYS — the dict
+    # otherwise grows forever with long-gone listings.
+    cutoff = (date.today()
+              - timedelta(days=config.SEEN_DEALS_TTL_DAYS)).isoformat()
+    stale = [k for k, v in seen_deals.items()
+             if (v.get("last_shown_date") or "") < cutoff]
+    for k in stale:
+        del seen_deals[k]
+    if stale:
+        print(f"[history] pruned {len(stale)} seen_deals entries "
+              f"(>{config.SEEN_DEALS_TTL_DAYS}d not shown)")
     save_seen_deals(seen_deals)
 
 

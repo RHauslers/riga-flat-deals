@@ -11,7 +11,6 @@ website.build() renders docs/market.html from it and injects the nav.
 """
 
 import json
-import os
 from html import escape as _e
 from urllib.parse import quote as _q
 
@@ -134,7 +133,7 @@ def build_market_html(stats, run_date, total_ads, history=None,
     if stats is None:
         stats = []
     history = history or {}
-    headers = ["Make", "Model", "Ads", "New", "Median ask", "Trend",
+    headers = ["Make", "Model", "Ads", "New", "Median ask", "Δ 7d", "Trend",
                "Cheapest", "Median year", "Median km", "Deals today"]
     head_cells = "".join(
         "<th class='sort-th' style='padding:6px;{align}' "
@@ -156,8 +155,17 @@ def build_market_html(stats, run_date, total_ads, history=None,
                   f"{_e(str(s['make']))}</a>")
         model_l = (f"<a href='cars.html?model={_q(str(s['model']))}'>"
                    f"{_e(str(s['model']))}</a>")
-        spark, pct = _spark_html(
-            history.get(f"{_group_key(s)[0]}|{_group_key(s)[1]}", []))
+        pts = history.get(f"{_group_key(s)[0]}|{_group_key(s)[1]}", [])
+        spark, pct = _spark_html(pts)
+        delta = utils.delta_7d(pts)
+        delta_html = "—"
+        delta_sort = 0.0
+        if delta is not None:
+            delta_sort = delta
+            dcolor = ("#27ae60" if delta < 0 else
+                      "#c0392b" if delta > 0 else "#7f8c8d")
+            delta_html = (f"<span style='color:{dcolor}'>"
+                          f"{delta:+.1f}%</span>")
         rows.append(
             f"<tr{zebra}>"
             f"<td style='padding:6px' data-sort='{_e(str(s['make']))}'>"
@@ -172,6 +180,8 @@ def build_market_html(stats, run_date, total_ads, history=None,
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['median_price'] or 0}'>"
             f"{_fmt_eur(s['median_price'])}</td>"
+            f"<td style='padding:6px;text-align:right' "
+            f"data-sort='{delta_sort:.2f}'>{delta_html}</td>"
             f"<td style='padding:6px' data-sort='{pct:.1f}'>"
             f"{spark}</td>"
             f"<td style='padding:6px;text-align:right' "
@@ -199,6 +209,7 @@ def build_market_html(stats, run_date, total_ads, history=None,
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga market — {_e(str(run_date))}</title>
 <style>
 body{{font-family:Arial,sans-serif;color:#222;max-width:960px;margin:0 auto;padding:20px}}
@@ -240,7 +251,8 @@ tr:hover td{{background:#f6f9fc}}
 after cross-source dedupe. Models with fewer than
 {_e(str(config.CAR_MARKET_MIN_LISTINGS))} ads are omitted.
 <b>Deals today</b> = ads currently qualifying on the Cars tab;
-<b>New</b> = ads our scan saw for the first time today.
+<b>New</b> = ads our scan saw for the first time today;
+<b>&Delta; 7d</b> = median ask change vs a week ago (green = cheaper).
 Click column headers to sort.</p>
 <div class="box"><b>How to read this:</b> a model with many ads and a
 low median ask is easy to find cheap; <b>Deals today</b> shows where
@@ -295,6 +307,7 @@ def build_page(path=None):
     if not data and not flat_data:
         return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga car market</title>
 <style>
 body{{font-family:Arial,sans-serif;color:#222;max-width:800px;margin:0 auto;padding:20px}}
@@ -315,10 +328,8 @@ def save_stats(stats, run_date, total_ads, path=None):
     per-model median ask to the history file so the page can draw a trend
     sparkline once a model has been tracked on multiple days."""
     path = path or config.CAR_MARKET_STATS_JSON
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump({"date": run_date, "total": total_ads, "models": stats},
-                  f, ensure_ascii=False, separators=(",", ":"))
+    utils.write_json(path, {"date": run_date, "total": total_ads,
+                            "models": stats}, indent=None)
     _append_history(stats, run_date)
     return path
 
@@ -338,14 +349,21 @@ def _append_history(stats, run_date,
             continue
         key = f"{_group_key(s)[0]}|{_group_key(s)[1]}"
         pts = hist.setdefault(key, [])
-        if pts and pts[-1][0] == run_date:
-            pts[-1][1] = s["median_price"]      # same-day re-run updates
+        point = [run_date, s["median_price"]]
+        # Same-date replace + sorted insert (same ordering fix as
+        # flat_market._append_history).
+        for i, p in enumerate(pts):
+            if p[0] == run_date:
+                pts[i] = point
+                break
+            if str(p[0]) > run_date:
+                pts.insert(i, point)
+                break
         else:
-            pts.append([run_date, s["median_price"]])
+            pts.append(point)
         del pts[:-config.CAR_MARKET_HISTORY_MAX_POINTS]
     try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(hist, f, ensure_ascii=False, separators=(",", ":"))
+        utils.write_json(path, hist, indent=None)
     except OSError:
         pass
 

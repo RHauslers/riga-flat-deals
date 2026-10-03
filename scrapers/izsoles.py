@@ -292,6 +292,7 @@ def scrape():
 
     # Fetch each detail page (rate-limited, capped).
     listings = []
+    n_failed = 0
     today = date.today().isoformat()
     for it in unique_items[:config.IZSOLES_MAX_DETAILS]:
         listing = None
@@ -300,6 +301,7 @@ def scrape():
             rd.encoding = "utf-8"
             listing = _parse_detail(rd.text, it["url"], it["title"])
         except requests.RequestException as e:
+            n_failed += 1
             print(f"[izsoles] detail fetch failed for {it['url']}: {e}")
         time.sleep(config.IZSOLES_DELAY)
 
@@ -310,6 +312,16 @@ def scrape():
             continue
         listings.append(listing)
 
+    if n_failed:
+        print(f"[izsoles] {n_failed} detail fetch(es) failed")
+    if unique_items and n_failed and not listings:
+        # List page worked, but no detail produced a usable auction and
+        # at least one fetch failed -> some of the dropped ones may still
+        # be live. Surface as a scrape failure so the digest shows the
+        # outage box + gone-tracking doesn't mark the whole set as ended.
+        # (All-ended with zero failures stays a legit empty list.)
+        raise requests.RequestException(
+            f"all {len(unique_items)} auction detail fetches failed")
     print(f"[izsoles] {len(listings)} active Riga apartment auction(s)")
     return listings
 

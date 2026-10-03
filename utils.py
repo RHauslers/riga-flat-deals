@@ -7,7 +7,7 @@ import os
 import re
 import statistics
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from html import escape as _html_escape
 
 import config
@@ -28,15 +28,33 @@ def read_json(path, default):
 
 
 def write_json(path, data, indent=2):
-    """Write JSON (UTF-8, non-ASCII preserved). indent=None -> compact."""
+    """Write JSON (UTF-8, non-ASCII preserved). indent=None -> compact.
+
+    Writes to a sibling .tmp file first, then os.replace()s it into place
+    — a kill/crash/disk-full mid-write then leaves the previous good file
+    untouched instead of a truncated JSON every reader chokes on.
+    os.replace is atomic on POSIX and on Windows (MoveFileExW) as long as
+    source and target share a filesystem, which a sibling path guarantees."""
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        if indent is None:
-            json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
-        else:
-            json.dump(data, f, ensure_ascii=False, indent=indent)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            if indent is None:
+                json.dump(data, f, ensure_ascii=False,
+                          separators=(",", ":"))
+            else:
+                json.dump(data, f, ensure_ascii=False, indent=indent)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -103,6 +121,27 @@ def days_since(date_str, today=None):
         return None
     today = today or date.today()
     return (today - d).days
+
+
+def delta_7d(points, value_idx=1):
+    """% change of points[-1][value_idx] vs the newest point >= 7 days old.
+
+    points = [[date, value, ...], ...] ascending. None when the series
+    has no point old enough to compare against."""
+    if len(points) < 2:
+        return None
+    try:
+        latest_date = date.fromisoformat(str(points[-1][0]))
+    except (ValueError, TypeError):
+        return None
+    cutoff = (latest_date - timedelta(days=7)).isoformat()
+    base = None
+    for p in points:
+        if str(p[0]) <= cutoff:
+            base = p
+    if base is None or not base[value_idx] or not points[-1][value_idx]:
+        return None
+    return 100.0 * (points[-1][value_idx] - base[value_idx]) / base[value_idx]
 
 
 def sparkline_svg(points, w=64, h=16, title=None):
@@ -292,6 +331,24 @@ def dedupe_cross_source(listings):
             others = cluster[1:]
             survivor["also_on"] = sorted({o.get("source") for o in others
                                           if o.get("source") != survivor.get("source")})
+            # the same flat is sometimes cheaper on the OTHER portal —
+            # record the lowest alternate price so the digest can say
+            # "(€2 000 less on city24.lv)". That's real deal intel.
+            # Clear any stale flag first (dedupe mutates listings; a
+            # re-deduped survivor could carry an outdated value).
+            survivor.pop("also_cheaper", None)
+            surv_price = survivor.get("price_eur")
+            cheaper = [o for o in others
+                       if o.get("source") != survivor.get("source")
+                       and o.get("price_eur") and surv_price
+                       and o["price_eur"] < surv_price]
+            if cheaper:
+                c = min(cheaper, key=lambda o: o["price_eur"])
+                survivor["also_cheaper"] = {
+                    "price": c["price_eur"],
+                    "source": c.get("source"),
+                    "url": c.get("url") or "",
+                }
             merged += len(others)
             result.append(survivor)
 

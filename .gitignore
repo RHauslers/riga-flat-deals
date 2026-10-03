@@ -23,3 +23,5 @@ data/*.log
 # NOTE: data/ is committed on purpose (history.csv + seen_ids.json + digests
 # persist across GitHub Actions runs via git push-back).
 data/*.v1.bak
+data/.main.lock
+data/*.tmp

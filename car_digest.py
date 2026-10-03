@@ -1149,6 +1149,7 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga car deals — {_e(run_date)}</title>
 <style>
 body{{font-family:Arial,sans-serif;color:#222;max-width:960px;margin:0 auto;padding:20px}}

@@ -12,7 +12,7 @@ publishes it as docs/index.html + docs/archive/.
 """
 import os
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from html import escape as _esc
 
 import config
@@ -31,7 +31,7 @@ def _now_header_str():
     """Digest header timestamp: date + time in Riga (falls back to UTC)."""
     if _RIGA_TZ:
         return datetime.now(_RIGA_TZ).strftime("%Y-%m-%d %H:%M") + " (Riga time)"
-    return datetime.utcnow().strftime("%Y-%m-%d %H:%M") + " (UTC)"
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M") + " (UTC)"
 
 
 # ---------------------------------------------------------------------------
@@ -118,12 +118,37 @@ def _t(v):
 
 
 def _source_link(listing, extra=""):
-    """<a href=...>source</a> with an https-only allow-list on the href."""
+    """<a href=...>source</a> with an https-only allow-list on the href.
+    Cross-source duplicates append a grey '(also on X)' hint."""
     url = safe_url(listing.get("url"))
     src = _t(listing.get("source", ""))
+    also = listing.get("also_on") or []
+    also_html = ""
+    if also:
+        names = ", ".join(
+            (o.get("source") if isinstance(o, dict) else str(o)) or "?"
+            for o in also)
+        also_html = (f" <span style='color:#888;font-size:11px'>"
+                     f"(also on {_t(names)})</span>")
+    ch = listing.get("also_cheaper")
+    if ch and ch.get("price") and listing.get("price_eur"):
+        diff = listing["price_eur"] - ch["price"]
+        if diff > 0:
+            ch_url = safe_url(ch.get("url"))
+            tag = "a" if ch_url else "span"
+            href = f" href='{_t(ch_url)}' rel='noopener noreferrer'" \
+                if ch_url else ""
+            also_html += (
+                f" <{tag}{href} "
+                f"style='color:#1a7a3a;font-size:11px;font-weight:bold' "
+                f"title='Same flat listed for {_t(_fmt_price(ch['price']))} "
+                f"on {_t(str(ch.get('source') or '?'))}'>"
+                f"(−{_fmt_price(diff)} on "
+                f"{_t(str(ch.get('source') or '?'))})</{tag}>")
     if not url:
-        return f"{src}{extra}"
-    return f"<a href='{_t(url)}' rel='noopener noreferrer'>{src}</a>{extra}"
+        return f"{src}{extra}{also_html}"
+    return (f"<a href='{_t(url)}' rel='noopener noreferrer'>{src}</a>"
+            f"{extra}{also_html}")
 
 
 def _main_row_html(item, price_data=None, row_idx=0):
@@ -611,7 +636,10 @@ def build_gone_html(gone, price_data=None, today=None):
         url = safe_url(r.get("u"))
         link = (f'<a href="{_t(url)}" target="_blank" '
                 f'rel="noopener noreferrer">view</a>') if url else "-"
-        src = _t(r.get("k", "").split(":", 1)[0])
+        src_raw = r.get("k", "").split(":", 1)[0]
+        src = _t(src_raw)
+        if src_raw == "izsoles.ta.gov.lv":
+            src += " <span style='color:#8e44ad'>· auction</span>"
         rows.append(
             f'<tr{zebra}>'
             f"<td style='font-size:13px'>{_t(r.get('d') or '')}</td>"
@@ -648,15 +676,31 @@ def build_gone_html(gone, price_data=None, today=None):
 # ---------------------------------------------------------------------------
 # "State & bailiff auctions" section (izsoles.ta.gov.lv)
 # ---------------------------------------------------------------------------
-def build_auctions_html(auctions, top_n=15):
+def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None):
     """State/bailiff auction listings from izsoles.ta.gov.lv.
 
     Kept separate from the main deal ranking on purpose: auctions have a
     different purchase process (registration, deposit, bidding) and prices
     that are not comparable to regular listings. Sorted by distance to
-    the school, closest first.
+    the school, closest first. `failed` marks a broken scan so it renders
+    a warning instead of a misleading "no auctions" box.
+    `prev_bids` = {source:id -> yesterday's effective price} from
+    flat_active.json: auctions absent from it get a NEW badge, and a
+    price that moved gets a "was €X" delta under the current bid.
     """
     if not auctions:
+        if failed:
+            return (
+                '<div style="background:#fdecea;border:1px solid #c0392b;border-radius:8px;'
+                'padding:16px;margin:16px 0">'
+                '<h3 style="color:#8e44ad;border:none;margin:0 0 8px 0">'
+                'State & bailiff auctions (Riga apartments)</h3>'
+                '<p style="color:#666;font-size:12px;margin:0">'
+                'The auction scan failed today — this section may be '
+                'missing auctions that are still active. Check the run log '
+                'for the error.</p>'
+                '</div>'
+            )
         return (
             '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
             'padding:16px;margin:16px 0">'
@@ -677,19 +721,37 @@ def build_auctions_html(auctions, top_n=15):
         except ValueError:
             return None
 
+    def days_to_reg(a):
+        """Days until registration closes (None when unparseable). You
+        can't bid without registering, so this is the real deadline."""
+        try:
+            return (date.fromisoformat(
+                str(a.get("auction_register_until") or "")) - today).days
+        except ValueError:
+            return None
+
+    def _live_days(a):
+        """Days until the earliest actionable deadline, ignoring ones
+        already passed (an ended auction isn't urgent, it's over)."""
+        live = [d for d in (days_to_end(a), days_to_reg(a))
+                if d is not None and d >= 0]
+        return min(live) if live else None
+
     def sort_key(a):
-        # Ending-soon auctions first (action needed now), then by distance.
-        d = days_to_end(a)
+        # Urgency = the earliest actionable deadline: a soon-closing
+        # registration outranks a later auction end. Within the urgent
+        # group, the closest deadline comes first, then distance; ended
+        # auctions sink to the bottom.
+        d = _live_days(a)
         urgent = d is not None and d <= config.AUCTION_ENDING_SOON_DAYS
         km = a.get("_school_km")
-        return (not urgent,
+        return (d is None, not urgent, d if d is not None else 9999,
                 km is None, km if km is not None else 0.0)
 
     items = sorted(auctions, key=sort_key)
     n_urgent = sum(
         1 for a in items
-        if (lambda d: d is not None and d <= config.AUCTION_ENDING_SOON_DAYS)(
-            days_to_end(a)))
+        if (_live_days(a) or 9999) <= config.AUCTION_ENDING_SOON_DAYS)
     hidden = max(0, len(items) - top_n)
     shown = items[:top_n]
 
@@ -705,26 +767,63 @@ def build_auctions_html(auctions, top_n=15):
                 f"title='Only a co-ownership share of the flat is auctioned, "
                 f"not the whole flat'>SHARE {_t(a['ownership_share'])} "
                 f"&mdash; co-ownership, not a whole flat</b>")
+        source = a.get("source", "")
+        # NEW / bid-movement vs yesterday's snapshot (empty prev_bids =
+        # first tracked day -> NEW suppressed so the whole table isn't
+        # flagged; delta = effective price moved since yesterday).
+        key = f"{source}:{a.get('id', '')}"
+        prev_p = prev_bids.get(key) if prev_bids else None
+        new_badge = ("<br><b style='color:#1a7a3a;font-size:11px' "
+                     "title='First seen in today's scan'>NEW</b>"
+                     if prev_bids and key not in prev_bids else "")
+        eff_price = (a.get("auction_current_bid")
+                     or a.get("auction_start_price"))
+        bid_delta = ""
+        if (prev_p is not None and eff_price is not None
+                and eff_price != prev_p):
+            arrow, color = (("&#9650;", "#c0392b") if eff_price > prev_p
+                            else ("&#9660;", "#1a7a3a"))
+            bid_delta = (f"<br><span style='font-size:11px;color:{color}'>"
+                         f"{arrow} was {_fmt_price(prev_p)}</span>")
         rooms = a.get("rooms")
         rooms_disp = rooms if rooms is not None else "?"
         area = a.get("area_m2")
         area_disp = f"{area:.0f}" if area is not None else "?"
         sp = a.get("auction_start_price")
         sp_disp = _fmt_price(sp) if sp else "-"
+        dep = a.get("auction_deposit")
+        if dep:
+            sp_disp += (f"<br><span style='font-size:11px;color:#666'>"
+                        f"dep. {_fmt_price(dep)}</span>")
         cb = a.get("auction_current_bid")
-        cb_disp = (_fmt_price(cb) if cb else "no bids")
+        cb_disp = (_fmt_price(cb) if cb else "no bids") + bid_delta
         cb_style = "font-weight:bold" if cb else "color:#999"
         ap = a.get("auction_appraisal")
         ap_disp = _fmt_price(ap) if ap else "-"
         end = a.get("auction_end") or "-"
         days_end = days_to_end(a)
+        days_reg = days_to_reg(a)
         if days_end is not None and days_end <= config.AUCTION_ENDING_SOON_DAYS:
-            label = "ENDS TODAY" if days_end <= 0 else f"ENDS IN {days_end}d"
-            end = (f"{_t(end)}<br><b style='color:#c0392b;font-size:11px'>"
-                   f"{label}</b>")
+            if days_end < 0:
+                end = (f"{_t(end)}<br><b style='color:#7f8c8d;font-size:11px'>"
+                       f"ENDED</b>")
+            else:
+                label = ("ENDS TODAY" if days_end == 0
+                         else f"ENDS IN {days_end}d")
+                end = (f"{_t(end)}<br><b style='color:#c0392b;font-size:11px'>"
+                       f"{label}</b>")
         else:
             end = _t(end)
-        source = a.get("source", "")
+        reg = a.get("auction_register_until")
+        if reg:
+            if days_reg is not None and days_reg <= config.AUCTION_ENDING_SOON_DAYS:
+                rlabel = ("REG CLOSED" if days_reg < 0 else
+                          "REG TODAY" if days_reg == 0
+                          else f"REG IN {days_reg}d")
+                end += (f"<br><b style='color:#c0392b;font-size:11px'>"
+                        f"{rlabel}</b>")
+            end += (f"<br><span style='font-size:11px;color:#666'>reg. by "
+                    f"{_t(reg)}</span>")
 
         map_link = ""
         if a.get("lat") and a.get("lon"):
@@ -736,7 +835,7 @@ def build_auctions_html(auctions, top_n=15):
         rows.append(
             f'<tr{zebra}>'
             f"<td style='text-align:right;font-weight:bold' data-sort='{dist_sort:.3f}'>{dist}</td>"
-            f"<td style='font-size:12px'>{_t(a.get('title',''))}{share_badge}</td>"
+            f"<td style='font-size:12px'>{_t(a.get('title',''))}{share_badge}{new_badge}</td>"
             f"<td style='text-align:right' data-sort='{rooms if rooms is not None else 0}'>{rooms_disp}</td>"
             f"<td style='text-align:right' data-sort='{area if area is not None else 0}'>{area_disp}</td>"
             f"<td style='text-align:right' data-sort='{sp or 0}'>{sp_disp}</td>"
@@ -772,7 +871,10 @@ def build_auctions_html(auctions, top_n=15):
         f'{config.SCHOOL_NAME}. Always read the full auction terms. '
         '<b style="color:#c0392b">SHARE</b> rows auction only a co-ownership '
         'fraction (dom&#257;jam&#257; da&#316;a) of a flat &mdash; you would '
-        'own it jointly with the other co-owners, not get a whole flat.</p>'
+        'own it jointly with the other co-owners, not get a whole flat. '
+        '<b style="color:#1a7a3a">NEW</b> = first seen today; '
+        '&#9650;/&#9660; <i>was &euro;X</i> under the bid = price moved '
+        'since yesterday.</p>'
         f"<table id='{tid}' style='border-collapse:collapse;width:100%;font-size:14px' "
         f"data-sortable='1'>"
         f"<tr style='background:#f0f0f0'>"
@@ -819,7 +921,8 @@ def _watch_star(listing):
 # ---------------------------------------------------------------------------
 # Fields embedded per listing so the browser can filter for a custom budget.
 _FLAT_FIELDS = ("district", "rooms", "area_m2", "floor", "price_eur",
-                "price_per_m2", "school_km", "score", "source", "url", "id")
+                "price_per_m2", "school_km", "score", "source", "url", "id",
+                "street")
 
 # Dictionary-encoded like the car embed (see car_digest._MARKET_DICT_FIELDS)
 _FLAT_DICT_FIELDS = ("district", "source")
@@ -843,6 +946,7 @@ def _flat_market_data_html(all_scored, all_listings=None):
             listing.get("price_eur"), listing.get("price_per_m2"),
             listing.get("_school_km"), score,
             listing.get("source"), url, listing.get("id"),
+            listing.get("street"),
         ]
 
     rows = []
@@ -985,13 +1089,13 @@ function __flatBudgetInit() {
     }
     var table = document.createElement('table');
     table.id = 'flat-custom';
-    var headers = ['District', 'Distance', 'Rooms', 'm²', 'Floor', 'Price',
-                   'EUR/m²', 'Score', 'Source'];
+    var headers = ['District', 'Street', 'Distance', 'Rooms', 'm²', 'Floor',
+                   'Price', 'EUR/m²', 'Score', 'Source'];
     var hr = document.createElement('tr');
     headers.forEach(function (name, col) {
       var th = document.createElement('th');
       th.className = 'sort-th';
-      if (col >= 1 && col <= 7) th.style.textAlign = 'right';
+      if (col >= 2 && col <= 8) th.style.textAlign = 'right';
       th.textContent = name;
       th.onclick = (function (c) {
         return function () { sortTable('flat-custom', c); };
@@ -1002,6 +1106,7 @@ function __flatBudgetInit() {
     matches.forEach(function (r) {
       var tr = document.createElement('tr');
       tr.appendChild(cell(r[idx.district] || '?', r[idx.district]));
+      tr.appendChild(cell(r[idx.street] || '—', r[idx.street]));
       var km = r[idx.school_km];
       tr.appendChild(cell(km != null ? km.toFixed(1) + ' km' : '—',
         km != null ? km : 9999, true));
@@ -1020,7 +1125,8 @@ function __flatBudgetInit() {
       star.className = 'watch-star';
       star.setAttribute('data-key', r[idx.source] + ':' + r[idx.id]);
       star.setAttribute('data-label',
-        ((r[idx.district] || '?') + ' · ' + (r[idx.rooms] || '?') + ' r · ' +
+        ((r[idx.street] || r[idx.district] || '?') + ' · ' +
+         (r[idx.rooms] || '?') + ' r · ' +
          (r[idx.area_m2] || '?') + ' m²'));
       star.setAttribute('data-price', r[idx.price_eur]);
       star.setAttribute('data-url', r[idx.url] || '');
@@ -1315,7 +1421,9 @@ if (document.readyState === 'loading') {
 def build_html(main_deals, still_active, comparison_html, status_note,
                price_data=None, map_markers=None,
                newest_html="", near_school_html="", auctions_html="",
-               all_scored=None, all_listings=None, gone_html=""):
+               all_scored=None, all_listings=None, gone_html="",
+               source_counts=None, health_pairs=None, n_auctions=None,
+               auctions_failed=False):
     today = date.today().isoformat()
     run_time = _now_header_str()
     sections = []
@@ -1405,8 +1513,35 @@ def build_html(main_deals, still_active, comparison_html, status_note,
     # Map section (Leaflet.js with OpenStreetMap tiles — free, no API key)
     map_html = _build_map_html(map_markers) if map_markers else ""
 
-    return f"""<!doctype html><html><head><meta charset="utf-8">
+    # Per-source coverage line + scrape-health warning box, so a broken
+    # source can't silently masquerade as "no listings today" (the car
+    # digest has had this since the source-outage work).
+    coverage_note = ""
+    if source_counts:
+        bits = " · ".join(f"{_t(s)} {_t(str(c))}"
+                          for s, c in sorted(source_counts.items()))
+        tail = ""
+        if n_auctions is not None:
+            tail = f" · izsoles {_t(str(n_auctions))} auctions"
+        if auctions_failed:
+            tail += " (auction scan failed)"
+        coverage_note = f"<p class='note'>Today's scan: {bits}{tail}.</p>"
+    health_box = ""
+    if health_pairs:
+        issues = "".join(
+            f"<li><b>{_t(str(k))}</b>: {_t(str(m))}</li>"
+            for k, m in health_pairs)
+        health_box = (
+            "<div style='background:#fdecea;border:1px solid #c0392b;"
+            "padding:10px 14px;margin:12px 0'>"
+            "<b>Warning: scrape health issues — today's coverage may be "
+            "incomplete:</b>"
+            f"<ul style='margin:6px 0;font-size:12px'>{issues}</ul></div>")
+
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Riga flat deals — {today}</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <style>
 body{{font-family:Arial,sans-serif;color:#222;max-width:900px;margin:0 auto;padding:0 16px}}
 h2{{color:#1a5276}}h3{{color:#2874a6;border-bottom:2px solid #2874a6;padding-bottom:4px}}
@@ -1490,7 +1625,9 @@ ss.com, city24.lv{', izsoles.ta.gov.lv (auctions)' if config.IZSOLES_ENABLED els
 <p class="note">Sale ranking: 50% deal score + 50% walking distance to
 {config.SCHOOL_NAME} (shown in the Distance column). New builds excluded.
 Sales only — rentals are out of scope.</p>
+{coverage_note}
 {flat_budget_html}
+{health_box}
 {comparison_html}
 {gone_html}
 {map_html}
@@ -1607,12 +1744,15 @@ function showOnMap(markerId) {{
 def save_digest(main_deals, still_active, comparison_html, status_note,
                 price_data=None, map_markers=None, newest_html="",
                 near_school_html="", auctions_html="", all_scored=None,
-                all_listings=None, gone_html=""):
+                all_listings=None, gone_html="", source_counts=None,
+                health_pairs=None, n_auctions=None, auctions_failed=False):
     """Build today's digest and write it to data/digests/. Returns (path, info)."""
     html = build_html(main_deals, still_active, comparison_html, status_note,
                       price_data, map_markers, newest_html,
                       near_school_html, auctions_html, all_scored,
-                      all_listings, gone_html)
+                      all_listings, gone_html, source_counts=source_counts,
+                      health_pairs=health_pairs, n_auctions=n_auctions,
+                      auctions_failed=auctions_failed)
     today = date.today().isoformat()
     os.makedirs(config.DIGEST_DIR, exist_ok=True)
     digest_path = os.path.join(config.DIGEST_DIR, f"digest_{today}.html")

@@ -174,11 +174,22 @@ def _to_float(text):
     return float(m.group(0).replace(",", "."))
 
 
+# Shared throttle across flat-page fetches — district pages fired ~40
+# requests back-to-back before this delay existed (the car scraper had a
+# 1 s gap all along).
+_last_request_ts = [0.0]
+
+
 def _fetch(url):
-    """GET one page. Connection/timeout errors get a couple of retries —
-    they are usually a transient blip. HTTP errors propagate at once."""
+    """GET one page, with a politeness delay since the previous request.
+    Connection/timeout errors get a couple of retries — they are usually a
+    transient blip. HTTP errors propagate at once."""
     last = None
     for attempt in range(config.REQUEST_RETRIES + 1):
+        elapsed = time.monotonic() - _last_request_ts[0]
+        wait = config.SS_COM_REQUEST_DELAY_SECONDS - elapsed
+        if wait > 0:
+            time.sleep(wait)
         try:
             r = requests.get(
                 url,
@@ -187,13 +198,35 @@ def _fetch(url):
                 timeout=config.SS_COM_TIMEOUT,
             )
             r.encoding = "utf-8"
+            # 429/5xx get a bounded retry honoring Retry-After — a burst
+            # of district pages can trip rate limiting even with the
+            # politeness delay, and one patient retry often clears it.
+            if (r.status_code in config.SS_COM_RETRY_STATUS
+                    and attempt < config.REQUEST_RETRIES):
+                wait = _retry_after_seconds(r) or \
+                    config.REQUEST_RETRY_DELAY_SECONDS * (attempt + 2)
+                print(f"[ss.com] {r.status_code} on {url} — "
+                      f"retrying in {wait:.0f}s")
+                _last_request_ts[0] = time.monotonic()
+                time.sleep(wait)
+                continue
             r.raise_for_status()
+            _last_request_ts[0] = time.monotonic()
             return r.text
         except (requests.ConnectionError, requests.Timeout) as e:
             last = e
+            _last_request_ts[0] = time.monotonic()
             if attempt < config.REQUEST_RETRIES:
                 time.sleep(config.REQUEST_RETRY_DELAY_SECONDS)
     raise last
+
+
+def _retry_after_seconds(resp):
+    """Parse the Retry-After header (seconds form), capped at 30 s."""
+    try:
+        return min(float(resp.headers.get("Retry-After", "")), 30.0)
+    except (TypeError, ValueError):
+        return None
 
 
 def _next_page_url(soup, base_url):

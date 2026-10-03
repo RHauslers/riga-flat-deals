@@ -18,8 +18,10 @@ nothing is emailed):
 Run locally:  python -X utf8 -m main
 Run in CI:    python -X utf8 -m main
 """
+import json
 import os
 import sys
+import time
 import traceback
 from datetime import date
 
@@ -37,6 +39,42 @@ import cars
 import flat_market
 import gone
 from scrapers import ss_com, city24, izsoles
+
+
+def _acquire_run_lock():
+    """data/.main.lock — stop two main.run() processes from interleaving
+    writes to data/ and docs/ (observed to corrupt docs/cars.html).
+    Returns True when this process owns the lock. A lock older than
+    MAIN_LOCK_STALE_HOURS is treated as a crashed-run leftover and taken
+    over; an unreadable lock never blocks the run."""
+    try:
+        if os.path.exists(config.MAIN_LOCK_FILE):
+            with open(config.MAIN_LOCK_FILE, encoding="utf-8") as f:
+                info = json.load(f)
+            age_h = (time.time() - float(info.get("ts", 0))) / 3600
+            if age_h < config.MAIN_LOCK_STALE_HOURS:
+                print(f"[main] another run in progress "
+                      f"(pid {info.get('pid')}, {info.get('date', '?')})"
+                      " — aborting")
+                return False
+            print("[main] stale lock from a crashed run — taking over")
+        with open(config.MAIN_LOCK_FILE, "w", encoding="utf-8") as f:
+            json.dump({"pid": os.getpid(), "ts": time.time(),
+                       "date": str(date.today())}, f)
+        return True
+    except (OSError, ValueError, TypeError):
+        return True
+
+
+def _release_run_lock():
+    """Remove the lock only when we still own it."""
+    try:
+        with open(config.MAIN_LOCK_FILE, encoding="utf-8") as f:
+            ours = json.load(f).get("pid") == os.getpid()
+        if ours:
+            os.remove(config.MAIN_LOCK_FILE)
+    except (OSError, ValueError):
+        pass
 
 
 def _inject_chat(message):
@@ -86,11 +124,17 @@ def _inject_chat(message):
 
 def run():
     today = date.today().isoformat()
+    _t0 = time.monotonic()
+    if not _acquire_run_lock():
+        return "Skipped — another run is in progress."
     print(f"=== Flat_Searcher daily run {today} ===")
 
-    # 1. Scrape (tracking per-source counts for health checks)
+    # 1. Scrape (tracking per-source counts for health checks; raw scraper
+    #    exceptions are remembered for the digest outage banner)
     all_listings = []
     source_counts = {"ss.com": 0, "city24.lv": 0}
+    source_errors = {}
+    _scraper_names = {ss_com: "ss.com", city24: "city24.lv"}
     for dt in config.DEAL_TYPES:
         for scraper in (ss_com, city24):
             try:
@@ -101,6 +145,8 @@ def run():
                     if src in source_counts:
                         source_counts[src] += 1
             except Exception as e:
+                source_errors[_scraper_names[scraper]] = \
+                    f"{type(e).__name__}: {e}"
                 print(f"[main] {scraper.__name__} {dt} failed: {e}")
                 traceback.print_exc()
 
@@ -111,12 +157,10 @@ def run():
     #     No upper bound — the buyer's budget is applied by the browser-side
     #     budget tool, so every plausible listing is kept for scoring/embed.
     min_price = {"sale": config.MIN_SALE_PRICE_EUR, "rent": config.MIN_RENT_PRICE_EUR}
-    max_price = {"sale": float('inf'), "rent": float('inf')}
     before = len(all_listings)
     all_listings = [l for l in all_listings
                     if l.get("price_eur")
-                    and l["price_eur"] >= min_price.get(l.get("deal_type"), 0)
-                    and l["price_eur"] <= max_price.get(l.get("deal_type"), float('inf'))]
+                    and l["price_eur"] >= min_price.get(l.get("deal_type"), 0)]
     dropped = before - len(all_listings)
     if dropped:
         print(f"[main] dropped {dropped} listing(s) with implausible/out-of-budget prices")
@@ -147,10 +191,12 @@ def run():
     #      current bid (or start price when nobody has bid yet), then
     #      geocoded for distance to school + map markers.
     auctions = []
+    auctions_failed = False
     if config.IZSOLES_ENABLED:
         try:
             auctions = izsoles.scrape()
         except Exception as e:
+            auctions_failed = True
             print(f"[main] izsoles auction scrape failed: {e}")
             traceback.print_exc()
         before_a = len(auctions)
@@ -168,10 +214,19 @@ def run():
             print(f"[main] auctions: {len(auctions)} in-budget active "
                   f"auction(s) after filters")
 
-    # 1f. Health check -> loud log line if a scraper (or the geocoder) looks broken
+    # 1f. Health check -> loud log line if a scraper (or the geocoder) looks
+    #     broken. The same issue list feeds the digest's outage banner.
     geocoded = geocode.coverage(all_listings) if config.GEOCODE_ENABLED else None
+    digest_issues = health.evaluate(source_counts, len(all_listings),
+                                    geocoded=geocoded)
+    for _src, _err in sorted(source_errors.items()):
+        if not any(k == f"source_zero:{_src}" for k, _ in digest_issues):
+            digest_issues.append((f"source_failed:{_src}", _err))
     health.check(source_counts, len(all_listings), context="daily",
                  geocoded=geocoded)
+
+    _t_scrape = time.monotonic()
+    print(f"[main] flat scrape+enrich took {_t_scrape-_t0:.0f}s")
 
     car_status = ""
     try:
@@ -179,6 +234,7 @@ def run():
     except Exception as e:
         print(f"[main] cars.run failed: {e}")
         traceback.print_exc()
+    print(f"[main] cars.run took {time.monotonic()-_t_scrape:.0f}s")
 
     if not all_listings:
         try:
@@ -189,6 +245,7 @@ def run():
         msg = ("Flat_Searcher finished with 0 listings today. "
                "Flat digest not updated. Check scrapers / site availability. Next steps?")
         _inject_chat(msg)
+        _release_run_lock()
         return msg
 
     # 2. Training baseline = everything scraped BEFORE today.
@@ -263,7 +320,13 @@ def run():
     # 6e. Build "State & bailiff auctions" section (izsoles.ta.gov.lv):
     #     sorted by distance, budget-filtered, with start price / current
     #     bid / end date. Not part of the deal-score ranking.
-    auctions_html = notifier.build_auctions_html(auctions)
+    #     prev_active (loaded before the 6g overwrite below) supplies
+    #     yesterday's auction bids -> NEW badges and bid-move deltas.
+    prev_active = utils.read_json(config.FLAT_ACTIVE_JSON, {})
+    _prev_bids = {r["k"]: r["p"] for r in prev_active.get("rows", [])
+                  if r.get("k", "").startswith("izsoles.")}
+    auctions_html = notifier.build_auctions_html(
+        auctions, failed=auctions_failed, prev_bids=_prev_bids)
     print(f"[main] auctions section built")
 
     # 6f. District-level market stats for the Market tab (docs/market.html)
@@ -273,16 +336,21 @@ def run():
 
     # 6g. "Disappeared — likely sold/removed": yesterday's live-ad ids
     #     minus today's, restricted to sources that produced data today.
-    #     Today's rows are then written for tomorrow's comparison.
-    prev_active = utils.read_json(config.FLAT_ACTIVE_JSON, {})
+    #     Auctions are tracked too — one that vanished usually ended or was
+    #     settled, which is a real signal for the buyer. Today's rows are
+    #     then written for tomorrow's comparison.
+    live_now = all_listings + auctions
+    ok_sources = {s for s, n in source_counts.items() if n > 0}
+    if config.IZSOLES_ENABLED and not auctions_failed:
+        ok_sources.add("izsoles.ta.gov.lv")
     gone_rows = gone.gone_rows(
         prev_active.get("rows"),
-        {gone.listing_key(l) for l in all_listings},
-        {s for s, n in source_counts.items() if n > 0},
+        {gone.listing_key(l) for l in live_now},
+        ok_sources,
         config.GONE_MAX_ROWS)
     utils.write_json(config.FLAT_ACTIVE_JSON,
                      {"date": today,
-                      "rows": gone.flat_active_rows(all_listings)},
+                      "rows": gone.flat_active_rows(live_now)},
                      indent=None)
     gone_html = notifier.build_gone_html(gone_rows, price_data, today)
     if gone_rows:
@@ -293,7 +361,13 @@ def run():
                                        status_note, price_data, map_markers,
                                        newest_html, near_school_html,
                                        auctions_html, all_scored, all_listings,
-                                       gone_html)
+                                       gone_html,
+                                       source_counts=source_counts,
+                                       health_pairs=digest_issues,
+                                       n_auctions=(len(auctions)
+                                                   if config.IZSOLES_ENABLED
+                                                   else None),
+                                       auctions_failed=auctions_failed)
 
     # 8. Build hosted site (latest digest -> docs/index.html + archive)
     website.build()
@@ -302,11 +376,15 @@ def run():
     history.update_seen_deals(all_scored, seen_deals)
     history.save_last_digest(all_scored, today)
 
-    msg = (f"Flat_Searcher run {today} complete: scraped {len(all_listings)}, "
+    _elapsed = time.monotonic() - _t0
+    print(f"[main] total run time {_elapsed:.0f}s")
+    msg = (f"Flat_Searcher run {today} complete ({_elapsed:.0f}s): "
+           f"scraped {len(all_listings)}, "
            f"surfaced {n_main} new/changed + {n_still} still-active deals. "
            f"{info}. Scoring: {status_note}.{(' ' + car_status) if car_status else ''} "
            f"Feedback or next steps?")
     _inject_chat(msg)
+    _release_run_lock()
     return msg
 
 

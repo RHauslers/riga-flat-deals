@@ -8,8 +8,6 @@ from it, so no extra scraping is involved.
 """
 
 import json
-import os
-from datetime import date, timedelta
 from html import escape as _e
 from urllib.parse import quote as _q
 
@@ -68,23 +66,8 @@ def compute_district_stats(listings, price_data=None, today=None):
 
 def _delta_7d(points):
     """% change of median_ppu vs the newest point >= 7 days old.
-
-    points = [[date, ppu, price, ads], ...] (ascending). None when the
-    series has no point old enough to compare against."""
-    if len(points) < 2:
-        return None
-    try:
-        latest_date = date.fromisoformat(str(points[-1][0]))
-    except (ValueError, TypeError):
-        return None
-    cutoff = (latest_date - timedelta(days=7)).isoformat()
-    base = None
-    for p in points:
-        if str(p[0]) <= cutoff:
-            base = p
-    if base is None or not base[1] or not points[-1][1]:
-        return None
-    return 100.0 * (points[-1][1] - base[1]) / base[1]
+    Delegates to the shared utils.delta_7d (value at index 1)."""
+    return utils.delta_7d(points)
 
 
 def flat_section_html(stats, run_date=None, history=None):
@@ -159,11 +142,8 @@ def save_stats(stats, run_date, total_ads, path=None):
     per-district medians to flat_market_history.json so the page can draw
     trend sparklines once a district has been tracked on multiple days."""
     path = path or config.FLAT_MARKET_STATS_JSON
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump({"date": run_date, "total": total_ads,
-                   "districts": stats}, f,
-                  ensure_ascii=False, separators=(",", ":"))
+    utils.write_json(path, {"date": run_date, "total": total_ads,
+                            "districts": stats}, indent=None)
     _append_history(stats, run_date)
     return path
 
@@ -179,8 +159,16 @@ def _append_history(stats, run_date, path=None):
         pts = hist.setdefault(str(s["district"]), [])
         point = [run_date, s["median_ppu"], s.get("median_price"),
                  s["ads"]]
-        if pts and pts[-1][0] == run_date:
-            pts[-1] = point                  # same-day re-run updates
+        # Same-date point is replaced wherever it sits, and the point is
+        # inserted in date order — a backfill merged after live appends
+        # had produced out-of-order/duplicate tails (2026-10-03).
+        for i, p in enumerate(pts):
+            if p[0] == run_date:
+                pts[i] = point
+                break
+            if str(p[0]) > run_date:
+                pts.insert(i, point)
+                break
         else:
             pts.append(point)
         del pts[:-config.FLAT_MARKET_HISTORY_MAX_POINTS]

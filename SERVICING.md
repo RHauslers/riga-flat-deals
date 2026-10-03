@@ -1,11 +1,71 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-03 23:55
+Last updated: 2026-10-04 00:19
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
 
+- 2026-10-04 00:19 — /iterate 5 session (4th): scraper errors now
+  reach the outage banner with real reasons — city24 re-raises scrape
+  failures (was: silent [] -> vague "0 listings"), izsoles counts
+  detail-fetch failures and raises when nothing usable came back (was:
+  auctions silently vanished, gone-tracking would mark them ended);
+  cross-source dedupe records `also_cheaper` so a flat listed cheaper
+  on the other portal gets a green "(−€X on Y)" link in the source
+  cell; ss.com _fetch retries 429/5xx honoring Retry-After (was:
+  instant source death on rate limiting); audit_data v2 checks stale
+  .main.lock, market-history date ordering, digest embed presence and
+  legacy cenumednieks_attempt entries; README updated for the last two
+  sessions (unit tests in CI, run lock, coverage strip, atomic writes).
+  Also: dedupe now clears a stale also_cheaper flag on re-merge.
+  172 tests.
+- 2026-10-04 00:12 — /iterate 5 session (3rd): utils.write_json now
+  writes tmp+os.replace atomically (crash mid-write keeps the old file;
+  car/flat_market stats+history writes routed through it, data/*.tmp
+  gitignored); daily.yml runs the unit suite before the browser install
+  so a broken commit fails before writing production state; flat embed
+  gained "street" (budget tool Street column + watchlist label);
+  bug batch — ended auctions show grey ENDED instead of "ENDS TODAY"
+  and sink below live ones (also excluded from the "N ending" count),
+  id-less listings no longer collapse into one "source:None"
+  price-history entry, urgent auctions sort by closest deadline,
+  dead get_price_drop_info removed (First/Δ column supersedes it),
+  data: favicon on all generated pages; archive.html got a 14-day
+  coverage strip (green/amber/red per day — immediately revealed one
+  missed run). 166 tests.
+- 2026-10-04 00:02 — /iterate 5 session (2nd): data/.main.lock run-lock
+  stops concurrent main runs corrupting docs/ (fixes issue #15);
+  CenuMednieks misses stamped via `cenumednieks_attempt` and retried
+  weekly instead of daily; auctions show NEW badge + "was €X" bid deltas
+  from yesterday's flat_active snapshot; car market table gained a Δ 7d
+  column via shared `utils.delta_7d` (flat_market delegates to it);
+  market-stale banner now checks flat stats too, not just car; removed
+  dead SS_COM_TODAY_URL, dead city24 playwright import, utcnow() (Py
+  3.14 deprecation) and the dead max_price dict; `_append_history` in
+  both market modules now inserts date-sorted + replaces same-date
+  anywhere (backfill merges had produced unordered duplicate tails —
+  flat_market_history.json was normalized once). 163 tests.
+- 2026-10-03 23:51 — /iterate 15 session: flat-digest outage banner +
+  source coverage line (scraper errors + health pairs now render on the
+  page, not just CI logs); auctions table shows register-by deadline +
+  deposit and urgency keys off the earliest actionable deadline; ended
+  auctions appear in the "Disappeared" section; flat digest got
+  <title>/lang; ss.com flat scrape got a 0.5 s request delay;
+  seen_deals pruned past 60 d, price_history pruned past 120 d, all
+  committed state written compactly; flat embed stripped from archived
+  flat digests (car archives already were); archive page shows car
+  summaries; car _ineligible_reason mirrors eligible()'s upper year
+  bound; per-stage run timings; backfill_flat_market.py seeded 27 d of
+  district trends; audit_data.py prints a state health report; deduped
+  flats show "(also on X)". 154 tests.
+- 2026-10-03 23:26 — Created global user-invoked skill "iterate":
+  SKILL.md at %APPDATA%\devin\skills\iterate\ and
+  .codeium\windsurf\skills\iterate\ (identical copies — whichever
+  global skills dir Devin reads). Typing "/iterate [N]" makes the
+  agent read SERVICING.md incl. the changelog, propose N (default 5)
+  NEW features/improvements not already done, implement each with a
+  run/debug loop, then update SERVICING.md + work log.
 - 2026-10-03 23:55 — Session (megaplan): shared-utils refactor, car
   dedupe/scoring O(n²)->bucketed, state v2 compaction (car_seen -56%,
   snapshot -46%), dict-encoded digest embeds (-29%), gone/sold tracking
@@ -19,6 +79,202 @@ Living document. Updated after each Devin session. Read this first.
   distance marker. 102 tests. Details in the session section below.
 - (earlier sessions predate the changelog — see the dated session
   sections below, newest first)
+
+## Session 2026-10-04 — /iterate 5 #3 (error propagation, cheaper-alt, 429 retry, audit v2, README)
+
+User ran `/iterate 5` (fourth run). Two suspected bugs were verified
+FALSE before coding: auctions DO appear in near_school (izsoles rows
+carry deal_type="sale"; the row renders `street`, not `title`) and
+`?district=`/`?rooms=` URL params already work. Implemented:
+
+1. **Scrape-error propagation** — `city24.scrape` re-raises real
+   failures (ImportError still soft-skips without playwright) so
+   main's `source_errors` puts the real exception on the digest
+   banner instead of a bare "0 listings". `izsoles.scrape` counts
+   detail-fetch failures and raises when items existed but nothing
+   usable came back AND at least one fetch failed — an all-ended day
+   stays a legit `[]` (no false outage).
+2. **`also_cheaper`** — `dedupe_cross_source` records the cheapest
+   alternate portal price (`{price, source, url}`) when a deduped flat
+   is cheaper elsewhere; `_source_link` renders a green
+   "(−1 000 EUR on city24.lv)" link (span when the url is unsafe).
+   Stale flags popped before recompute.
+3. **ss.com 429/5xx retry** — `SS_COM_RETRY_STATUS = (429,500,502,503,
+   504)`; `_fetch` honors `Retry-After` (capped 30 s) else backs off
+   `RETRY_DELAY*(attempt+2)`; 404 etc. still fail instantly.
+4. **`audit_data.py` v2** — new checks: leftover `.main.lock` (fresh =
+   in-progress, old = crashed+warn), per-series date-order/duplicate
+   validation on both market histories, `flat-listings-data` embed
+   presence in the newest live digest, and a count of price_history
+   entries never CenuMednieks-attempted. Ran: 0 warnings.
+5. **README refresh** — unit tests run inside daily.yml before state
+   writes, `.main.lock`, archive coverage strip, atomic writes,
+   auction NEW/bid badges, audit script's new checks.
+
+Tests: **172 unittest** (was 166) — TestSsComRetry, TestIzsolesAllFailed,
+test_scrape_error_propagates, test_cheaper_duplicate_flagged. The dedupe
+test caught a real stale-flag bug (mutated listings re-deduped) — fixed
+with `survivor.pop("also_cheaper")`.
+
+Files touched: scrapers/city24.py, scrapers/izsoles.py,
+scrapers/ss_com.py, utils.py, notifier.py, config.py,
+helper_scripts/audit_data.py, README.md, tests/test_parsers.py,
+tests/test_flats_pipeline.py.
+
+## Session 2026-10-04 — /iterate 5 #2 (atomic writes, CI tests, street embed, bug batch, archive coverage)
+
+User ran `/iterate 5` (third iterate run). Implemented:
+
+1. **Atomic JSON writes** — `utils.write_json` writes `path.tmp` then
+   `os.replace`s into place (fsync'd). A kill/crash/disk-full mid-write
+   now leaves the previous good file instead of a truncated JSON every
+   reader chokes on. `car_market.save_stats`, `car_market._append_history`
+   and `flat_market.save_stats` were writing directly — routed through
+   `write_json` too; `data/*.tmp` gitignored.
+2. **CI pre-flight tests** — `daily.yml` gained a
+   `python -X utf8 -m unittest discover -s tests` step right after
+   `pip install` and BEFORE `playwright install` — a broken commit fails
+   fast (saves ~1 min browser download) and never writes state/digests.
+   The suite needs no browser (playwright is lazy-imported).
+3. **Flat embed `street`** — added to `_FLAT_FIELDS` (appended at the
+   END to keep positional indices stable — `r[4]` is hardcoded as
+   price_eur); the budget tool gained a Street column and the watch-star
+   label prefers street over district so watchlist entries are
+   identifiable.
+4. **Bug batch** — (a) auctions ending yesterday got a red "ENDS TODAY";
+   now grey `ENDED` and they sort below live rows via `_live_days` which
+   ignores past deadlines; (b) `update_price_history` skipped `id=None`
+   listings — they used to collapse into one shared `source:None` entry;
+   (c) urgent-auction sort now orders by closest deadline then distance
+   (was distance-only within the group); ended rows excluded from the
+   "N ending ≤3d" count; (d) removed dead `get_price_drop_info` (the
+   First/Δ column covers it); (e) `<link rel="icon" href="data:,">` on
+   all 6 generated page heads (kills favicon 404s).
+5. **Archive coverage strip** — `ARCHIVE_GAP_DAYS = 14`; archive.html
+   shows one cell per day: green = both digests, amber = one source,
+   red = no scan. First render immediately revealed a real missed day.
+
+Tests: **166 unittest** (was 163) — TestAtomicWriteJson,
+TestPriceHistoryIdless, TestAuctionEndedLabel.
+
+Files touched: utils.py, car_market.py, flat_market.py, notifier.py,
+price_history.py, website.py, car_digest.py, config.py, main.py (none —
+lock only), .github/workflows/daily.yml, .gitignore,
+tests/test_flats_pipeline.py.
+
+## Session 2026-10-04 — /iterate 5 (run lock, CenuMednieks misses, auction deltas, Δ7d, cleanups)
+
+User ran `/iterate 5` (second iterate run of the day). Implemented:
+
+1. **Run lock** — `main._acquire_run_lock()` writes
+   `data/.main.lock` (pid + timestamp, gitignored). A fresh lock
+   (< `MAIN_LOCK_STALE_HOURS = 4`) aborts the run with a printed
+   notice; an older one is treated as a crashed-run leftover and
+   taken over. `_release_run_lock()` removes it only when we still
+   own it (pid match) — release happens at both return paths. Fixes
+   observed issue #15.
+2. **CenuMednieks miss caching** — `update_price_history` stamps
+   `entry['cenumednieks_attempt']` on every fetch try; a miss used to
+   leave `needs_refresh` True forever → re-fetched EVERY run at 1 s
+   per ad. Misses now retry only after `CENU_REFRESH_DAYS`.
+3. **Auction NEW + bid-delta badges** — `build_auctions_html(
+   prev_bids=...)` gets `{key: yesterday's effective price}` from
+   flat_active rows (loaded before the 6g overwrite). Absent key →
+   green `NEW` (suppressed entirely when no prior tracking exists so
+   day-1 doesn't flag the whole table); moved price → ▲/▼ `was €X`
+   under the current bid. No new state file needed.
+4. **Car market Δ 7d** — `utils.delta_7d(points, value_idx=1)` is the
+   shared "vs newest point ≥7 days old" helper (flat_market._delta_7d
+   delegates); the car table shows % median-ask change, green = cheaper
+   (good for the buyer).
+5. **Small fixes** — market-stale banner checks `flat_market.load_stats`
+   too (oldest stale date wins); deleted dead `SS_COM_TODAY_URL`, dead
+   `sync_playwright` import in city24, `datetime.utcnow()` →
+   `datetime.now(timezone.utc)` (Py 3.14 DeprecationWarning), dead
+   `max_price` dict in main. Both `_append_history` variants now do
+   same-date replace + sorted insert; `data/flat_market_history.json`
+   normalized once (sorted, first-wins dedupe) after the backfill
+   merges left unordered duplicate tails.
+
+Tests: **163 unittest** (was 154) — TestRunLock, TestAuctionPrevBids,
+TestMarketHistoryAppend, TestDelta7d, TestCenuMissCaching.
+
+Files touched: main.py, notifier.py, website.py, utils.py,
+car_market.py, flat_market.py, price_history.py, config.py,
+scrapers/city24.py, tests/test_flats_pipeline.py, .gitignore,
+data/flat_market_history.json (normalized),
+data/price_history.json (compacted by a run under the new writer).
+
+## Session 2026-10-03 — /iterate 15 (outage visibility, auction deadlines, state hygiene, helpers)
+
+User ran `/iterate 15`. Implemented in order:
+
+1. **Flat digest outage banner + coverage line** — `main.run()` tracks
+   per-scraper exceptions; `health.evaluate` pairs + failures render as
+   a warning box on the flat digest (the car digest has had this since
+   the outage work — flats only logged to CI before).
+   `save_digest`/`build_html` gained `source_counts`, `health_pairs`,
+   `n_auctions`, `auctions_failed` kwargs; a "Today's scan: ss.com N ·
+   city24.lv M · izsoles K auctions" note is always rendered.
+2. **Auction register-by + deposit** — `auction_register_until` and
+   `auction_deposit` were parsed by izsoles but never displayed. The
+   Ends cell now shows "reg. by YYYY-MM-DD" (red `REG IN Nd`/`REG TODAY`
+   badge inside `AUCTION_ENDING_SOON_DAYS`); the start-price cell shows
+   "dep. €X". Urgency + sort key on `min(end, reg)` — you can't bid
+   without registering first.
+3. **`<title>` + `lang="en"`** — the flat digest had neither; cars had
+   both.
+4. **`SS_COM_REQUEST_DELAY_SECONDS = 0.5`** — the flat district-page
+   scrape fired ~40 requests back-to-back; now throttled with the same
+   `_last_request_ts` pattern the car scraper uses (429 resilience).
+5. **seen_deals TTL prune** — `SEEN_DEALS_TTL_DAYS = 60`; stale entries
+   dropped in `update_seen_deals` (was known issue #13).
+6. **price_history prune + compaction** — entries with no activity
+   newer than `PRICE_HISTORY_KEEP_DAYS = 120` dropped;
+   `entry.setdefault('our_tracking', [])` hardens legacy entries;
+   `price_history`, `seen_deals`, `last_digest`, `geocode_cache` now
+   written compact (`indent=None`).
+7. **Flat embed stripped from archived digests** —
+   `website._strip_archive_embeds` also removes `flat-listings-data`
+   from `docs/archive/digest_*.html` (same repo-growth fix cars got;
+   live pages + `data/digests/` originals keep it).
+8. **README refresh** — cron was stale (`17 3` → `47 0`), car price
+   bound text, flat archive stripping, `flat_active.json` row.
+9. **`helper_scripts/backfill_flat_market.py`** — recomputes per-day
+   per-district medians from `history.csv` (sale-only, in-budget, no
+   new-build, last-row-per-`source:id` dedupe) and merges into
+   `flat_market_history.json`. Seeded 55 points over 27 days → Δ 7d and
+   sparklines are live now. Note: backfilled points are pre-dedupe (CSV
+   keeps both portal copies), live points are post-dedupe — a minor
+   `ads` count step at the boundary, medians unaffected in practice.
+10. **Car archive summaries** — "N qualifying · badge bits" extracted
+    for `cars_*.html` rows on archive.html.
+11. **`_ineligible_reason`** — now mirrors `eligible()`'s upper year
+    bound (`year > today+1` → "year out of range"; it only checked the
+    lower bound before).
+12. **Ended auctions in gone tracking** — auctions are included in
+    `flat_active.json` rows; `izsoles.ta.gov.lv` is added to ok_sources
+    only when the scan didn't raise, so a vanished auction = ended or
+    settled (shown with a "· auction" tag in the gone table).
+13. **Stage timings** — flat scrape+enrich / cars.run / total logged;
+    total goes into the status message (45-min CI timeout watch).
+14. **`helper_scripts/audit_data.py`** — read-only health report over
+    every state file (sizes, counts, freshness vs today, v2 epoch-day
+    aware); ran it on 2026-10-03: 0 warnings.
+15. **`(also on X)` badge** — `_source_link` appends the other portal's
+    name when a flat survived cross-source dedupe.
+
+Tests: **154 unittest** (was 138) — new classes
+TestDigestCoverageBanner, TestAuctionRegAndDeposit, TestSeenDealsPrune,
+TestPriceHistoryPrune, TestEndedAuctionGone, TestAlsoOnBadge,
+TestFlatMarketBackfill, TestArchiveFlatEmbedStrip,
+TestCarArchiveSummary, TestIneligibleReason.
+
+Files touched: main.py, notifier.py, website.py, history.py,
+price_history.py, geocode.py, cars.py, config.py, scrapers/ss_com.py,
+README.md, tests/test_flats_pipeline.py, tests/test_car_search.py,
+helper_scripts/{backfill_flat_market,audit_data}.py (new),
+data/flat_market_history.json (backfilled).
 
 ## Session 2026-10-03 — megaplan upgrade (bugs, perf, compaction, features, CI)
 
@@ -1153,25 +1409,31 @@ Verified locally:
     case: someone edits files in a non-sensitive repo or unsubscribes people.
     Rotatable: update the `UNSUBSCRIBE_PAT` secret and re-run the pages
     workflow. See README §"Enable GitHub Pages".
-13. **seen_deals.json growth** — dict grows over time. Not a concern for
-    months (a few hundred entries). Could add periodic cleanup of entries
-    older than 30 days with no re-sighting.
+13. **seen_deals.json growth** — FIXED (2026-10-03): entries not
+    re-shown for `SEEN_DEALS_TTL_DAYS=60` are pruned inside
+    `update_seen_deals`. `price_history.json` similarly drops entries
+    inactive for `PRICE_HISTORY_KEEP_DAYS=120`.
 14. **last_digest staleness** — if a run is missed, `last_digest.json` is from
     the last successful run. The comparison header would compare against a
     stale date. The header includes the date so it's clear. Acceptable.
-15. **Concurrent `main` runs race on state+docs** — OBSERVED (2026-10-03):
-    two `python -m main` processes at once interleaved writes: `docs/cars.html`
-    ended up as a nav-only fragment and today's archive copy kept its market
-    embed. Fix after it happens: just re-run `python -c "import website;
-    website.build()"` — it is idempotent and rebuilds docs/ from the digests.
-    Prevention: never run two mains at once; the CI concurrency group already
-    serialises GitHub-side runs. (as of 2026-10-03)
+15. **Concurrent `main` runs race on state+docs** — FIXED (2026-10-04):
+    `data/.main.lock` (pid + timestamp, gitignored) is written at run
+    start; a second run aborts while the lock is fresher than
+    `MAIN_LOCK_STALE_HOURS = 4`, and a crashed run's stale lock is taken
+    over. If docs/ is already corrupted from before the fix, re-run
+    `python -c "import website; website.build()"` — idempotent rebuild
+    from the digests. The CI concurrency group still serialises
+    GitHub-side runs. (was: two `python -m main` processes at once
+    interleaved writes — observed 2026-10-03)
 16. **v1 state files migrate transparently** — `car_seen.json` and
     `car_market_snapshot.json` readers accept both v1 and v2; writes are
     always v2. `helper_scripts/compact_state.py` rewrites old files with a
     `.v1.bak` backup (gitignored). `flat_active.json` starts empty on the
     first run — the flat "Disappeared" section appears from the second run
-    onward. (as of 2026-10-03)
+    onward. (as of 2026-10-03) Its rows now also carry auction ids, so
+    ended/withdrawn auctions show up in the gone section with a
+    "· auction" tag — first ended-auction reports appear one run after
+    the 2026-10-03 deploy.
 
 ## How to re-run / debug locally
 ```

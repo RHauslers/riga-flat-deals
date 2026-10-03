@@ -9,8 +9,11 @@ Fixtures live in tests/fixtures/. Note: .gitignore blocks `ss_*.html` and
 """
 import json
 import os
+import sys
 import unittest
+from unittest import mock
 
+import requests
 from bs4 import BeautifulSoup
 
 from scrapers import ss_com, car_ss, car_pp, izsoles, city24
@@ -178,6 +181,84 @@ class TestCity24(unittest.TestCase):
                   encoding="utf-8") as f:
             items = json.load(f)
         self.assertIsNone(city24._extract_item(items[2], "sale"))
+
+    def test_scrape_error_propagates(self):
+        """Scrape failures re-raise so the digest banner gets a reason."""
+        fake_pw = mock.MagicMock()
+        fake_pw.sync_playwright.return_value.__enter__.return_value = \
+            object()
+        with mock.patch.dict("sys.modules",
+                             {"playwright.sync_api": fake_pw}), \
+             mock.patch.object(city24, "_scrape_deal_type",
+                               side_effect=RuntimeError("pw boom")):
+            with self.assertRaises(RuntimeError):
+                city24.scrape("sale")
+
+
+class TestSsComRetry(unittest.TestCase):
+
+    def test_429_retried_then_ok(self):
+        resp429 = mock.Mock(status_code=429,
+                            headers={"Retry-After": "0.01"}, text="")
+        resp200 = mock.Mock(status_code=200, headers={}, text="<html>x</html>")
+        with mock.patch.object(ss_com.requests, "get",
+                               side_effect=[resp429, resp200]) as g, \
+             mock.patch.object(ss_com.time, "sleep", lambda s: None):
+            self.assertEqual(ss_com._fetch("u"), "<html>x</html>")
+            self.assertEqual(g.call_count, 2)
+
+    def test_404_no_retry(self):
+        resp = mock.Mock(status_code=404, headers={}, text="")
+        resp.raise_for_status.side_effect = \
+            requests.HTTPError(response=resp)
+        with mock.patch.object(ss_com.requests, "get",
+                               return_value=resp) as g, \
+             mock.patch.object(ss_com.time, "sleep", lambda s: None):
+            with self.assertRaises(requests.HTTPError):
+                ss_com._fetch("u")
+            self.assertEqual(g.call_count, 1)
+
+
+class TestIzsolesAllFailed(unittest.TestCase):
+
+    def test_all_details_failed_raises(self):
+        """Every detail failing = outage, not 'no auctions today'."""
+        calls = {"n": 0}
+
+        def fake_get(url, **kw):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return mock.Mock(text="")
+            raise requests.ConnectionError("down")
+
+        s = mock.MagicMock()
+        s.get.side_effect = fake_get
+        s.post.return_value = mock.Mock(text="")
+        with mock.patch.object(izsoles, "_parse_list_page",
+                               lambda html: ([{"url": "u1", "title": "t"}],
+                                             1)), \
+             mock.patch.object(izsoles, "_parse_detail",
+                               lambda *a: None), \
+             mock.patch.object(izsoles.requests, "Session",
+                               lambda: s), \
+             mock.patch.object(izsoles.time, "sleep", lambda x: None):
+            with self.assertRaises(requests.RequestException):
+                izsoles.scrape()
+
+    def test_ended_only_is_legit_empty(self):
+        """All-ended auctions -> empty list, no fake outage."""
+        s = mock.MagicMock()
+        s.get.return_value = mock.Mock(text="ok")
+        s.post.return_value = mock.Mock(text="")
+        with mock.patch.object(izsoles, "_parse_list_page",
+                               lambda html: ([{"url": "u1", "title": "t"}],
+                                             1)), \
+             mock.patch.object(izsoles, "_parse_detail",
+                               lambda *a: {"auction_end": "2000-01-01"}), \
+             mock.patch.object(izsoles.requests, "Session",
+                               lambda: s), \
+             mock.patch.object(izsoles.time, "sleep", lambda x: None):
+            self.assertEqual(izsoles.scrape(), [])
 
 
 if __name__ == "__main__":

@@ -78,7 +78,7 @@ def _read_json(path, default):
 
 
 def _write_json(path, data):
-    utils.write_json(path, data, indent=2)
+    utils.write_json(path, data, indent=None)  # compact — committed daily
 
 
 def load_cache():

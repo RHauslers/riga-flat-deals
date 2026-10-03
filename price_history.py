@@ -22,7 +22,7 @@ only). City24 listings get our own tracking only.
 """
 import re
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import requests
 from bs4 import BeautifulSoup
@@ -178,7 +178,9 @@ def _read_json(path, default):
 
 
 def _write_json(path, data):
-    utils.write_json(path, data, indent=2)
+    # Compact JSON — the file is committed daily and pretty-printing was
+    # adding ~35% dead whitespace (same reason car state went v2).
+    utils.write_json(path, data, indent=None)
 
 
 def load_price_history():
@@ -229,16 +231,19 @@ def update_price_history(listings):
     n_tracked = 0
 
     for listing in listings:
-        key = _listing_key(listing)
         price = listing.get('price_eur')
-        if not price:
+        if not price or not listing.get('source') or not listing.get('id'):
+            # no id -> the key would collapse every id-less listing into
+            # one shared "source:None" entry
             continue
+        key = _listing_key(listing)
 
         entry = history.get(key, {
             'cenumednieks': None,
             'our_tracking': [],
             'first_seen': None,
         })
+        entry.setdefault('our_tracking', [])  # tolerate legacy entries
 
         # 1. Record today's price in our own tracking.
         #    - first_seen is set once (the first day we ever saw this listing)
@@ -274,7 +279,11 @@ def update_price_history(listings):
             # change creates a new first entry, which can't happen here.
             entry['our_tracking'][-1]['date'] = today
 
-        # 2. Fetch CenuMednieks data for SS.com listings (weekly refresh)
+        # 2. Fetch CenuMednieks data for SS.com listings (weekly refresh).
+        #    cenumednieks_attempt stamps every try — hits AND misses — so an
+        #    ad the tracker doesn't know isn't re-fetched every single run
+        #    (needs_refresh stays True on a miss and would hammer the site
+        #    daily at CENU_DELAY seconds per ad).
         ss_id = _extract_ss_id(listing)
         if ss_id and config.PRICE_HISTORY_CENU_ENABLED:
             cached = entry.get('cenumednieks')
@@ -283,7 +292,10 @@ def update_price_history(listings):
                 or _is_older_than_days(cached.get('fetched_at'),
                                        config.CENU_REFRESH_DAYS)
             )
-            if needs_refresh:
+            due = _is_older_than_days(entry.get('cenumednieks_attempt'),
+                                      config.CENU_REFRESH_DAYS)
+            if needs_refresh and due:
+                entry['cenumednieks_attempt'] = today
                 cenu_data = fetch_cenumednieks(ss_id)
                 if cenu_data:
                     entry['cenumednieks'] = cenu_data
@@ -292,12 +304,38 @@ def update_price_history(listings):
 
         history[key] = entry
 
-    if n_fetched or n_tracked:
+    # Prune entries whose newest observed activity is older than
+    # PRICE_HISTORY_KEEP_DAYS — dead listings were accumulating forever.
+    cutoff = (date.today()
+              - timedelta(days=config.PRICE_HISTORY_KEEP_DAYS)).isoformat()
+    stale = [k for k, e in history.items()
+             if (_entry_last_activity(e) or "") < cutoff]
+    for k in stale:
+        del history[k]
+    if stale:
+        print(f"[price_history] pruned {len(stale)} stale entries "
+              f"(>{config.PRICE_HISTORY_KEEP_DAYS}d inactive)")
+
+    if n_fetched or n_tracked or stale:
         save_price_history(history)
+    if n_fetched or n_tracked:
         print(f"[price_history] tracked {n_tracked} price observations, "
               f"fetched {n_fetched} CenuMednieks lookups")
 
     return history
+
+
+def _entry_last_activity(entry):
+    """Newest date we have on record for a listing — used to prune entries
+    that haven't been seen for a long time."""
+    dates = [str(o.get('date')) for o in entry.get('our_tracking') or []
+             if o.get('date')]
+    cenu = entry.get('cenumednieks') or {}
+    if cenu.get('fetched_at'):
+        dates.append(str(cenu['fetched_at']))
+    if entry.get('first_seen'):
+        dates.append(str(entry['first_seen']))
+    return max(dates) if dates else None
 
 
 def _is_older_than_days(date_str, days):
@@ -480,31 +518,3 @@ def format_price_timeline_html(listing, history=None):
         spark + '</div>'
     return header + timeline_html + prev_html
 
-
-def get_price_drop_info(listing, history=None):
-    """Return a summary of price drops for a listing.
-
-    Returns dict with: original_price, current_price, total_drop_pct,
-    n_drops, first_date, days_on_market. Or None if no history.
-    """
-    timeline = get_price_timeline(listing, history)
-    if not timeline or len(timeline) < 2:
-        return None
-
-    first = timeline[0]
-    last = timeline[-1]
-    drops = sum(1 for i in range(1, len(timeline))
-                if timeline[i]['price'] < timeline[i - 1]['price'])
-
-    total_drop = first['price'] - last['price']
-    total_drop_pct = (total_drop / first['price']) * 100 if first['price'] else 0
-
-    return {
-        'original_price': first['price'],
-        'current_price': last['price'],
-        'total_drop': total_drop,
-        'total_drop_pct': total_drop_pct,
-        'n_drops': drops,
-        'first_date': first['date'],
-        'days_on_market': None,  # filled from CenuMednieks if available
-    }

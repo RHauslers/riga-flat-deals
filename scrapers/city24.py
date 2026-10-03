@@ -97,8 +97,6 @@ def _extract_item(item, deal_type):
 
 def _scrape_deal_type(playwright, deal_type):
     """Walk search pages for one deal type, return list of unified listings."""
-    from playwright.sync_api import sync_playwright  # noqa (kept for clarity)
-
     base = config.CITY24_SEARCH_URL[deal_type]
     results = []
     page_size = None
@@ -181,8 +179,11 @@ def scrape(deal_type):
         with sync_playwright() as p:
             return _scrape_deal_type(p, deal_type)
     except Exception as e:
+        # Re-raise: main.run() records the real exception on the digest
+        # outage banner. Swallowing to [] only produced a vague
+        # "0 listings" warning with no reason attached.
         print(f"[city24.lv] {deal_type} failed: {e}")
-        return []
+        raise
 
 
 if __name__ == "__main__":

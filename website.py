@@ -24,6 +24,7 @@ from html import escape
 
 import config
 import car_market
+import flat_market
 
 
 DOCS_DIR = os.path.join(config.BASE_DIR, "docs")
@@ -163,6 +164,7 @@ def _cars_placeholder_html():
     """Shown on the Cars tab until the first car digest has been generated."""
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga car deals</title>
 <style>
 body{{font-family:Arial,sans-serif;color:#222;max-width:800px;margin:0 auto;padding:20px}}
@@ -175,23 +177,30 @@ h1{{color:#1a5276}}a{{color:#2874a6}}
 </body></html>"""
 
 
-_CAR_MARKET_DATA_RE = re.compile(
-    r'<script type="application/json" id="car-market-data">.*?</script>',
-    re.S)
+_EMBED_RES = (
+    re.compile(
+        r'<script type="application/json" id="car-market-data">.*?</script>',
+        re.S),
+    re.compile(
+        r'<script type="application/json" id="flat-listings-data">.*?</script>',
+        re.S),
+)
 
 
 def _strip_archive_embeds():
-    """Remove the embedded market JSON from archived car digests.
+    """Remove the embedded market JSON from archived digests.
 
-    The embed is ~800 KB of JSON per day — ~290 MB/yr of git churn —
-    while the budget/watch tools it feeds are a live-page feature.
-    Archive copies keep their rendered tables; the originals in
-    data/digests/ and docs/cars.html keep the embed.
+    The car embed is ~800 KB of JSON per day — ~290 MB/yr of git churn —
+    and the flat embed adds its own tens of KB/day, while the budget/watch
+    tools they feed are live-page features. Archive copies keep their
+    rendered tables (the leftover JS degrades gracefully); the originals
+    in data/digests/ and docs/{index,cars}.html keep the embed.
     """
     if not os.path.isdir(ARCHIVE_DIR):
         return
     for f in os.listdir(ARCHIVE_DIR):
-        if not (f.startswith("cars_") and f.endswith(".html")):
+        if not (f.endswith(".html")
+                and (f.startswith("cars_") or f.startswith("digest_"))):
             continue
         path = os.path.join(ARCHIVE_DIR, f)
         try:
@@ -199,8 +208,10 @@ def _strip_archive_embeds():
                 content = fh.read()
         except OSError:
             continue
-        stripped, n = _CAR_MARKET_DATA_RE.subn("", content)
-        if not n:
+        stripped = content
+        for rx in _EMBED_RES:
+            stripped = rx.sub("", stripped)
+        if stripped == content:
             continue
         try:
             with open(path, "w", encoding="utf-8") as fh:
@@ -222,6 +233,22 @@ def _extract_summary(html):
     if still:
         parts.append(f"{still.group(1)} still active")
     return ", ".join(parts) if parts else ""
+
+
+def _extract_car_summary(html):
+    """Short summary for a car digest: qualifying-deal count + badge bits."""
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = re.sub(r"\s+", " ", text)
+    parts = []
+    qual = re.search(r"All qualifying deals \((\d+)\)", text)
+    if qual:
+        parts.append(f"{qual.group(1)} qualifying")
+    elif re.search(r"No qualifying deals today", text):
+        parts.append("0 qualifying")
+    day = re.search(r"Today: ([^.]+)\.", text)
+    if day:
+        parts.append(day.group(1).strip())
+    return ", ".join(parts)
 
 
 def build():
@@ -300,9 +327,13 @@ def build():
     with open(market_path, "w", encoding="utf-8") as f:
         f.write(car_market.build_page())
     market_stale = ""
-    stats = car_market.load_stats()
-    if stats and stats.get("date") and stats["date"] != today:
-        market_stale = _stale_digest_banner("market", stats["date"], today)
+    stats_dates = [s.get("date") for s in
+                   (car_market.load_stats(), flat_market.load_stats())
+                   if s and s.get("date")]
+    stale_dates = [d for d in stats_dates if d != today]
+    if stale_dates:
+        market_stale = _stale_digest_banner(
+            "market", min(stale_dates), today)
     _inject_nav(market_path, "market", "", extra_top=market_stale)
 
     _inject_nav(os.path.join(DOCS_DIR, "index.html"), "flats", "",
@@ -346,23 +377,56 @@ def build():
             f"<td style='padding:8px;color:#666'>{escape(summary)}</td>"
             f"</tr>"
         )
-    rows_html = "\n".join(rows) if rows else "<tr><td>No digests yet.</td></tr>"
+    rows_html = ("\n".join(rows) if rows else
+                 '<tr><td colspan="2">No digests yet.</td></tr>')
 
     car_rows = []
     for f in car_archive_files:
         d = _extract_car_date(f) or f
+        fpath = os.path.join(ARCHIVE_DIR, f)
+        try:
+            with open(fpath, "r", encoding="utf-8") as fh:
+                car_summary = _extract_car_summary(fh.read())
+        except OSError:
+            car_summary = ""
         label = d
         if f == car_archive_name:
             label += " (today)" if d == today else " (latest)"
         car_rows.append(
             f"<tr><td style='padding:8px'>"
-            f"<a href='archive/{escape(f)}'>{escape(label)}</a></td></tr>"
+            f"<a href='archive/{escape(f)}'>{escape(label)}</a></td>"
+            f"<td style='padding:8px;color:#666'>{escape(car_summary)}</td></tr>"
         )
     car_rows_html = "\n".join(car_rows) if car_rows else \
-        "<tr><td>Not generated yet.</td></tr>"
+        '<tr><td colspan="2">Not generated yet.</td></tr>'
+
+    # Coverage strip for the last ARCHIVE_GAP_DAYS days: green = both
+    # digests, amber = only one source, red = no scan at all (run failed
+    # or never ran). Makes CI gaps visible at a glance.
+    flat_dates = {d for d in (_extract_date(f) for f in archive_files) if d}
+    car_dates = {d for d in (_extract_car_date(f) for f in car_archive_files) if d}
+    strip = []
+    for i in range(config.ARCHIVE_GAP_DAYS - 1, -1, -1):
+        d = (date.today() - timedelta(days=i)).isoformat()
+        both = d in flat_dates and d in car_dates
+        label = ("flat + car digests" if both else
+                 "flat digest only" if d in flat_dates else
+                 "car digest only" if d in car_dates else "no scan")
+        color = "#27ae60" if both else \
+            "#e67e22" if label != "no scan" else "#c0392b"
+        strip.append(
+            f"<span title='{d}: {label}' style='display:inline-block;"
+            f"width:14px;height:14px;background:{color};margin-right:3px;"
+            f"border-radius:3px'></span>")
+    coverage_html = (
+        "<div style='margin:12px 0'>" + "".join(strip) +
+        f"<div class='note'>Last {config.ARCHIVE_GAP_DAYS} days: "
+        "green = both digests, amber = one source only, red = no scan. "
+        "Hover a cell for the date.</div></div>")
 
     archive_html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga flat & car deals — archive</title>
 <style>
 body{{font-family:Arial,sans-serif;color:#222;max-width:800px;margin:0 auto;padding:20px}}
@@ -374,6 +438,7 @@ table{{width:100%;border-collapse:collapse}}
 {_nav_html("", "")}
 <h1>Riga flat & car deals — archive</h1>
 <p class="note">Districts: {', '.join(config.DISTRICTS.keys())} · Sources: ss.com, city24.lv, pp.lv</p>
+{coverage_html}
 <p><a href="index.html">← Back to today's deals</a></p>
 <h2>Flat digests ({len(archive_files)} total)</h2>
 <table>
@@ -382,7 +447,7 @@ table{{width:100%;border-collapse:collapse}}
 </table>
 <h2>Car digests ({len(car_archive_files)} total)</h2>
 <table>
-<tr style="background:#f0f0f0"><th style="text-align:left;padding:8px">Date</th></tr>
+<tr style="background:#f0f0f0"><th style="text-align:left;padding:8px">Date</th><th style="text-align:left;padding:8px">Summary</th></tr>
 {car_rows_html}
 </table>
 <hr><p class="note">Generated by Flat_Searcher on {today}. Digests are kept

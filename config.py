@@ -26,6 +26,9 @@ CAR_SOURCE_TIMEOUT_SECONDS = 30
 # connection/timeout errors — 403/429 still abort immediately.
 REQUEST_RETRIES = 2            # extra attempts per request on conn errors
 REQUEST_RETRY_DELAY_SECONDS = 10
+# HTTP statuses worth one bounded retry (rate-limit / transient server
+# errors). Each retry sleeps Retry-After, or RETRY_DELAY*(attempt+2).
+SS_COM_RETRY_STATUS = (429, 500, 502, 503, 504)
 CAR_MIN_YEAR = 2005
 CAR_MAX_MILEAGE_KM = 400000
 CAR_HIGH_MILEAGE_WARNING_KM = 300000
@@ -87,11 +90,6 @@ DEAL_TYPES = ["sale"]
 #    English "today" pages for Riga flats. One page holds all of today's ads.
 # ----------------------------------------------------------------------------
 SS_COM_BASE = "https://www.ss.com"
-SS_COM_TODAY_URL = {
-    # ss.com calls rent "hand_over" (landlord hands the flat over).
-    "rent": "https://www.ss.com/en/real-estate/flats/riga/today/hand_over/",
-    "sale": "https://www.ss.com/en/real-estate/flats/riga/today/sell/",
-}
 # District-specific listing pages (not just "today" — shows ALL active listings).
 # This is where CenuMednieks historical data is most valuable: older listings
 # that have been on the market for weeks/months.
@@ -110,6 +108,10 @@ SS_COM_USER_AGENT = (
 )
 SS_COM_TIMEOUT = 30   # seconds per request
 SS_COM_MAX_PAGES = 15  # safety cap for pagination (Imanta sale has 9+ pages)
+# Politeness gap between flat-page fetches — the car scrape already enforces
+# 1 s/request; the flat district pages fired ~40 requests back-to-back
+# (fixed 2026-10-03, 429 resilience).
+SS_COM_REQUEST_DELAY_SECONDS = 0.5
 
 # ----------------------------------------------------------------------------
 # 4. city24.lv settings (scraped via Playwright -> intercept JSON API)
@@ -261,6 +263,9 @@ STILL_ACTIVE_MAX_DAYS = 7   # don't show "still active" for deals shown > N days
 # car HTML stored twice, so an unbounded archive grows the repo by ~150 MB a
 # year. The current day's pages (index.html / cars.html) are never pruned.
 ARCHIVE_KEEP_DAYS = 30
+# archive.html coverage strip: how many recent days to show presence/
+# absence of flat + car digests for (a red cell = the run failed that day)
+ARCHIVE_GAP_DAYS = 14
 
 # ----------------------------------------------------------------------------
 # 7. CHAT INJECTION (global rule 4)
@@ -315,8 +320,22 @@ FLAT_MARKET_STATS_JSON = os.path.join(DATA_DIR, "flat_market_stats.json")
 FLAT_MARKET_HISTORY_JSON = os.path.join(DATA_DIR, "flat_market_history.json")
 FLAT_MARKET_HISTORY_MAX_POINTS = 120  # days of per-district median kept
 FLAT_ACTIVE_JSON = os.path.join(DATA_DIR, "flat_active.json")
+
+# .main.lock — written while main.run() is active so a second local run
+# (double-click, overlapping manual runs) doesn't interleave writes to
+# data/ and docs/ and corrupt them (observed 2026-10-03). Older than
+# STALE_HOURS it's assumed to come from a crashed run and is taken over.
+MAIN_LOCK_FILE = os.path.join(DATA_DIR, ".main.lock")
+MAIN_LOCK_STALE_HOURS = 4
 GONE_MAX_ROWS = 25    # flats "Disappeared" section cap
 CAR_GONE_MAX_ROWS = 20  # cars "Gone since yesterday" section cap
+# seen_deals.json entries not re-shown for this many days are pruned — the
+# dict otherwise grows forever (2026-10-03: was a listed known issue).
+SEEN_DEALS_TTL_DAYS = 60
+# price_history.json entries whose newest activity (our_tracking date,
+# cenumednieks fetched_at, or first_seen) is older than this are dropped —
+# dead listings were accumulating forever.
+PRICE_HISTORY_KEEP_DAYS = 120
 # Car health: a source with at least this many raw ads but under ~5%
 # eligible probably has a broken parser/field mapping.
 CAR_MIN_EXPECTED_RAW = 50

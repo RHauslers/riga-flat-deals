@@ -130,7 +130,8 @@ def _ineligible_reason(l):
             return "price out of range"
     except (TypeError, ValueError):
         return "missing price"
-    if not isinstance(year, int) or year < config.CAR_MIN_YEAR:
+    if (not isinstance(year, int)
+            or not config.CAR_MIN_YEAR <= year <= date.today().year + 1):
         return "year out of range"
     if mileage is None:
         return "missing mileage"

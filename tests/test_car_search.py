@@ -1721,5 +1721,59 @@ class TestCarGoneSection(_TempPaths):
                                          f"cars_{today}.html")))
 
 
+class TestArchiveFlatEmbedStrip(_TempPaths):
+    """website._strip_archive_embeds also strips the flat-listings-data
+    embed from docs/archive/digest_*.html copies (live pages keep it)."""
+
+    def test_flat_archive_copy_loses_embed(self):
+        today = date.today().isoformat()
+        listing = {"source": "ss.com", "id": "f1", "district": "Imanta",
+                   "rooms": 2, "area_m2": 50.0, "floor": "3/5",
+                   "price_eur": 50000, "price_per_m2": 1000,
+                   "url": "https://www.ss.com/x", "_school_km": 2.0}
+        html_text = notifier.build_html(
+            {"sale": [(listing, 1.0, "z", "NEW", None)]}, {}, "", "note",
+            all_scored={"sale": [(listing, 1.0, "z")]},
+            all_listings=[listing])
+        self.assertIn('id="flat-listings-data"', html_text)
+        with open(os.path.join(self.digest_dir, f"digest_{today}.html"),
+                  "w", encoding="utf-8") as f:
+            f.write(html_text)
+        docs = os.path.join(self.tmp.name, "docs")
+        arch = os.path.join(docs, "archive")
+        with mock.patch.object(website, "DOCS_DIR", docs), \
+             mock.patch.object(website, "ARCHIVE_DIR", arch):
+            website.build()
+        self.assertIn('id="flat-listings-data"',
+                      _read(os.path.join(docs, "index.html")))
+        self.assertNotIn('id="flat-listings-data"',
+                         _read(os.path.join(arch, f"digest_{today}.html")))
+        self.assertIn('id="flat-listings-data"',
+                      _read(os.path.join(self.digest_dir,
+                                         f"digest_{today}.html")))
+
+
+class TestCarArchiveSummary(unittest.TestCase):
+    def test_extract_car_summary(self):
+        s = website._extract_car_summary(
+            "<h2>All qualifying deals (7)</h2>"
+            "<p class='note'>Today: 3 new · 1 price drop.</p>")
+        self.assertIn("7 qualifying", s)
+        self.assertIn("3 new", s)
+        self.assertEqual(
+            website._extract_car_summary(
+                "<h2>No qualifying deals today</h2>"), "0 qualifying")
+        self.assertEqual(website._extract_car_summary("<p>x</p>"), "")
+
+
+class TestIneligibleReason(unittest.TestCase):
+    def test_future_year_out_of_range(self):
+        l = _car("ss.com", "x1", 3000)
+        l["year"] = date.today().year + 5
+        self.assertEqual(cars._ineligible_reason(l), "year out of range")
+        l["year"] = date.today().year + 1   # allowed bound
+        self.assertNotEqual(cars._ineligible_reason(l), "year out of range")
+
+
 if __name__ == "__main__":
     unittest.main()
