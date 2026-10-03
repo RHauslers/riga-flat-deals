@@ -168,6 +168,7 @@ button{cursor:pointer}
 .badge.b-auction{background:transparent;border:1px solid var(--auction);color:var(--auction)}
 .badge.b-src{border:1px solid var(--line2);color:var(--muted);background:transparent}
 .badge.b-cheap{background:var(--good-bg);color:var(--good)}
+.badge.b-mot{background:var(--warn-bg);color:var(--warn)}
 .delta-up{color:var(--bad)} .delta-down{color:var(--good)}
 
 /* Watchlist star */

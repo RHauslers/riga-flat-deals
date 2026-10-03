@@ -1775,5 +1775,51 @@ class TestIneligibleReason(unittest.TestCase):
         self.assertNotEqual(cars._ineligible_reason(l), "year out of range")
 
 
+class TestCarMotivatedSeller(unittest.TestCase):
+    """Motivated-seller detection from the recorded ask-price trail."""
+
+    def _trail_car(self, prices, first_seen="2026-09-20"):
+        l = _car("ss.com", "m1", prices[-1][1])
+        l["_price_hist"] = prices
+        l["_first_seen"] = first_seen
+        return l
+
+    def test_no_trail_no_chip(self):
+        l = _car("ss.com", "m1", 3000)
+        self.assertEqual(car_digest._motivated_chip(l, "2026-10-04"), "")
+        self.assertEqual(car_digest.build_cuts_html([l], "2026-10-04"), "")
+
+    def test_drop_chip_and_motivated(self):
+        # two observed cuts -> motivated even though only 14 days tracked
+        l = self._trail_car([["2026-09-20", 3600], ["2026-09-28", 3400],
+                             ["2026-10-02", 2500]])
+        chip = car_digest._motivated_chip(l, "2026-10-04")
+        self.assertIn("MOTIVATED", chip)
+        self.assertIn("b-mot", chip)
+        cuts = car_digest.build_cuts_html([l], "2026-10-04")
+        self.assertIn("Biggest price cuts", cuts)
+        self.assertIn("car-cuts", cuts)
+
+    def test_single_small_drop_not_motivated(self):
+        # one drop but fresh ad -> chip but no MOTIVATED pill
+        l = self._trail_car([["2026-10-01", 3000], ["2026-10-04", 2500]],
+                            first_seen="2026-10-01")
+        chip = car_digest._motivated_chip(l, "2026-10-04")
+        self.assertIn("b-cheap", chip)
+        self.assertNotIn("MOTIVATED", chip)
+
+    def test_price_rise_no_chip(self):
+        l = self._trail_car([["2026-09-20", 3000], ["2026-10-04", 3500]])
+        self.assertEqual(car_digest._motivated_chip(l, "2026-10-04"), "")
+
+    def test_digest_contains_cuts_section(self):
+        l = self._trail_car([["2026-09-20", 5600], ["2026-10-02", 4300]])
+        l["_score"] = 80
+        html = car_digest.build_html(
+            [l], [l], {"ss.com": {"raw": 5, "eligible": 5}}, {}, {},
+            "2026-10-04")
+        self.assertIn("Biggest price cuts", html)
+
+
 if __name__ == "__main__":
     unittest.main()

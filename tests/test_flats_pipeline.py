@@ -1054,5 +1054,93 @@ class TestCenuMissCaching(unittest.TestCase):
                 self.assertTrue(entry.get("cenumednieks_attempt"))
 
 
+class TestMotivatedSeller(unittest.TestCase):
+    """Motivated-seller detection: utils.flat_motivated + is_motivated +
+    the HTML chips/cuts section."""
+
+    def _entry(self, **cenu):
+        return {"cenumednieks": cenu, "our_tracking": []}
+
+    def test_no_drop_no_info(self):
+        self.assertIsNone(utils.flat_motivated({}))
+        # cenu data but no drop -> info exists, zero drop, never motivated
+        info = utils.flat_motivated(self._entry(
+            original_price=100000, current_price=100000))
+        self.assertEqual(info["drop_eur"], 0)
+        self.assertFalse(utils.is_motivated(
+            info, config.MOTIVATED_STALE_DAYS_FLAT,
+            config.MOTIVATED_MIN_DROP_EUR_FLAT))
+
+    def test_drop_detected(self):
+        info = utils.flat_motivated(self._entry(
+            original_price=275000, current_price=255000,
+            days_on_market=169))
+        self.assertEqual(info["drop_eur"], 20000)
+        self.assertAlmostEqual(info["drop_pct"], 7.27, places=1)
+        self.assertTrue(utils.is_motivated(
+            info, config.MOTIVATED_STALE_DAYS_FLAT,
+            config.MOTIVATED_MIN_DROP_EUR_FLAT))  # stale + real cut
+
+    def test_total_change_is_eur_not_count(self):
+        # total_change is the € delta — must NOT imply repeated cuts.
+        info = utils.flat_motivated(self._entry(
+            original_price=360000, current_price=300000,
+            total_change=60000, days_on_market=0))
+        self.assertFalse(utils.is_motivated(
+            info, config.MOTIVATED_STALE_DAYS_FLAT,
+            config.MOTIVATED_MIN_DROP_EUR_FLAT))
+
+    def test_fresh_small_drop_not_motivated(self):
+        info = utils.flat_motivated(self._entry(
+            original_price=100000, current_price=95000,
+            days_on_market=3))
+        self.assertFalse(utils.is_motivated(
+            info, config.MOTIVATED_STALE_DAYS_FLAT,
+            config.MOTIVATED_MIN_DROP_EUR_FLAT))
+
+    def test_serial_relister_motivated(self):
+        info = utils.flat_motivated(self._entry(
+            original_price=118000, current_price=99500,
+            days_on_market=1,
+            previous_listings=[{}] * 5))
+        self.assertTrue(utils.is_motivated(
+            info, config.MOTIVATED_STALE_DAYS_FLAT,
+            config.MOTIVATED_MIN_DROP_EUR_FLAT))
+
+    def test_own_trail_fallback(self):
+        entry = {"our_tracking": [{"date": "2026-09-01", "p": 90000},
+                                  {"date": "2026-09-15", "p": 80000},
+                                  {"date": "2026-10-01", "p": 75000}]}
+        info = utils.flat_motivated(entry)
+        self.assertEqual(info["drop_eur"], 15000)
+        self.assertEqual(info["trail_drops"], 2)
+        self.assertTrue(utils.is_motivated(
+            info, config.MOTIVATED_STALE_DAYS_FLAT,
+            config.MOTIVATED_MIN_DROP_EUR_FLAT))
+
+    def test_row_chip_and_cuts_section(self):
+        listing = {"source": "ss.com", "id": "s1", "district": "Centrs",
+                   "street": "Brivibas 1", "url": "https://www.ss.com/x",
+                   "price_eur": 255000, "price_per_m2": 3000, "rooms": 3,
+                   "area_m2": 85, "floor": 4, "deal_type": "sale"}
+        pd = {"ss.com:s1": self._entry(
+            original_price=275000, current_price=255000,
+            days_on_market=169)}
+        row = notifier._main_row_html((listing, 1.5, "model", "NEW", ""),
+                                      pd, 0)
+        self.assertIn("MOTIVATED", row)
+        self.assertIn("b-mot", row)
+        cuts = notifier.build_price_cuts_html([listing], pd)
+        self.assertIn("Biggest price cuts", cuts)
+        self.assertIn("Brivibas 1", cuts)
+        self.assertIn("tbl_cuts", cuts)
+        # below the min-drop threshold -> no section, no chip
+        pd2 = {"ss.com:s1": self._entry(
+            original_price=256000, current_price=255000)}
+        self.assertEqual(notifier.build_price_cuts_html([listing], pd2), "")
+        self.assertNotIn("MOTIVATED", notifier._main_row_html(
+            (listing, 1.5, "model", "NEW", ""), pd2, 0))
+
+
 if __name__ == "__main__":
     unittest.main()

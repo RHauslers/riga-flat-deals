@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Car digest orchestration — website only (no car email is ever sent).
+Car digest orchestration — produces the HTML page for docs/cars.html.
 
 run() -> status string:
   1. Scrape ss.com (/lv/ only) and pp.lv, catching each source separately so
@@ -184,7 +184,7 @@ def _save_digest(html_text, today):
 
 
 def run():
-    """Daily car scan. Returns a status string; never sends email."""
+    """Daily car scan. Returns a status string."""
     today = date.today().isoformat()
     print(f"[cars] car scan {today}")
 

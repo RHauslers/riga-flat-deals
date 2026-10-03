@@ -123,6 +123,90 @@ def days_since(date_str, today=None):
     return (today - d).days
 
 
+# ---------------------------------------------------------------------------
+# Motivated-seller detection — real asking-price drop + staleness or
+# repeated cutting behaviour. Two source-specific extractors feed one
+# verdict; used by both digests.
+# ---------------------------------------------------------------------------
+def flat_motivated(entry):
+    """price_history entry -> motivated-seller info dict, or None.
+
+    Signals: CenuMednieks original_price -> current_price drop,
+    days_on_market, previous_listings count, plus drops inside our own
+    observation trail. Needs at least one source of evidence."""
+    if not isinstance(entry, dict):
+        return None
+    c = entry.get("cenumednieks") or {}
+    op, cp = c.get("original_price"), c.get("current_price")
+    drop_eur = drop_pct = 0.0
+    try:
+        if op and cp and float(cp) < float(op):
+            drop_eur = float(op) - float(cp)
+            drop_pct = drop_eur / float(op) * 100
+    except (TypeError, ValueError):
+        pass
+    obs = [o.get("p") for o in (entry.get("our_tracking") or [])
+           if o.get("p") is not None]
+    own_drops = sum(1 for a, b in zip(obs, obs[1:]) if b < a)
+    # No cenu data at all -> fall back to our own trail only.
+    if not c and len(obs) >= 2 and obs[-1] < obs[0]:
+        drop_eur = float(obs[0]) - float(obs[-1])
+        drop_pct = drop_eur / float(obs[0]) * 100
+    if not drop_eur and not own_drops and not c:
+        return None
+    return {
+        "drop_eur": drop_eur, "drop_pct": drop_pct,
+        "days": c.get("days_on_market") or 0,
+        "relists": len(c.get("previous_listings") or []),
+        "trail_drops": own_drops,
+        "was": op if drop_eur and c else (obs[0] if drop_eur else None),
+        "now": cp if drop_eur and c else (obs[-1] if drop_eur else None),
+    }
+
+
+def car_motivated(l, today=None):
+    """car listing dict -> motivated-seller info dict, or None.
+
+    Uses the _price_hist trail and _first_seen annotation cars.run()
+    attaches from car_seen.json. days = days since first seen."""
+    hist = []
+    for point in l.get("_price_hist") or []:
+        try:
+            hist.append((point[0], float(point[1])))
+        except (TypeError, ValueError, IndexError):
+            continue
+    drop_eur = drop_pct = 0.0
+    n_drops = 0
+    if len(hist) >= 2:
+        n_drops = sum(1 for a, b in zip(hist, hist[1:]) if b[1] < a[1])
+        if hist[-1][1] < hist[0][1]:
+            drop_eur = hist[0][1] - hist[-1][1]
+            drop_pct = drop_eur / hist[0][1] * 100
+    if isinstance(today, str):
+        try:
+            today = date.fromisoformat(today)
+        except ValueError:
+            today = None
+    days = days_since(l.get("_first_seen"), today=today) or 0
+    if not drop_eur and not n_drops:
+        return None
+    return {
+        "drop_eur": drop_eur, "drop_pct": drop_pct, "days": days,
+        "relists": 0, "trail_drops": n_drops,
+        "was": hist[0][1] if drop_eur else None,
+        "now": hist[-1][1] if drop_eur else None,
+    }
+
+
+def is_motivated(info, stale_days, min_drop_eur):
+    """Verdict: a real drop AND (stale listing or repeated cutting)."""
+    if not info or info.get("drop_eur", 0) < min_drop_eur:
+        return False
+    repeated = (info.get("trail_drops", 0) >= config.MOTIVATED_MIN_TRAIL_DROPS
+                or info.get("relists", 0) >= config.MOTIVATED_MIN_RELISTINGS)
+    return info.get("days", 0) >= stale_days or repeated
+
+
 def delta_7d(points, value_idx=1):
     """% change of points[-1][value_idx] vs the newest point >= 7 days old.
 

@@ -2,8 +2,8 @@
 """
 Flat_Searcher - daily orchestrator.
 
-Pipeline (runs ONCE a day via .github/workflows/daily.yml; website only,
-nothing is emailed):
+Pipeline (runs ONCE a day via .github/workflows/daily.yml; output is the
+static website in docs/):
   1. Scrape ss.com + city24.lv (+ izsoles.ta.gov.lv auctions) for sales.
   2. Load history BEFORE appending (no leakage), then append today's rows.
   3. Load state: seen_deals, last_digest (yesterday's top deals).

@@ -21,8 +21,8 @@ publishes the result as a static site on GitHub Pages:
   feature); tables and gone sections stay intact. The archive index also
   shows a 14-day coverage strip so missed runs are visible at a glance.
 
-Website only: nothing is emailed, there are no hourly scans, and the site
-holds no credentials.
+Website only: the pipeline runs once each morning via the scheduled GitHub
+Actions job, and the site holds no credentials.
 
 ## How it runs
 

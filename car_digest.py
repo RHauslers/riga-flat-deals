@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Car digest HTML builder — website only (no car email).
+Car digest HTML builder — website only.
 
 build_html(qualified, assessed, source_counts, source_errors, badges,
 run_date) -> str
@@ -899,7 +899,89 @@ def _sort_val(v, default=-1):
         return default
 
 
-def _row(l, badges):
+def _motivated_chip(l, run_date=None):
+    """'−€X' drop chip + amber MOTIVATED pill when the car's recorded
+    ask-price trail shows a real cut plus staleness or repeated cuts."""
+    info = utils.car_motivated(l, today=run_date)
+    if not info or not info.get("drop_eur"):
+        return ""
+    bits = [f"<span class='badge b-cheap' "
+            f"title='Asking price cut since first seen'>"
+            f"−{_fmt_eur(info['drop_eur'])}</span>"]
+    if utils.is_motivated(info, config.MOTIVATED_STALE_DAYS_CAR,
+                          config.MOTIVATED_MIN_DROP_EUR_CAR):
+        why = []
+        if info.get("days", 0) >= config.MOTIVATED_STALE_DAYS_CAR:
+            why.append(f"seen {info['days']} days")
+        if info.get("trail_drops", 0) >= config.MOTIVATED_MIN_TRAIL_DROPS:
+            why.append(f"{info['trail_drops']} cuts")
+        bits.append(f"<span class='badge b-mot' "
+                    f"title='Seller may be negotiable: "
+                    f"{_e('; '.join(why))}'>MOTIVATED</span>")
+    return " " + " ".join(bits)
+
+
+def build_cuts_html(assessed, run_date=None, top_n=None):
+    """'Biggest price cuts' card — cars whose recorded ask trail shows the
+    largest drops. Runs on all assessed cars so cuts on non-qualifying
+    ads are still visible."""
+    if not assessed:
+        return ""
+    top_n = top_n or config.MOTIVATED_CUTS_TOP_N
+    cuts = []
+    for l in assessed:
+        info = utils.car_motivated(l, today=run_date)
+        if info and info.get("drop_eur", 0) >= config.MOTIVATED_MIN_DROP_EUR_CAR:
+            cuts.append((l, info))
+    if not cuts:
+        return ""
+    cuts.sort(key=lambda x: -x[1]["drop_eur"])
+    cuts = cuts[:top_n]
+    rows = []
+    for l, info in cuts:
+        mot = (utils.is_motivated(info, config.MOTIVATED_STALE_DAYS_CAR,
+                                  config.MOTIVATED_MIN_DROP_EUR_CAR)
+               and " <span class='badge b-mot' "
+                   "title='Stale listing + real cut: seller may be "
+                   "negotiable'>MOTIVATED</span>" or "")
+        url = _safe_url(l.get('url'))
+        title = _e(f"{l.get('make','')} {l.get('model','')} "
+                   f"{l.get('title') or ''}".strip())
+        title_cell = f"<a href='{url}'>{title}</a>" if url else title
+        days = f"{info['days']}d" if info.get("days") else "?"
+        src = _e(l.get('source', ''))
+        rows.append(
+            f"<tr>"
+            f"<td data-sort='{_e(title)}'>{title_cell}<br>"
+            f"<span style='color:var(--muted);font-size:12px'>"
+            f"{_e(l.get('year',''))} · {_spec_text(l)}</span></td>"
+            f"<td data-sort='{info['drop_eur']:.0f}' "
+            f"style='text-align:right'>"
+            f"<span style='color:var(--muted)'>{_fmt_eur(info['was'])}</span>"
+            f" → <b>{_fmt_eur(info['now'])}</b></td>"
+            f"<td data-sort='{info['drop_pct']:.1f}' "
+            f"style='text-align:right;color:var(--good);font-weight:bold'>"
+            f"−{_fmt_eur(info['drop_eur'])} (−{info['drop_pct']:.0f}%)</td>"
+            f"<td data-sort='{info.get('days',0)}' "
+            f"style='text-align:right'>{days}</td>"
+            f"<td>{src}{mot}</td>"
+            "</tr>")
+    return (
+        "<div class='card'>"
+        "<h3 style='color:var(--accent);border:none;margin:0 0 4px 0'>"
+        "Biggest price cuts</h3>"
+        "<p style='color:var(--muted);font-size:12px;margin:0 0 8px 0'>"
+        "Cars that cut their asking price since we first saw them — a "
+        "<span class='badge b-mot'>MOTIVATED</span> seller is likely "
+        "negotiable (stale listing or repeated cuts).</p>"
+        "<div class='scroll-x'><table id='car-cuts'>"
+        "<tr><th style='text-align:left'>Listing</th><th>Was → Now</th>"
+        "<th>Cut</th><th>Seen</th><th>Source</th></tr>"
+        + "".join(rows) +
+        "</table></div></div>")
+
+
+def _row(l, badges, run_date=None):
     key = f"{l.get('source')}:{l.get('id')}"
     title = l.get("title") or f"{l.get('make', '')} {l.get('model', '')}"
     cautions = []
@@ -928,7 +1010,8 @@ def _row(l, badges):
     cells = [
         f"<td style='padding:6px' data-sort='{sort_model}'>{star}{_e(title)}<br>"
         f"<span style='color:var(--muted);font-size:12px'>{_e(l.get('make'))} {_e(l.get('model'))} — {_spec_text(l)}</span><br>"
-        f"{_badge_html(key, badges)} {_listing_links(l)}{caution_html}"
+        f"{_badge_html(key, badges)} {_listing_links(l)}"
+        f"{_motivated_chip(l, run_date)}{caution_html}"
         f"{_history_html(l)}</td>",
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('price_eur'))}'><b>{_fmt_eur(l.get('price_eur'))}</b></td>",
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('_median'))}'>{_fmt_eur(l.get('_median'))}{_pool_note(l)}</td>",
@@ -1037,7 +1120,7 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "there were too few comparable listings to compute a median. "
             f"Coverage: {coverage}.</p>")
     else:
-        rows = "".join(_row(l, badges) for l in qualified)
+        rows = "".join(_row(l, badges, run_date) for l in qualified)
         badge_counts = Counter(badges.values())
         badge_bits = " · ".join(
             f"{badge_counts[b]} {b.lower()}"
@@ -1143,6 +1226,7 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
                     "<div id='car-custom-view' style='display:none'></div>")
 
     gone_html = _gone_html(gone, seen, run_date)
+    cuts_html = build_cuts_html(assessed, run_date)
 
     # KPI chips — qualifying / gone / health at a glance.
     kpi_bits = [web_style.kpi("qualifying", len(qualified))]
@@ -1248,12 +1332,12 @@ selling prices, and mechanical/service condition cannot be verified from a
 listing.
 </div>
 {top_html}
+{cuts_html}
 {gone_html}
 <div class="box">
 <b>Before buying:</b> check mileage and history in the CSDD register
 (e.csdd.lv), get an independent mechanical inspection, and verify all
 documentation (registration, service records, outstanding finance).
 </div>
-<hr><p class="note">Generated by Flat_Searcher car digest — website only,
-no email is sent for cars.</p>
+<hr><p class="note">Generated by Flat_Searcher car digest.</p>
 </body></html>"""

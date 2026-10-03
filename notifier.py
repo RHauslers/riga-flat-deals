@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Daily flat digest builder (website only — nothing is emailed).
+Daily flat digest builder — produces the HTML page for docs/index.html.
 
 Builds the HTML digest with:
   - a "vs yesterday" comparison header
@@ -152,6 +152,34 @@ def _source_link(listing, extra=""):
             f"{extra}{also_html}")
 
 
+def _motivated_chips(listing, price_data):
+    """'−€X' drop chip + amber MOTIVATED pill when the listing's
+    price_history shows a real cut plus staleness or repeated cutting
+    behaviour (CenuMednieks history + our own observations)."""
+    if not price_data:
+        return ""
+    key = f"{listing.get('source')}:{listing.get('id')}"
+    info = utils.flat_motivated(price_data.get(key))
+    if not info or not info.get("drop_eur"):
+        return ""
+    bits = [f"<span class='badge b-cheap' "
+            f"title='Asking price cut since first listing'>"
+            f"−{_fmt_price(info['drop_eur'])}</span>"]
+    if utils.is_motivated(info, config.MOTIVATED_STALE_DAYS_FLAT,
+                          config.MOTIVATED_MIN_DROP_EUR_FLAT):
+        why = []
+        if info.get("days", 0) >= config.MOTIVATED_STALE_DAYS_FLAT:
+            why.append(f"{info['days']} days on market")
+        if info.get("trail_drops", 0) >= config.MOTIVATED_MIN_TRAIL_DROPS:
+            why.append(f"{info['trail_drops']} cuts observed")
+        if info.get("relists", 0) >= config.MOTIVATED_MIN_RELISTINGS:
+            why.append(f"{info['relists']} relistings")
+        bits.append(f"<span class='badge b-mot' "
+                    f"title='Seller may be negotiable: "
+                    f"{_t('; '.join(why))}'>MOTIVATED</span>")
+    return " " + " ".join(bits)
+
+
 def _main_row_html(item, price_data=None, row_idx=0):
     listing, score, method, badge, detail = item
     score_str = f"{score:+.2f}" if score is not None else "-"
@@ -201,7 +229,7 @@ def _main_row_html(item, price_data=None, row_idx=0):
         f"<td>{_badge_html(badge, detail)}</td>"
         f"<td style='text-align:right;font-size:12px;color:var(--muted)' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
-        f"<td>{_watch_star(listing)}{_source_link(listing, map_link)}</td>"
+        f"<td>{_watch_star(listing)}{_source_link(listing, _motivated_chips(listing, price_data) + map_link)}</td>"
         "</tr>"
         f"{timeline_row}"
     )
@@ -254,7 +282,7 @@ def _still_row_html(item, price_data=None, row_idx=0):
         f"<td style='text-align:right;font-size:16px;font-weight:bold;color:var(--accent)' data-sort='{score_val}'>{score_str}</td>"
         f"<td style='text-align:right;font-size:12px;color:var(--muted)' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
-        f"<td>{_watch_star(listing)}{_source_link(listing, map_link)}</td>"
+        f"<td>{_watch_star(listing)}{_source_link(listing, _motivated_chips(listing, price_data) + map_link)}</td>"
         "</tr>"
         f"{timeline_row}"
     )
@@ -1410,6 +1438,71 @@ if (document.readyState === 'loading') {
 """
 
 
+def build_price_cuts_html(all_listings, price_data, top_n=None):
+    """'Biggest price cuts' card — flats whose asking price dropped the most
+    since they were first listed (CenuMednieks history or our own trail).
+    Runs on the full scanned pool so cuts on non-top-N flats are visible."""
+    if not all_listings or not price_data:
+        return ""
+    top_n = top_n or config.MOTIVATED_CUTS_TOP_N
+    seen_keys = set()
+    cuts = []
+    for l in all_listings:
+        key = f"{l.get('source')}:{l.get('id')}"
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        info = utils.flat_motivated(price_data.get(key))
+        if info and info.get("drop_eur", 0) >= config.MOTIVATED_MIN_DROP_EUR_FLAT:
+            cuts.append((l, info))
+    if not cuts:
+        return ""
+    cuts.sort(key=lambda x: -x[1]["drop_eur"])
+    cuts = cuts[:top_n]
+    rows = []
+    for idx, (l, info) in enumerate(cuts):
+        zebra = ' class="z"' if idx % 2 else ''
+        mot = (utils.is_motivated(info, config.MOTIVATED_STALE_DAYS_FLAT,
+                                  config.MOTIVATED_MIN_DROP_EUR_FLAT)
+               and " <span class='badge b-mot' "
+                   "title='Stale listing + real cut: seller may be "
+                   "negotiable'>MOTIVATED</span>" or "")
+        days = f"{info['days']}d" if info.get("days") else "?"
+        url = utils.safe_url(l.get('url', ''))
+        title = _t(l.get('street') or l.get('title') or l.get('district') or '?')
+        title_cell = f"<a href='{url}'>{title}</a>" if url else title
+        rows.append(
+            f"<tr{zebra}>"
+            f"<td>{_t(l.get('district',''))}</td>"
+            f"<td>{title_cell}</td>"
+            f"<td style='text-align:right' data-sort='{info['drop_eur']:.0f}'>"
+            f"<span style='color:var(--muted)'>{_fmt_price(info['was'])}</span>"
+            f" → <b>{_fmt_price(info['now'])}</b></td>"
+            f"<td style='text-align:right;color:var(--good);font-weight:bold' "
+            f"data-sort='{info['drop_pct']:.1f}'>−{_fmt_price(info['drop_eur'])} "
+            f"(−{info['drop_pct']:.0f}%)</td>"
+            f"<td style='text-align:right' data-sort='{info.get('days',0)}'>"
+            f"{days}</td>"
+            f"<td>{_source_link(l)}{mot}</td>"
+            "</tr>")
+    return (
+        "<div class='card'>"
+        "<h3 style='color:var(--accent);border:none;margin:0 0 4px 0'>"
+        "Biggest price cuts</h3>"
+        "<p style='color:var(--muted);font-size:12px;margin:0 0 8px 0'>"
+        "Flats that cut their asking price since first listing — a "
+        "<span class='badge b-mot'>MOTIVATED</span> seller is likely "
+        "negotiable (stale listing or repeated cuts).</p>"
+        "<div class='scroll-x'><table id='tbl_cuts' data-sortable='1'>"
+        "<thead><tr>"
+        "<th class='sort-th'>District</th><th class='sort-th'>Listing</th>"
+        "<th class='sort-th'>Was → Now</th><th class='sort-th'>Cut</th>"
+        "<th class='sort-th'>On market</th><th>Source</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows) +
+        "</tbody></table></div></div>")
+
+
 def build_html(main_deals, still_active, comparison_html, status_note,
                price_data=None, map_markers=None,
                newest_html="", near_school_html="", auctions_html="",
@@ -1446,6 +1539,7 @@ def build_html(main_deals, still_active, comparison_html, status_note,
     # Custom-budget tool: embed all scored listings, filter in the browser.
     flat_market_html = (_flat_market_data_html(all_scored, all_listings)
                         if all_scored else "")
+    price_cuts_html = build_price_cuts_html(all_listings, price_data)
     flat_budget_script = (f'<script id="flat-budget-js">{FLAT_BUDGET_JS}</script>'
                           if all_scored else "")
     flat_watch_script = (f'<script id="flat-watch-js">{FLAT_WATCH_JS}</script>'
@@ -1608,6 +1702,7 @@ Sales only — rentals are out of scope.</p>
 {health_box}
 {comparison_html}
 {gone_html}
+{price_cuts_html}
 {map_html}
 {near_school_html}
 {auctions_html}

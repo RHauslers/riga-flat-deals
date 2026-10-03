@@ -1,11 +1,31 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-04 00:49
+Last updated: 2026-10-04 01:12
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
 
+- 2026-10-04 01:12 — motivated-seller detection + legacy email purge:
+  new utils.flat_motivated / utils.car_motivated / utils.is_motivated —
+  a flat is MOTIVATED when it has a real asking-price cut plus either
+  staleness (CenuMednieks days_on_market >= 45) or repeated cutting
+  behaviour (>= 2 drops in our own trail, or >= 3 cenu previous_listings);
+  a car is MOTIVATED on a real cut plus >= 30 days seen or >= 2 observed
+  cuts. Thresholds in config.MOTIVATED_* (flat min drop EUR 4k, car
+  EUR 400). Rows render a green "-EUX" drop chip and an amber MOTIVATED
+  pill (hover shows the reason); each digest gained a "Biggest price
+  cuts" card (top 8 by EUR drop over the full scanned/assessed pool, so
+  cuts on non-top-N ads are visible). NOTE: cenu total_change is the
+  EUR delta, NOT a change count — do not reuse it for cut counting.
+  Email purge: alert_*.html artifacts deleted, "To unsubscribe" footers
+  and "no email is sent for cars" stripped from 60+ digest/archive files
+  via helper_scripts/scrub_email_text.py (idempotent, keep for reruns),
+  email wording removed from notifier/cars/car_digest/config/main/
+  health/README. Workflows verified unchanged: daily.yml = one cron
+  (00:47 UTC -> Riga morning, GitHub delays ~6 h) + manual dispatch;
+  pages.yml only redeploys docs/; tests.yml only runs tests — no other
+  trigger scrapes. 184 tests.
 - 2026-10-04 00:49 — /iterate 10 session (5th): full visual overhaul —
   new shared design system in web_style.py (BASE_CSS with CSS custom
   properties, automatic dark mode via prefers-color-scheme, system-ui
@@ -95,6 +115,45 @@ Living document. Updated after each Devin session. Read this first.
   distance marker. 102 tests. Details in the session section below.
 - (earlier sessions predate the changelog — see the dated session
   sections below, newest first)
+
+## Session 2026-10-04 — motivated-seller detection + email purge
+
+User asked for "ads that have lost their value over days or weeks" as a
+negotiation signal, in HTML, and re-requested the email/notifier purge.
+
+1. **Detection (utils.py)** — `flat_motivated(price_history_entry)` reads
+   CenuMednieks `original_price`/`current_price`/`days_on_market`/
+   `previous_listings` plus our `our_tracking` trail (fallback when cenu
+   is absent); `car_motivated(listing)` uses `_price_hist`/`_first_seen`
+   (attached by cars.run). `is_motivated(info, stale_days, min_drop)` =
+   real € drop AND (stale OR repeated cutting: `trail_drops >= 2` or
+   `relists >= 3`). Config: `MOTIVATED_MIN_DROP_EUR_FLAT=4000`,
+   `MOTIVATED_MIN_DROP_EUR_CAR=400`, `STALE_DAYS_FLAT=45`,
+   `STALE_DAYS_CAR=30`, `MIN_TRAIL_DROPS=2`, `MIN_RELISTINGS=3`,
+   `CUTS_TOP_N=8`. Real data today: 101 flats with drops -> 24 MOTIVATED;
+   98 cars with drops -> 1 MOTIVATED (car "seen" window is young).
+2. **Rendering** — `notifier._motivated_chips` adds a green `−€X` chip +
+   amber `MOTIVATED` pill (title explains why) in the Source cell of
+   main + still-active rows; `build_price_cuts_html` renders a
+   "Biggest price cuts" card after the gone section over the full
+   `all_listings` pool. Car side mirrors it in `car_digest`
+   (`_motivated_chip` next to badges, `build_cuts_html` after the deals
+   table over `assessed`). `.badge.b-mot` added to BASE_CSS.
+   CAUGHT BUG: `total_change` in cenu data is the EUR delta, not a
+   change count — using it as a count marked every €4k+ drop motivated.
+3. **Email purge** — `helper_scripts/scrub_email_text.py` (keep: reruns
+   after old-digest imports) deleted `data/digests/alert_*.html` and
+   stripped `To unsubscribe...` footers + `no email is sent for cars`
+   from 60 files in data/digests + docs/archive + docs/cars.html;
+   wording removed from notifier/cars/car_digest/health docstrings,
+   config comments, main docstring, README. Module file still named
+   `notifier.py` (imports/tests depend on it) — that's the filename only.
+4. **Schedule audit** — daily.yml has exactly one cron (00:47 UTC;
+   GitHub's ~6 h delay lands it in Riga morning, documented in file) +
+   workflow_dispatch manual override; pages.yml only redeploys docs/ on
+   push; tests.yml only runs tests. Already once-per-morning — no change.
+
+Tests: 12 new (TestMotivatedSeller, TestCarMotivatedSeller); **184 pass**.
 
 ## Session 2026-10-04 — /iterate 10 (modern GUI overhaul)
 

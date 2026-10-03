@@ -141,7 +141,7 @@ CITY24_USER_AGENT = (
 #    Falls back to a per-bucket €/m² z-score when history is too small.
 # ----------------------------------------------------------------------------
 MIN_TRAIN_ROWS = 40        # below this -> use z-score fallback
-TOP_N_PER_TYPE = 25        # how many best deals to show per deal type in email
+TOP_N_PER_TYPE = 25        # how many best deals to show per deal type in the digest
 PRICE_OUTLIER_Z = 4.0      # drop training rows whose price is > 4 std from mean
 
 # Ridge regularisation. Plain least squares lets a rare one-hot category (e.g.
@@ -252,10 +252,22 @@ GEOCODE_RETRY_FAILED_DAYS = 30
 GEOCODE_MIN_COVERAGE_PCT = 85
 
 # ----------------------------------------------------------------------------
-# 6. DIGEST / SITE settings (website only — nothing is emailed)
+# 6. DIGEST / SITE settings
 # ----------------------------------------------------------------------------
 # Deal persistence
 PRICE_DROP_MIN_PCT = 2.0    # only badge as PRICE_DROP if price dropped >= 2%
+
+# Motivated-seller detection — a real asking-price drop plus either age on
+# the market or repeated cutting behaviour gets a MOTIVATED badge and a
+# place in the "Biggest price cuts" section. Thresholds differ per vertical
+# because car asking prices are ~20x smaller than flat prices.
+MOTIVATED_MIN_DROP_EUR_FLAT = 4000   # real € cut needed to count at all
+MOTIVATED_MIN_DROP_EUR_CAR = 400
+MOTIVATED_STALE_DAYS_FLAT = 45       # days-on-market before "stale"
+MOTIVATED_STALE_DAYS_CAR = 30
+MOTIVATED_MIN_RELISTINGS = 3         # previous_listings = serial relister
+MOTIVATED_MIN_TRAIL_DROPS = 2        # own trail: drops counted separately
+MOTIVATED_CUTS_TOP_N = 8             # rows in the cuts section
 STILL_ACTIVE_MAX_DAYS = 7   # don't show "still active" for deals shown > N days ago
 
 # Archive retention: digests older than this are deleted from data/digests/

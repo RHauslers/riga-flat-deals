@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Health checks for the scrape step (log-only — nothing is emailed).
+Health checks for the scrape step (log-only).
 
 Scrapers die quietly: a site gets redesigned, the parser matches nothing, the
 run reports "0 listings today" and nobody notices for days. These checks
