@@ -1386,5 +1386,11 @@
     "lat": 56.9472551,
     "lon": 24.0801983,
     "fetched_at": "2026-09-30"
+  },
+  "ss.com:zolitude:biezina 6": {
+    "lat": 56.9449831,
+    "lon": 24.0223768,
+    "precision": "house",
+    "fetched_at": "2026-10-03"
   }
 }
