@@ -18,6 +18,7 @@ from html import escape as _esc
 import config
 import price_history
 import utils
+import web_style
 from utils import safe_url
 
 try:
@@ -53,17 +54,17 @@ def _fmt_ppu(v):
 
 
 _BADGE_HTML = {
-    "NEW": "<span style='color:#27ae60;font-weight:bold'>NEW</span>",
-    "PRICE_DROP": "<span style='color:#e67e22;font-weight:bold'>PRICE DROP</span>",
-    "REAPPEARED": "<span style='color:#2980b9'>REAPPEARED</span>",
-    "SHORT_TERM": "<span style='color:#8e44ad;font-weight:bold'>SHORT-TERM/DAILY</span>",
+    "NEW": web_style.badge("NEW", "b-new"),
+    "PRICE_DROP": web_style.badge("PRICE DROP", "b-down"),
+    "REAPPEARED": web_style.badge("REAPPEARED", "b-reg"),
+    "SHORT_TERM": web_style.badge("SHORT-TERM/DAILY", "b-auction"),
 }
 
 
 def _badge_html(badge, detail):
     b = _BADGE_HTML.get(badge, badge or "")
     if detail:
-        b += f" <span style='color:#999;font-size:11px'>({detail})</span>"
+        b += f" <span style='color:var(--faint);font-size:11px'>({detail})</span>"
     return b
 
 
@@ -73,18 +74,18 @@ def _badge_html(badge, detail):
 def _change_color(change_pct):
     """Return CSS color for a change percentage string. Grey for zero."""
     if not change_pct:
-        return '#666'
+        return 'var(--muted)'
     # Parse the numeric value to distinguish real changes from +0.0%
     import re as _re
     m = _re.search(r'([+-]?\d+\.?\d*)', change_pct)
     if m:
         val = float(m.group(1))
         if abs(val) < 0.05:
-            return '#666'  # grey for zero
+            return 'var(--muted)'  # grey for zero
         if val < 0:
-            return '#27ae60'  # green = price dropped
-        return '#e74c3c'  # red = price increased
-    return '#666'
+            return 'var(--good)'  # green = price dropped
+        return 'var(--bad)'  # red = price increased
+    return 'var(--muted)'
 
 
 def _change_sort_val(change_pct):
@@ -128,8 +129,9 @@ def _source_link(listing, extra=""):
         names = ", ".join(
             (o.get("source") if isinstance(o, dict) else str(o)) or "?"
             for o in also)
-        also_html = (f" <span style='color:#888;font-size:11px'>"
-                     f"(also on {_t(names)})</span>")
+        also_html = (f" <span class='badge b-src' "
+                     f"title='Same flat also listed on {_t(names)}'>"
+                     f"also on {_t(names)}</span>")
     ch = listing.get("also_cheaper")
     if ch and ch.get("price") and listing.get("price_eur"):
         diff = listing["price_eur"] - ch["price"]
@@ -139,12 +141,11 @@ def _source_link(listing, extra=""):
             href = f" href='{_t(ch_url)}' rel='noopener noreferrer'" \
                 if ch_url else ""
             also_html += (
-                f" <{tag}{href} "
-                f"style='color:#1a7a3a;font-size:11px;font-weight:bold' "
+                f" <{tag}{href} class='badge b-cheap' "
                 f"title='Same flat listed for {_t(_fmt_price(ch['price']))} "
                 f"on {_t(str(ch.get('source') or '?'))}'>"
-                f"(−{_fmt_price(diff)} on "
-                f"{_t(str(ch.get('source') or '?'))})</{tag}>")
+                f"−{_fmt_price(diff)} on "
+                f"{_t(str(ch.get('source') or '?'))}</{tag}>")
     if not url:
         return f"{src}{extra}{also_html}"
     return (f"<a href='{_t(url)}' rel='noopener noreferrer'>{src}</a>"
@@ -157,12 +158,12 @@ def _main_row_html(item, price_data=None, row_idx=0):
     timeline_html = ""
     if price_data is not None:
         timeline_html = price_history.format_price_timeline_html(listing, price_data)
-    zebra = ' style="background:#fafafa"' if row_idx % 2 else ''
+    zebra = ' class="z"' if row_idx % 2 else ''
     timeline_row = ""
     if timeline_html:
         timeline_row = (f'<tr class="timeline-row"{zebra}><td colspan="{NUM_COLS}" '
                         f'style="padding:6px 10px;border-top:none;'
-                        f'border-bottom:1px solid #ccc;background:#f5f5f5;'
+                        f'border-bottom:1px solid var(--line);background:var(--row-alt);'
                         f'font-size:11px;line-height:1.6">{timeline_html}</td></tr>')
     listed_date, days_market, first_price, change_pct = _get_listing_age(listing, price_data)
     price_val = listing.get('price_eur', 0) or 0
@@ -185,7 +186,7 @@ def _main_row_html(item, price_data=None, row_idx=0):
     if listing.get('lat') and listing.get('lon'):
         marker_id = f"{listing.get('source','')}:{listing.get('id','')}"
         map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
-                    f"return false\" style=\"font-size:11px;color:#1a5276\">map</a>")
+                    f"return false\" style=\"font-size:11px;color:var(--link)\">map</a>")
 
     return (
         f"<tr{zebra}>"
@@ -196,9 +197,9 @@ def _main_row_html(item, price_data=None, row_idx=0):
         f"<td style='text-align:right'>{_t(listing.get('floor',''))}</td>"
         f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'), listing.get('price_unit'))}</td>"
         f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
-        f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
+        f"<td style='text-align:right;font-size:16px;font-weight:bold;color:var(--accent)' data-sort='{score_val}'>{score_str}</td>"
         f"<td>{_badge_html(badge, detail)}</td>"
-        f"<td style='text-align:right;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_days}</td>"
+        f"<td style='text-align:right;font-size:12px;color:var(--muted)' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
         f"<td>{_watch_star(listing)}{_source_link(listing, map_link)}</td>"
         "</tr>"
@@ -212,12 +213,12 @@ def _still_row_html(item, price_data=None, row_idx=0):
     timeline_html = ""
     if price_data is not None:
         timeline_html = price_history.format_price_timeline_html(listing, price_data)
-    zebra = ' style="background:#fafafa"' if row_idx % 2 else ''
+    zebra = ' class="z"' if row_idx % 2 else ''
     timeline_row = ""
     if timeline_html:
         timeline_row = (f'<tr class="timeline-row"{zebra}><td colspan="{NUM_COLS}" '
                         f'style="padding:6px 10px;border-top:none;'
-                        f'border-bottom:1px solid #ccc;background:#f5f5f5;'
+                        f'border-bottom:1px solid var(--line);background:var(--row-alt);'
                         f'font-size:11px;line-height:1.6">{timeline_html}</td></tr>')
     listed_date, days_market, first_price, change_pct = _get_listing_age(listing, price_data)
     price_val = listing.get('price_eur', 0) or 0
@@ -239,7 +240,7 @@ def _still_row_html(item, price_data=None, row_idx=0):
     if listing.get('lat') and listing.get('lon'):
         marker_id = f"{listing.get('source','')}:{listing.get('id','')}"
         map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
-                    f"return false\" style=\"font-size:11px;color:#1a5276\">map</a>")
+                    f"return false\" style=\"font-size:11px;color:var(--link)\">map</a>")
 
     return (
         f"<tr{zebra}>"
@@ -250,8 +251,8 @@ def _still_row_html(item, price_data=None, row_idx=0):
         f"<td style='text-align:right'>{_t(listing.get('floor',''))}</td>"
         f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'), listing.get('price_unit'))}</td>"
         f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
-        f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
-        f"<td style='text-align:right;font-size:12px;color:#666' data-sort='{listed_date}'>{listed_days}</td>"
+        f"<td style='text-align:right;font-size:16px;font-weight:bold;color:var(--accent)' data-sort='{score_val}'>{score_str}</td>"
+        f"<td style='text-align:right;font-size:12px;color:var(--muted)' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
         f"<td>{_watch_star(listing)}{_source_link(listing, map_link)}</td>"
         "</tr>"
@@ -370,22 +371,21 @@ def _table_header(sortable_id="", has_status=True):
                  f"<th style='text-align:right'{sort_attr.format(col=9)}>First / change</th>"
                  f"<th>Source</th>")
     return (
-        f"<table id='{sortable_id}' style='border-collapse:collapse;width:100%;font-size:14px' "
-        f"data-sortable='1'>"
-        "<tr style='background:#f0f0f0'>" + cols + "</tr>"
+        f"<table id='{sortable_id}' data-sortable='1'>"
+        "<tr>" + cols + "</tr>"
     )
 
 
 def _main_section_html(title, items, subtitle, price_data=None, table_id=""):
     if not items:
-        return (f"<h3>{title}</h3>"
-                f"<p style='color:#666;font-size:12px'>{subtitle}</p>"
-                "<p>No new or changed qualifying deals today.</p>")
+        return (f"<div class='card'><h3>{title}</h3>"
+                f"<p class='note'>{subtitle}</p>"
+                "<p>No new or changed qualifying deals today.</p></div>")
     rows = "".join(_main_row_html(it, price_data, idx) for idx, it in enumerate(items))
     return (
-        f"<h3>{title}</h3>"
-        f"<p style='color:#666;font-size:12px'>{subtitle}</p>"
-        f"{_table_header(table_id, has_status=True)}{rows}</table>"
+        f"<div class='card'><h3>{title}</h3>"
+        f"<p class='note'>{subtitle}</p>"
+        f"<div class='scroll-x'>{_table_header(table_id, has_status=True)}{rows}</table></div></div>"
     )
 
 
@@ -394,11 +394,12 @@ def _still_active_section_html(deal_type, items, price_data=None, table_id=""):
         return ""
     rows = "".join(_still_row_html(it, price_data, idx) for idx, it in enumerate(items))
     return (
-        f"<h3 style='color:#888'>Still active from yesterday — {deal_type}</h3>"
-        "<p style='color:#999;font-size:12px'>These deals were in yesterday's "
+        "<div class='card' style='opacity:0.9'>"
+        f"<h3 style='color:var(--faint)'>Still active from yesterday — {deal_type}</h3>"
+        "<p class='note'>These deals were in yesterday's "
         "digest and are still among the best today. No action needed unless "
         "you missed them.</p>"
-        f"<div style='opacity:0.85'>{_table_header(table_id, has_status=False)}{rows}</table></div>"
+        f"<div class='scroll-x'>{_table_header(table_id, has_status=False)}{rows}</table></div></div>"
     )
 
 
@@ -425,11 +426,10 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
 
     if not new_items:
         return (
-            '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
-            'padding:16px;margin:16px 0">'
-            '<h3 style="color:#1a5276;border:none;margin:0 0 8px 0">'
+            '<div class="card">'
+            '<h3 style="color:var(--accent);border:none;margin:0 0 8px 0">'
             'Newest listings today</h3>'
-            '<p style="color:#666;font-size:12px;margin:0">'
+            '<p style="color:var(--muted);font-size:12px;margin:0">'
             'No brand-new listings today. Check the tables below for '
             'price drops and still-active deals.</p>'
             '</div>'
@@ -456,12 +456,12 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
         if listing.get('lat') and listing.get('lon'):
             marker_id = f"{source}:{listing.get('id','')}"
             map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
-                        f"return false\" style=\"font-size:11px;color:#1a5276\">map</a>")
+                        f"return false\" style=\"font-size:11px;color:var(--link)\">map</a>")
 
-        zebra = ' style="background:#fafafa"' if idx % 2 else ''
+        zebra = ' class="z"' if idx % 2 else ''
         rows.append(
             f'<tr{zebra}>'
-            f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276'>{score_str}</td>"
+            f"<td style='text-align:right;font-size:16px;font-weight:bold;color:var(--accent)'>{score_str}</td>"
             f"<td>{district}</td>"
             f"<td style='text-align:right'>{rooms}</td>"
             f"<td style='text-align:right'>{area}</td>"
@@ -476,17 +476,16 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
     rows_html = "".join(rows)
     n = len(new_items)
     return (
-        '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
-        'padding:16px;margin:16px 0">'
-        '<h3 style="color:#1a5276;border:none;margin:0 0 8px 0">'
+        '<div class="card">'
+        '<h3 style="color:var(--accent);border:none;margin:0 0 8px 0">'
         f'Newest listings today ({n})</h3>'
-        '<p style="color:#666;font-size:12px;margin:0 0 10px 0">'
+        '<p style="color:var(--muted);font-size:12px;margin:0 0 10px 0">'
         'Brand-new listings that appeared today, ranked by deal score '
         '(higher = cheaper than expected). Act fast &mdash; new listings '
         'get taken quickly. Always check the photos and condition on the '
         'source site before contacting.</p>'
-        f"<table style='border-collapse:collapse;width:100%;font-size:14px'>"
-        "<tr style='background:#f0f0f0'>"
+        f"<div class='scroll-x'><table>"
+        "<tr>"
         "<th style='text-align:right'>Deal score</th>"
         "<th style='text-align:left'>District</th>"
         "<th>Rooms</th><th>m²</th><th>Floor</th>"
@@ -495,7 +494,7 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
         "<th>Type</th><th>Source</th>"
         "</tr>"
         f"{rows_html}"
-        "</table>"
+        "</table></div>"
         '</div>'
     )
 
@@ -521,11 +520,10 @@ def build_near_school_html(all_listings):
     radius = config.NEAR_SCHOOL_RADIUS_KM
     if not near:
         return (
-            '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
-            'padding:16px;margin:16px 0">'
-            '<h3 style="color:#1a5276;border:none;margin:0 0 8px 0">'
+            '<div class="card">'
+            '<h3 style="color:var(--accent);border:none;margin:0 0 8px 0">'
             f'Walking distance to school (within {radius:.0f} km)</h3>'
-            '<p style="color:#666;font-size:12px;margin:0">'
+            '<p style="color:var(--muted);font-size:12px;margin:0">'
             'No in-budget listings within walking distance right now.</p>'
             '</div>'
         )
@@ -547,14 +545,14 @@ def build_near_school_html(all_listings):
         if l.get('lat') and l.get('lon'):
             marker_id = f"{source}:{l.get('id','')}"
             map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
-                        f"return false\" style=\"font-size:11px;color:#1a5276\">map</a>")
+                        f"return false\" style=\"font-size:11px;color:var(--link)\">map</a>")
 
-        zebra = ' style="background:#fafafa"' if idx % 2 else ''
+        zebra = ' class="z"' if idx % 2 else ''
         share = ""
         if l.get("ownership_share"):
-            share = (f" <b style='color:#c0392b;font-size:11px' "
+            share = (f" <span class='badge b-end' "
                      f"title='Co-ownership share, not a whole flat'>"
-                     f"SHARE {_t(l['ownership_share'])}</b>")
+                     f"SHARE {_t(l['ownership_share'])}</span>")
         rows.append(
             f'<tr{zebra}>'
             f"<td style='text-align:right;font-weight:bold' data-sort='{km:.3f}'>{_fmt_distance(l, 2)}</td>"
@@ -565,7 +563,7 @@ def build_near_school_html(all_listings):
             f"<td style='text-align:right'>{_t(l.get('floor',''))}</td>"
             f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(l.get('price_eur'), l.get('price_unit'))}</td>"
             f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(l.get('price_per_m2'))}</td>"
-            f"<td style='text-align:right;font-size:16px;font-weight:bold;color:#1a5276' data-sort='{score_val}'>{score_str}</td>"
+            f"<td style='text-align:right;font-size:16px;font-weight:bold;color:var(--accent)' data-sort='{score_val}'>{score_str}</td>"
             f"<td>{_watch_star(l)}{_source_link(l, map_link)}</td>"
             '</tr>'
         )
@@ -573,26 +571,25 @@ def build_near_school_html(all_listings):
     rows_html = "".join(rows)
     n = len(near)
     n_approx = sum(1 for l in near if l.get("geo_precision") == "street")
-    approx_note = (f' <span style="color:#999;font-size:11px">'
+    approx_note = (f' <span style="color:var(--faint);font-size:11px">'
                    f'(~ = street-level position, house number not resolved; '
                    f'{n_approx} such)</span>') if n_approx else ''
-    more_note = (f' <span style="color:#999;font-size:11px">'
+    more_note = (f' <span style="color:var(--faint);font-size:11px">'
                  f'(+{hidden} more within {radius:.0f} km)</span>') if hidden else ''
     tid = "tbl_near_school"
     return (
-        '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
-        'padding:16px;margin:16px 0">'
-        '<h3 style="color:#1a5276;border:none;margin:0 0 8px 0">'
+        '<div class="card">'
+        '<h3 style="color:var(--accent);border:none;margin:0 0 8px 0">'
         f'Walking distance to school ({n} within {radius:.0f} km){more_note}{approx_note}</h3>'
-        '<p style="color:#666;font-size:12px;margin:0 0 10px 0">'
+        '<p style="color:var(--muted);font-size:12px;margin:0 0 10px 0">'
         'Every in-budget listing within walking distance of '
         f'{config.SCHOOL_NAME}, closest first. A flat here is fairly priced '
         'for its size even when its deal score is near zero &mdash; the '
         'bargain ranking above the top-N cutoff does not apply to this '
         'section. Click column headers to sort.</p>'
-        f"<table id='{tid}' style='border-collapse:collapse;width:100%;font-size:14px' "
+        f"<div class='scroll-x'><table id='{tid}' "
         f"data-sortable='1'>"
-        f"<tr style='background:#f0f0f0'>"
+        f"<tr>"
         f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',0)\">Distance</th>"
         f"<th style='text-align:left'>District</th>"
         f"<th style='text-align:left'>Street</th>"
@@ -605,7 +602,7 @@ def build_near_school_html(all_listings):
         f"<th>Source</th>"
         f"</tr>"
         f"{rows_html}"
-        f"</table>"
+        f"</table></div>"
         f'</div>'
     )
 
@@ -629,7 +626,7 @@ def build_gone_html(gone, price_data=None, today=None):
 
     rows = []
     for i, r in enumerate(gone):
-        zebra = ' style="background:#fafafa"' if i % 2 else ''
+        zebra = ' class="z"' if i % 2 else ''
         entry = price_data.get(r.get("k")) or {}
         days = utils.days_since(entry.get("first_seen"), today_d)
         listed = f"{days} d" if days is not None else "?"
@@ -639,36 +636,35 @@ def build_gone_html(gone, price_data=None, today=None):
         src_raw = r.get("k", "").split(":", 1)[0]
         src = _t(src_raw)
         if src_raw == "izsoles.ta.gov.lv":
-            src += " <span style='color:#8e44ad'>· auction</span>"
+            src += " <span style='color:var(--auction)'>· auction</span>"
         rows.append(
             f'<tr{zebra}>'
             f"<td style='font-size:13px'>{_t(r.get('d') or '')}</td>"
             f"<td style='font-size:13px'>{_t(r.get('s') or '—')}</td>"
             f"<td style='text-align:right;font-weight:bold'>"
             f"{_fmt_price(r.get('p')) if r.get('p') else '-'}</td>"
-            f"<td style='text-align:right;color:#666'>{listed}</td>"
-            f"<td style='font-size:12px;color:#999'>{src}</td>"
+            f"<td style='text-align:right;color:var(--muted)'>{listed}</td>"
+            f"<td style='font-size:12px;color:var(--faint)'>{src}</td>"
             f"<td style='font-size:12px'>{link}</td>"
             f'</tr>')
 
     n = len(gone)
     return (
-        '<div style="background:#fdf6ec;border:1px solid #e8d9b8;'
-        'border-radius:8px;padding:16px;margin:16px 0">'
-        '<h3 style="color:#9a6d0a;border:none;margin:0 0 8px 0">'
+        '<div class="card amber">'
+        '<h3 style="color:var(--warn);border:none;margin:0 0 8px 0">'
         f'Disappeared — likely sold/removed ({n})</h3>'
-        '<p style="color:#666;font-size:12px;margin:0 0 10px 0">'
+        '<p style="color:var(--muted);font-size:12px;margin:0 0 10px 0">'
         'Ads that were live yesterday but are gone from today\'s scan — '
         'usually sold (or withdrawn). "Listed" is how long our tracker '
         'saw the ad for.</p>'
-        "<table style='border-collapse:collapse;width:100%;font-size:14px'>"
-        "<tr style='background:#f0e6d2'>"
+        "<div class='scroll-x'><table>"
+        "<tr>"
         "<th style='text-align:left'>District</th>"
         "<th style='text-align:left'>Street</th>"
         "<th style='text-align:right'>Last ask</th>"
         "<th style='text-align:right'>Listed</th>"
         "<th>Source</th><th>Link</th></tr>"
-        f"{''.join(rows)}</table>"
+        f"{''.join(rows)}</table></div>"
         '</div>'
     )
 
@@ -691,22 +687,20 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None):
     if not auctions:
         if failed:
             return (
-                '<div style="background:#fdecea;border:1px solid #c0392b;border-radius:8px;'
-                'padding:16px;margin:16px 0">'
-                '<h3 style="color:#8e44ad;border:none;margin:0 0 8px 0">'
+                '<div class="card err">'
+                '<h3 style="color:var(--auction);border:none;margin:0 0 8px 0">'
                 'State & bailiff auctions (Riga apartments)</h3>'
-                '<p style="color:#666;font-size:12px;margin:0">'
+                '<p style="color:var(--muted);font-size:12px;margin:0">'
                 'The auction scan failed today — this section may be '
                 'missing auctions that are still active. Check the run log '
                 'for the error.</p>'
                 '</div>'
             )
         return (
-            '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
-            'padding:16px;margin:16px 0">'
-            '<h3 style="color:#8e44ad;border:none;margin:0 0 8px 0">'
+            '<div class="card">'
+            '<h3 style="color:var(--auction);border:none;margin:0 0 8px 0">'
             'State & bailiff auctions (Riga apartments)</h3>'
-            '<p style="color:#666;font-size:12px;margin:0">'
+            '<p style="color:var(--muted);font-size:12px;margin:0">'
             'No in-budget active auctions right now.</p>'
             '</div>'
         )
@@ -763,27 +757,27 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None):
         share_badge = ""
         if a.get("ownership_share"):
             share_badge = (
-                f"<br><b style='color:#c0392b;font-size:11px' "
+                f"<br><span class='badge b-end' "
                 f"title='Only a co-ownership share of the flat is auctioned, "
-                f"not the whole flat'>SHARE {_t(a['ownership_share'])} "
-                f"&mdash; co-ownership, not a whole flat</b>")
+                f"not the whole flat'>SHARE {_t(a['ownership_share'])}"
+                f"</span>")
         source = a.get("source", "")
         # NEW / bid-movement vs yesterday's snapshot (empty prev_bids =
         # first tracked day -> NEW suppressed so the whole table isn't
         # flagged; delta = effective price moved since yesterday).
         key = f"{source}:{a.get('id', '')}"
         prev_p = prev_bids.get(key) if prev_bids else None
-        new_badge = ("<br><b style='color:#1a7a3a;font-size:11px' "
-                     "title='First seen in today's scan'>NEW</b>"
+        new_badge = ("<br><span class='badge b-new' "
+                     "title='First seen in today's scan'>NEW</span>"
                      if prev_bids and key not in prev_bids else "")
         eff_price = (a.get("auction_current_bid")
                      or a.get("auction_start_price"))
         bid_delta = ""
         if (prev_p is not None and eff_price is not None
                 and eff_price != prev_p):
-            arrow, color = (("&#9650;", "#c0392b") if eff_price > prev_p
-                            else ("&#9660;", "#1a7a3a"))
-            bid_delta = (f"<br><span style='font-size:11px;color:{color}'>"
+            arrow, cls = (("&#9650;", "delta-up") if eff_price > prev_p
+                          else ("&#9660;", "delta-down"))
+            bid_delta = (f"<br><span class='{cls}' style='font-size:11px'>"
                          f"{arrow} was {_fmt_price(prev_p)}</span>")
         rooms = a.get("rooms")
         rooms_disp = rooms if rooms is not None else "?"
@@ -793,11 +787,11 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None):
         sp_disp = _fmt_price(sp) if sp else "-"
         dep = a.get("auction_deposit")
         if dep:
-            sp_disp += (f"<br><span style='font-size:11px;color:#666'>"
+            sp_disp += (f"<br><span style='font-size:11px;color:var(--muted)'>"
                         f"dep. {_fmt_price(dep)}</span>")
         cb = a.get("auction_current_bid")
         cb_disp = (_fmt_price(cb) if cb else "no bids") + bid_delta
-        cb_style = "font-weight:bold" if cb else "color:#999"
+        cb_style = "font-weight:bold" if cb else "color:var(--faint)"
         ap = a.get("auction_appraisal")
         ap_disp = _fmt_price(ap) if ap else "-"
         end = a.get("auction_end") or "-"
@@ -805,13 +799,13 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None):
         days_reg = days_to_reg(a)
         if days_end is not None and days_end <= config.AUCTION_ENDING_SOON_DAYS:
             if days_end < 0:
-                end = (f"{_t(end)}<br><b style='color:#7f8c8d;font-size:11px'>"
-                       f"ENDED</b>")
+                end = (f"{_t(end)}<br>"
+                       f"<span class='badge b-ended'>ENDED</span>")
             else:
                 label = ("ENDS TODAY" if days_end == 0
                          else f"ENDS IN {days_end}d")
-                end = (f"{_t(end)}<br><b style='color:#c0392b;font-size:11px'>"
-                       f"{label}</b>")
+                end = (f"{_t(end)}<br>"
+                       f"<span class='badge b-end'>{label}</span>")
         else:
             end = _t(end)
         reg = a.get("auction_register_until")
@@ -820,18 +814,17 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None):
                 rlabel = ("REG CLOSED" if days_reg < 0 else
                           "REG TODAY" if days_reg == 0
                           else f"REG IN {days_reg}d")
-                end += (f"<br><b style='color:#c0392b;font-size:11px'>"
-                        f"{rlabel}</b>")
-            end += (f"<br><span style='font-size:11px;color:#666'>reg. by "
+                end += f"<br><span class='badge b-reg'>{rlabel}</span>"
+            end += (f"<br><span style='font-size:11px;color:var(--muted)'>reg. by "
                     f"{_t(reg)}</span>")
 
         map_link = ""
         if a.get("lat") and a.get("lon"):
             marker_id = f"{source}:{a.get('id', '')}"
             map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
-                        f"return false\" style=\"font-size:11px;color:#8e44ad\">map</a>")
+                        f"return false\" style=\"font-size:11px;color:var(--auction)\">map</a>")
 
-        zebra = ' style="background:#fafafa"' if idx % 2 else ''
+        zebra = ' class="z"' if idx % 2 else ''
         rows.append(
             f'<tr{zebra}>'
             f"<td style='text-align:right;font-weight:bold' data-sort='{dist_sort:.3f}'>{dist}</td>"
@@ -849,19 +842,18 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None):
 
     rows_html = "".join(rows)
     n = len(auctions)
-    more_note = (f' <span style="color:#999;font-size:11px">'
+    more_note = (f' <span style="color:var(--faint);font-size:11px">'
                  f'(+{hidden} more)</span>') if hidden else ''
-    urgent_note = (f' <b style="color:#c0392b">· {n_urgent} ending '
+    urgent_note = (f' <b style="color:var(--bad)">· {n_urgent} ending '
                    f'&le;{config.AUCTION_ENDING_SOON_DAYS}d</b>'
                    ) if n_urgent else ''
     tid = "tbl_auctions"
     return (
-        '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;'
-        'padding:16px;margin:16px 0">'
-        '<h3 style="color:#8e44ad;border:none;margin:0 0 8px 0">'
+        '<div class="card">'
+        '<h3 style="color:var(--auction);border:none;margin:0 0 8px 0">'
         f'State & bailiff auctions — Riga apartments ({n}){urgent_note}'
         f'{more_note}</h3>'
-        '<p style="color:#666;font-size:12px;margin:0 0 10px 0">'
+        '<p style="color:var(--muted);font-size:12px;margin:0 0 10px 0">'
         'Forced-sale and state property auctions from '
         '<a href="https://izsoles.ta.gov.lv">izsoles.ta.gov.lv</a>. Starting '
         'prices are often well below market. The purchase process differs '
@@ -869,15 +861,15 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None):
         'and bid before the end date. Prices shown: start price and current '
         'bid. Sorted by distance to '
         f'{config.SCHOOL_NAME}. Always read the full auction terms. '
-        '<b style="color:#c0392b">SHARE</b> rows auction only a co-ownership '
+        '<b style="color:var(--bad)">SHARE</b> rows auction only a co-ownership '
         'fraction (dom&#257;jam&#257; da&#316;a) of a flat &mdash; you would '
         'own it jointly with the other co-owners, not get a whole flat. '
-        '<b style="color:#1a7a3a">NEW</b> = first seen today; '
+        '<b style="color:var(--good)">NEW</b> = first seen today; '
         '&#9650;/&#9660; <i>was &euro;X</i> under the bid = price moved '
         'since yesterday.</p>'
-        f"<table id='{tid}' style='border-collapse:collapse;width:100%;font-size:14px' "
+        f"<div class='scroll-x'><table id='{tid}' "
         f"data-sortable='1'>"
-        f"<tr style='background:#f0f0f0'>"
+        f"<tr>"
         f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',0)\">Distance</th>"
         f"<th style='text-align:left'>Address</th>"
         f"<th class='sort-th' onclick=\"sortTable('{tid}',2)\">Rooms</th>"
@@ -889,7 +881,7 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None):
         f"<th>Source</th>"
         f"</tr>"
         f"{rows_html}"
-        f"</table>"
+        f"</table></div>"
         f'</div>'
     )
 
@@ -1347,7 +1339,7 @@ function __flatWatchInit() {
       rm.setAttribute('data-key', key);
       rm.title = 'Stop watching';
       rm.textContent = '✕';
-      rm.style.cssText = 'border:0;background:none;color:#c0392b;cursor:pointer;margin-right:6px';
+      rm.style.cssText = 'border:0;background:none;color:var(--bad);cursor:pointer;margin-right:6px';
       td.appendChild(rm);
       var label = w0.label || key;
       var url = (cur && cur[idx.url]) ? cur[idx.url] : (w0.url || '');
@@ -1365,27 +1357,27 @@ function __flatWatchInit() {
       meta.style.fontSize = '12px';
       var delta = null;
       if (cur) {
-        meta.style.color = '#777';
+        meta.style.color = 'var(--muted)';
         meta.textContent = ' — ' + fmtEur(cur[idx.price_eur]) +
           ' · still listed today';
         var p0 = Number(w0.price), p1 = Number(cur[idx.price_eur]);
         if (isFinite(p0) && isFinite(p1) && Math.abs(p1 - p0) >= 1) {
           delta = document.createElement('span');
-          delta.style.color = p1 < p0 ? '#1a7a3a' : '#c0392b';
+          delta.style.color = p1 < p0 ? 'var(--good)' : 'var(--bad)';
           delta.style.fontWeight = 'bold';
           delta.style.fontSize = '12px';
           delta.textContent = ' ' + (p1 < p0 ? '▼' : '▲') + ' ' +
             fmtEur(Math.abs(p1 - p0)) + ' since starred';
         }
       } else {
-        meta.style.color = '#c0392b';
+        meta.style.color = 'var(--bad)';
         meta.textContent = ' — last seen ' + fmtEur(w0.price) +
           ' · NO LONGER LISTED (sold or expired)';
       }
       td.appendChild(meta);
       if (delta) td.appendChild(delta);
       var since = document.createElement('span');
-      since.style.color = '#aaa';
+      since.style.color = 'var(--faint)';
       since.style.fontSize = '11px';
       since.textContent = ' · watching since ' + (w0.added || '?');
       td.appendChild(since);
@@ -1423,7 +1415,7 @@ def build_html(main_deals, still_active, comparison_html, status_note,
                newest_html="", near_school_html="", auctions_html="",
                all_scored=None, all_listings=None, gone_html="",
                source_counts=None, health_pairs=None, n_auctions=None,
-               auctions_failed=False):
+               auctions_failed=False, n_gone=None):
     today = date.today().isoformat()
     run_time = _now_header_str()
     sections = []
@@ -1461,15 +1453,14 @@ def build_html(main_deals, still_active, comparison_html, status_note,
     flat_budget_html = ""
     if all_scored:
         flat_budget_html = (
-            "<div style='background:#f7f9fb;border:1px solid #dbe4ea;"
-            "padding:10px 14px;margin:12px 0'>"
+            "<div class='info'>"
             "<b>Your budget:</b> "
             f"<input type='number' id='flat-budget-input' min='{config.MIN_SALE_PRICE_EUR}' "
             "step='1000' "
             "placeholder='e.g. 60000' style='padding:6px 8px;border:1px solid "
             "#b8c4cf;border-radius:4px;font-size:14px;width:110px'> "
             "<button type='button' id='flat-budget-ok' style='padding:6px 10px;"
-            "border:0;border-radius:4px;background:#2874a6;color:#fff;cursor:pointer;"
+            "border:0;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;"
             "font-weight:bold'>OK</button> "
             "<button type='button' id='flat-budget-reset' style='padding:6px 10px;"
             "border:0;border-radius:4px;background:#e7edf2;cursor:pointer;"
@@ -1497,8 +1488,7 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             "<b>?max=60000</b> or <b>?district=Zolitude&amp;rooms=2</b> "
             "to this page's URL.</p>"
             "</div>"
-            "<details style='background:#f7f9fb;border:1px solid #dbe4ea;"
-            "padding:10px 14px;margin:12px 0' id='flat-watch-box'>"
+            "<details class='info' id='flat-watch-box'>"
             "<summary style='cursor:pointer'><b>★ Watchlist</b> "
             "<span class='note' id='flat-watch-count'></span></summary>"
             "<div id='flat-watch-list' style='margin-top:6px'></div>"
@@ -1532,41 +1522,28 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             f"<li><b>{_t(str(k))}</b>: {_t(str(m))}</li>"
             for k, m in health_pairs)
         health_box = (
-            "<div style='background:#fdecea;border:1px solid #c0392b;"
-            "padding:10px 14px;margin:12px 0'>"
+            "<div class='warn'>"
             "<b>Warning: scrape health issues — today's coverage may be "
             "incomplete:</b>"
             f"<ul style='margin:6px 0;font-size:12px'>{issues}</ul></div>")
 
+    # KPI chips — a quick dashboard row above the sections.
+    n_deals = sum(len(v) for v in main_deals.values())
+    kpis = [web_style.kpi("deals today", n_deals)]
+    if n_auctions is not None:
+        kpis.append(web_style.kpi("auctions", n_auctions))
+    if n_gone:
+        kpis.append(web_style.kpi("gone", n_gone, "warn"))
+    if health_pairs:
+        kpis.append(web_style.kpi("health issues", len(health_pairs), "bad"))
+    kpi_html = f"<div class='kpis'>{''.join(kpis)}</div>"
+
+    _STYLE = web_style.style_block()
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>Riga flat deals — {today}</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
-<style>
-body{{font-family:Arial,sans-serif;color:#222;max-width:900px;margin:0 auto;padding:0 16px}}
-h2{{color:#1a5276}}h3{{color:#2874a6;border-bottom:2px solid #2874a6;padding-bottom:4px}}
-td,th{{border:1px solid #ddd;padding:5px}}a{{color:#2874a6}}
-.note{{color:#777;font-size:12px}}
-th{{user-select:none;cursor:default;position:relative}}
-th.sort-th{{cursor:pointer}}
-th.sort-th:hover{{background:#e8e8e8}}
-th.sort-th::after{{content:"\\21C5";font-size:10px;color:#bbb;margin-left:4px;opacity:0}}
-th.sort-th:hover::after{{opacity:1}}
-th.sort-asc::after{{content:"\\2191";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
-th.sort-desc::after{{content:"\\2193";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
-th{{position:sticky;top:0;background:#f0f0f0;z-index:1}}
-tr:hover td{{background:#f6f9fc}}
-.watch-star{{cursor:pointer;border:0;background:none;font-size:15px;color:#b8a03c;padding:0 2px}}
-.watch-star:hover{{color:#d4a017}}
-.timeline-row td{{border-top:none;border-bottom:1px solid #ccc;padding:6px 10px;background:#f5f5f5;font-size:11px;line-height:1.6}}
-
-/* Inline map at bottom of page */
-#map-container{{margin:20px 0;border:1px solid #ddd;border-radius:8px;overflow:hidden}}
-#map-container .map-header{{padding:10px 14px;background:#1a5276;color:#fff;font-size:14px;font-weight:bold}}
-#map-container #map{{width:100%;height:400px}}
-.school-label{{background:none;border:none;color:#c0392b;font-weight:bold;
-  font-size:12px;text-shadow:0 1px 2px #fff, 0 -1px 2px #fff, 1px 0 2px #fff, -1px 0 2px #fff}}
-</style>
+{_STYLE}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       crossorigin=""/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -1626,6 +1603,7 @@ ss.com, city24.lv{', izsoles.ta.gov.lv (auctions)' if config.IZSOLES_ENABLED els
 {config.SCHOOL_NAME} (shown in the Distance column). New builds excluded.
 Sales only — rentals are out of scope.</p>
 {coverage_note}
+{kpi_html}
 {flat_budget_html}
 {health_box}
 {comparison_html}
@@ -1745,14 +1723,15 @@ def save_digest(main_deals, still_active, comparison_html, status_note,
                 price_data=None, map_markers=None, newest_html="",
                 near_school_html="", auctions_html="", all_scored=None,
                 all_listings=None, gone_html="", source_counts=None,
-                health_pairs=None, n_auctions=None, auctions_failed=False):
+                health_pairs=None, n_auctions=None, auctions_failed=False,
+                n_gone=None):
     """Build today's digest and write it to data/digests/. Returns (path, info)."""
     html = build_html(main_deals, still_active, comparison_html, status_note,
                       price_data, map_markers, newest_html,
                       near_school_html, auctions_html, all_scored,
                       all_listings, gone_html, source_counts=source_counts,
                       health_pairs=health_pairs, n_auctions=n_auctions,
-                      auctions_failed=auctions_failed)
+                      auctions_failed=auctions_failed, n_gone=n_gone)
     today = date.today().isoformat()
     os.makedirs(config.DIGEST_DIR, exist_ok=True)
     digest_path = os.path.join(config.DIGEST_DIR, f"digest_{today}.html")

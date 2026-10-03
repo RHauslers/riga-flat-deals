@@ -86,7 +86,7 @@ def flat_section_html(stats, run_date=None, history=None):
         for i, n in enumerate(headers))
     rows = []
     for i, s in enumerate(stats):
-        zebra = " style='background:#fafafa'" if i % 2 else ""
+        zebra = " class='z'" if i % 2 else ""
         cheap = (f"<a href='{_e(s['min_url'])}' target='_blank' "
                  f"rel='noopener noreferrer'>{_fmt_eur(s['min_price'])}"
                  f"</a>" if s.get("min_url") else _fmt_eur(s["min_price"]))
@@ -100,8 +100,8 @@ def flat_section_html(stats, run_date=None, history=None):
         delta_sort = 0.0
         if delta is not None:
             delta_sort = delta
-            color = "#c0392b" if delta < 0 else \
-                "#27ae60" if delta > 0 else "#7f8c8d"
+            color = "var(--bad)" if delta < 0 else \
+                "var(--good)" if delta > 0 else "var(--muted)"
             delta_html = f"<span style='color:{color}'>{delta:+.1f}%</span>"
         spark = utils.sparkline_svg(
             [(p[0], p[1]) for p in pts], title="median €/m²")

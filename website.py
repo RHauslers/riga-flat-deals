@@ -25,6 +25,7 @@ from html import escape
 import config
 import car_market
 import flat_market
+import web_style
 
 
 DOCS_DIR = os.path.join(config.BASE_DIR, "docs")
@@ -87,26 +88,22 @@ NAV_MARK = 'class="site-nav"'
 
 
 def _nav_html(prefix, active):
-    """Plain-link Flats/Cars tabs (no JS). prefix is '' in docs/ and '../'
-    inside docs/archive/ so links stay relative and Pages-subpath safe."""
-    style_base = "display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none"
-    style_on = "background:#1a5276;color:#fff;font-weight:bold"
-    style_off = "background:#eaf1f7;color:#1a5276"
+    """Pill-link Flats/Cars/Market/Archive tabs (no JS). prefix is '' in
+    docs/ and '../' inside docs/archive/ so links stay relative and
+    Pages-subpath safe. Styled by .site-nav in web_style.BASE_CSS."""
+    def _cls(tab):
+        return " class='on'" if active == tab else ""
     flats_cur = ' aria-current="page"' if active == "flats" else ""
     cars_cur = ' aria-current="page"' if active == "cars" else ""
     market_cur = ' aria-current="page"' if active == "market" else ""
     return (
-        f'<nav class="site-nav" aria-label="Sections" '
-        f'style="margin:0 0 16px 0">'
-        f'<a href="{prefix}index.html"{flats_cur} '
-        f'style="{style_base};{style_on if active == "flats" else style_off}">Flats</a>'
-        f'<a href="{prefix}cars.html"{cars_cur} '
-        f'style="{style_base};{style_on if active == "cars" else style_off}">Cars</a>'
-        f'<a href="{prefix}market.html"{market_cur} '
-        f'style="{style_base};{style_on if active == "market" else style_off}">Market</a>'
-        f'<a href="{prefix}archive.html" '
-        f'style="{style_base};{style_off}">Archive</a>'
-        f'</nav>\n'
+        f'<style>{web_style.NAV_CSS}</style>'
+        '<nav class="site-nav" aria-label="Sections">'
+        f'<a href="{prefix}index.html"{_cls("flats")}{flats_cur}>Flats</a>'
+        f'<a href="{prefix}cars.html"{_cls("cars")}{cars_cur}>Cars</a>'
+        f'<a href="{prefix}market.html"{_cls("market")}{market_cur}>Market</a>'
+        f'<a href="{prefix}archive.html">Archive</a>'
+        '</nav>\n'
     )
 
 
@@ -152,8 +149,7 @@ def _stale_digest_banner(label, digest_date, today):
     """Prominent warning shown on a tab when its newest digest is not
     today's (e.g. the daily run failed before saving)."""
     return (
-        f"<div class='stale-warning' style='background:#fdecea;"
-        f"border:1px solid #c0392b;padding:10px 14px;margin:12px 0'>"
+        f"<div class='stale-warning'>"
         f"<b>Warning: no fresh {escape(label)} digest for {escape(today)} — "
         f"this page shows the latest available digest from "
         f"{escape(digest_date)} and may be stale.</b></div>\n"
@@ -162,14 +158,12 @@ def _stale_digest_banner(label, digest_date, today):
 
 def _cars_placeholder_html():
     """Shown on the Cars tab until the first car digest has been generated."""
+    _STYLE = web_style.style_block()
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga car deals</title>
-<style>
-body{{font-family:Arial,sans-serif;color:#222;max-width:800px;margin:0 auto;padding:20px}}
-h1{{color:#1a5276}}a{{color:#2874a6}}
-</style></head><body>
+{_STYLE}</head><body>
 {_nav_html("", "cars")}
 <h1>Riga car deals</h1>
 <p>Not generated yet — the car digest has not run yet.</p>
@@ -368,13 +362,13 @@ def build():
             summary = _extract_summary(content)
         except OSError:
             summary = ""
-        label = d
+        label = escape(d)
         if f == archive_name:
             label += " (today)" if d == today else " (latest)"
         rows.append(
             f"<tr>"
-            f"<td style='padding:8px'><a href='archive/{escape(f)}'>{escape(label)}</a></td>"
-            f"<td style='padding:8px;color:#666'>{escape(summary)}</td>"
+            f"<td><b><a href='archive/{escape(f)}'>{label}</a></b></td>"
+            f"<td class='note'>{escape(summary)}</td>"
             f"</tr>"
         )
     rows_html = ("\n".join(rows) if rows else
@@ -389,13 +383,13 @@ def build():
                 car_summary = _extract_car_summary(fh.read())
         except OSError:
             car_summary = ""
-        label = d
+        label = escape(d)
         if f == car_archive_name:
             label += " (today)" if d == today else " (latest)"
         car_rows.append(
-            f"<tr><td style='padding:8px'>"
-            f"<a href='archive/{escape(f)}'>{escape(label)}</a></td>"
-            f"<td style='padding:8px;color:#666'>{escape(car_summary)}</td></tr>"
+            f"<tr><td><b>"
+            f"<a href='archive/{escape(f)}'>{label}</a></b></td>"
+            f"<td class='note'>{escape(car_summary)}</td></tr>"
         )
     car_rows_html = "\n".join(car_rows) if car_rows else \
         '<tr><td colspan="2">Not generated yet.</td></tr>'
@@ -412,44 +406,37 @@ def build():
         label = ("flat + car digests" if both else
                  "flat digest only" if d in flat_dates else
                  "car digest only" if d in car_dates else "no scan")
-        color = "#27ae60" if both else \
-            "#e67e22" if label != "no scan" else "#c0392b"
+        cls = ("cov-both" if both else
+               "cov-one" if label != "no scan" else "cov-none")
         strip.append(
-            f"<span title='{d}: {label}' style='display:inline-block;"
-            f"width:14px;height:14px;background:{color};margin-right:3px;"
-            f"border-radius:3px'></span>")
+            f"<span class='cov-cell {cls}' title='{d}: {label}'></span>")
     coverage_html = (
-        "<div style='margin:12px 0'>" + "".join(strip) +
+        "<div class='card'>" + "".join(strip) +
         f"<div class='note'>Last {config.ARCHIVE_GAP_DAYS} days: "
         "green = both digests, amber = one source only, red = no scan. "
         "Hover a cell for the date.</div></div>")
 
+    _STYLE = web_style.style_block()
     archive_html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga flat & car deals — archive</title>
-<style>
-body{{font-family:Arial,sans-serif;color:#222;max-width:800px;margin:0 auto;padding:20px}}
-h1{{color:#1a5276}}h2{{color:#2874a6}}
-td,th{{border-bottom:1px solid #eee}}a{{color:#2874a6;text-decoration:none}}a:hover{{text-decoration:underline}}
-.note{{color:#777;font-size:13px}}
-table{{width:100%;border-collapse:collapse}}
-</style></head><body>
+{_STYLE}</head><body>
 {_nav_html("", "")}
 <h1>Riga flat & car deals — archive</h1>
 <p class="note">Districts: {', '.join(config.DISTRICTS.keys())} · Sources: ss.com, city24.lv, pp.lv</p>
 {coverage_html}
 <p><a href="index.html">← Back to today's deals</a></p>
-<h2>Flat digests ({len(archive_files)} total)</h2>
+<div class='card'><h2>Flat digests ({len(archive_files)} total)</h2>
 <table>
-<tr style="background:#f0f0f0"><th style="text-align:left;padding:8px">Date</th><th style="text-align:left;padding:8px">Summary</th></tr>
+<tr><th>Date</th><th>Summary</th></tr>
 {rows_html}
-</table>
-<h2>Car digests ({len(car_archive_files)} total)</h2>
+</table></div>
+<div class='card'><h2>Car digests ({len(car_archive_files)} total)</h2>
 <table>
-<tr style="background:#f0f0f0"><th style="text-align:left;padding:8px">Date</th><th style="text-align:left;padding:8px">Summary</th></tr>
+<tr><th>Date</th><th>Summary</th></tr>
 {car_rows_html}
-</table>
+</table></div>
 <hr><p class="note">Generated by Flat_Searcher on {today}. Digests are kept
 for {config.ARCHIVE_KEEP_DAYS} days.</p>
 </body></html>"""

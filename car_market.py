@@ -17,6 +17,18 @@ from urllib.parse import quote as _q
 import config
 import flat_market
 import utils
+import web_style
+
+# Page-specific CSS for the market tab switcher — pills matching the
+# site-nav style (kept out of BASE_CSS: market.html only).
+_MTAB_CSS = (
+    ".mtabs{display:flex;gap:8px;margin:4px 0 18px}"
+    ".mtab{padding:7px 18px;border:1px solid var(--line);"
+    "background:var(--card);color:var(--accent);border-radius:999px;"
+    "cursor:pointer;font-weight:600;font-size:13.5px}"
+    ".mtab:hover{background:var(--hover)}"
+    ".mtab-on{background:var(--accent);color:#fff;border-color:var(--accent)}"
+)
 
 
 def _fmt_eur(v):
@@ -144,11 +156,11 @@ def build_market_html(stats, run_date, total_ads, history=None,
 
     rows = []
     for i, s in enumerate(stats):
-        zebra = " style='background:#fafafa'" if i % 2 else ""
+        zebra = " class='z'" if i % 2 else ""
         cheap = (f"<a href='{_e(s['min_url'])}' target='_blank' "
                  f"rel='noopener noreferrer'>{_fmt_eur(s['min_price'])}"
                  f"</a>" if s.get("min_url") else _fmt_eur(s["min_price"]))
-        deals = (f"<b style='color:#1a7a3a'>{s['deals']}</b>"
+        deals = (f"<b style='color:var(--good)'>{s['deals']}</b>"
                  if s["deals"] else str(s["deals"]))
         year = s["median_year"]
         make_l = (f"<a href='cars.html?make={_q(str(s['make']))}'>"
@@ -162,8 +174,8 @@ def build_market_html(stats, run_date, total_ads, history=None,
         delta_sort = 0.0
         if delta is not None:
             delta_sort = delta
-            dcolor = ("#27ae60" if delta < 0 else
-                      "#c0392b" if delta > 0 else "#7f8c8d")
+            dcolor = ("var(--good)" if delta < 0 else
+                      "var(--bad)" if delta > 0 else "var(--muted)")
             delta_html = (f"<span style='color:{dcolor}'>"
                           f"{delta:+.1f}%</span>")
         rows.append(
@@ -207,34 +219,12 @@ def build_market_html(stats, run_date, total_ads, history=None,
         if flat_stats else ("<p class='note'>No flat stats yet — they are "
                             "written by the daily flat scan.</p>")
 
+    _STYLE = web_style.style_block(_MTAB_CSS)
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga market — {_e(str(run_date))}</title>
-<style>
-body{{font-family:Arial,sans-serif;color:#222;max-width:960px;margin:0 auto;padding:20px}}
-h1{{color:#1a5276}}
-h2{{color:#1a5276;border-bottom:2px solid #2874a6;padding-bottom:4px}}
-table{{width:100%;border-collapse:collapse;font-size:14px}}
-td,th{{border-bottom:1px solid #eee}}
-a{{color:#2874a6;text-decoration:none}}a:hover{{text-decoration:underline}}
-.note{{color:#777;font-size:13px}}
-.box{{background:#f7f9fb;border:1px solid #dbe4ea;padding:10px 14px;margin:12px 0}}
-.mtabs{{margin:4px 0 16px}}
-.mtab{{padding:6px 18px;border:1px solid #2874a6;background:#fff;color:#2874a6;
-border-radius:4px;cursor:pointer;font-weight:bold;font-size:14px}}
-.mtab+.mtab{{margin-left:6px}}
-.mtab-on{{background:#2874a6;color:#fff}}
-th{{user-select:none;cursor:default;position:relative}}
-th.sort-th{{cursor:pointer}}
-th.sort-th:hover{{background:#e8e8e8}}
-th.sort-th::after{{content:"\\21C5";font-size:10px;color:#bbb;margin-left:4px;opacity:0}}
-th.sort-th:hover::after{{opacity:1}}
-th.sort-asc::after{{content:"\\2191";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
-th.sort-desc::after{{content:"\\2193";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
-th{{position:sticky;top:0;background:#f0f0f0;z-index:1}}
-tr:hover td{{background:#f6f9fc}}
-</style>
+{_STYLE}
 <script>{_SORT_JS}</script>
 </head><body>
 <h1>Riga market — {_e(str(run_date))}</h1>
@@ -305,14 +295,12 @@ def build_page(path=None):
     data = load_stats(path)
     flat_data = flat_market.load_stats()
     if not data and not flat_data:
+        _STYLE = web_style.style_block()
         return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga car market</title>
-<style>
-body{{font-family:Arial,sans-serif;color:#222;max-width:800px;margin:0 auto;padding:20px}}
-h1{{color:#1a5276}}a{{color:#2874a6}}
-</style></head><body>
+{_STYLE}</head><body>
 <h1>Riga car market</h1>
 <p>Not generated yet — the market stats are written by the daily car
 scan.</p>

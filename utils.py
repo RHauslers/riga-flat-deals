@@ -164,8 +164,9 @@ def sparkline_svg(points, w=64, h=16, title=None):
         f"{round(i * (w - 4) / (n - 1) + 2, 1)},"
         f"{round(h - 3 - (v - lo) / span * (h - 6), 1)}"
         for i, v in enumerate(pts))
-    color = ("#c0392b" if pts[-1] < pts[0]
-             else "#27ae60" if pts[-1] > pts[0] else "#7f8c8d")
+    # var() works in SVG presentation attrs and follows the page theme.
+    color = ("var(--bad)" if pts[-1] < pts[0]
+             else "var(--good)" if pts[-1] > pts[0] else "var(--muted)")
     title_attr = f" title='{esc(title)}'" if title else ""
     return (f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" '
             f'style="vertical-align:-3px;margin-left:4px"{title_attr}>'

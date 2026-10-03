@@ -3,64 +3,211 @@
 <link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga flat & car deals — archive</title>
 <style>
-body{font-family:Arial,sans-serif;color:#222;max-width:800px;margin:0 auto;padding:20px}
-h1{color:#1a5276}h2{color:#2874a6}
-td,th{border-bottom:1px solid #eee}a{color:#2874a6;text-decoration:none}a:hover{text-decoration:underline}
-.note{color:#777;font-size:13px}
-table{width:100%;border-collapse:collapse}
+:root{
+  --bg:#f1f5f9; --card:#ffffff; --fg:#0f172a; --muted:#5d6b7d; --faint:#93a1b3;
+  --line:#e2e8f0; --line2:#cbd5e1; --th-bg:#f8fafc; --row-alt:#f8fafc;
+  --hover:#eef4fb; --link:#2563eb; --accent:#1d4ed8;
+  --good:#16a34a; --good-bg:#e8f7ee; --bad:#dc2626; --bad-bg:#fdeaea;
+  --warn:#b45309; --warn-bg:#fdf4e3; --warn-line:#ecd9b0;
+  --info-bg:#f4f8fc; --info-line:#d4e0ec;
+  --auction:#7c3aed; --star:#d4a017; --badge-bg:#eef2f7;
+  --radius:10px; --radius-s:6px;
+  --shadow:0 1px 2px rgba(15,23,42,.06),0 1px 3px rgba(15,23,42,.08);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0d1420; --card:#17202e; --fg:#e2e8f0; --muted:#94a3b8; --faint:#64748b;
+    --line:#2c3a4f; --line2:#3b4c63; --th-bg:#1b2637; --row-alt:#16202f;
+    --hover:#22304a; --link:#6ea8fe; --accent:#93b4fd;
+    --good:#4ade80; --good-bg:#14532d; --bad:#f87171; --bad-bg:#442222;
+    --warn:#fbbf24; --warn-bg:#3a2c12; --warn-line:#57441d;
+    --info-bg:#16233a; --info-line:#2b3f5c;
+    --auction:#a78bfa; --star:#facc15; --badge-bg:#26344a;
+    --shadow:0 1px 2px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  background:var(--bg);color:var(--fg);max-width:1020px;margin:0 auto;
+  padding:0 18px 40px;line-height:1.45;font-size:15px}
+h1,h2{color:var(--accent);font-weight:700;letter-spacing:-.01em}
+h2{font-size:22px;margin:8px 0 4px}
+h3{font-size:16px;color:var(--fg);border-bottom:2px solid var(--line);
+  padding-bottom:6px;margin:26px 0 10px}
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline}
+p{margin:6px 0}
+hr{border:0;border-top:1px solid var(--line);margin:28px 0 14px}
+.note{color:var(--muted);font-size:12.5px}
+table{border-collapse:collapse;width:100%;font-size:13.5px;
+  margin:4px 0 10px}
+th{position:sticky;top:0;z-index:1;background:var(--th-bg);color:var(--muted);
+  font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;
+  text-align:left;padding:7px 10px;border-bottom:2px solid var(--line2);
+  user-select:none;cursor:default;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top;
+  font-variant-numeric:tabular-nums}
+tr:hover>td{background:var(--hover)}
+tr.z>td{background:var(--row-alt)}
+tr.z:hover>td{background:var(--hover)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+th.sort-th{cursor:pointer}
+th.sort-th:hover{background:var(--hover);color:var(--fg)}
+th.sort-th::after{content:"\21C5";font-size:10px;color:var(--faint);margin-left:4px;opacity:0}
+th.sort-th:hover::after{opacity:1}
+th.sort-asc::after{content:"\2191";font-size:10px;color:var(--accent);margin-left:4px;opacity:1}
+th.sort-desc::after{content:"\2193";font-size:10px;color:var(--accent);margin-left:4px;opacity:1}
+.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* Cards & status boxes */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 16px;margin:14px 0;box-shadow:var(--shadow)}
+.card h3{margin-top:0}
+.card table{margin-bottom:0}
+.box,.info{background:var(--info-bg);border:1px solid var(--info-line);
+  border-radius:var(--radius-s);padding:10px 14px;margin:12px 0}
+.warn,.stale-warning{background:var(--bad-bg);border:1px solid var(--bad);
+  border-radius:var(--radius-s);padding:10px 14px;margin:12px 0}
+.amber{background:var(--warn-bg);border:1px solid var(--warn-line);
+  border-radius:var(--radius-s);padding:10px 14px;margin:12px 0}
+.card.amber{background:var(--warn-bg);border-color:var(--warn-line)}
+.card.err{background:var(--bad-bg);border-color:var(--bad)}
+
+/* Form controls (budget/filter inputs) */
+input,select,button{font:inherit;font-size:13px;color:var(--fg);
+  background:var(--card);border:1px solid var(--line2);
+  border-radius:var(--radius-s);padding:5px 8px}
+input:focus,select:focus{outline:2px solid var(--link);outline-offset:0;
+  border-color:var(--link)}
+button{cursor:pointer}
+
+/* KPI stat chips */
+.kpis{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:8px 14px;box-shadow:var(--shadow);min-width:86px}
+.kpi b{display:block;font-size:17px;color:var(--fg);font-variant-numeric:tabular-nums}
+.kpi span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.kpi.warn b{color:var(--warn)} .kpi.bad b{color:var(--bad)} .kpi.good b{color:var(--good)}
+
+/* Badges — rounded pills */
+.badge{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10.5px;
+  font-weight:600;line-height:1.5;white-space:nowrap;vertical-align:1px;
+  background:var(--badge-bg);color:var(--muted)}
+.badge.b-new{background:var(--good-bg);color:var(--good)}
+.badge.b-up{background:var(--bad-bg);color:var(--bad)}
+.badge.b-down{background:var(--good-bg);color:var(--good)}
+.badge.b-end{background:var(--bad-bg);color:var(--bad)}
+.badge.b-ended{background:var(--badge-bg);color:var(--muted)}
+.badge.b-reg{background:var(--warn-bg);color:var(--warn)}
+.badge.b-auction{background:transparent;border:1px solid var(--auction);color:var(--auction)}
+.badge.b-src{border:1px solid var(--line2);color:var(--muted);background:transparent}
+.badge.b-cheap{background:var(--good-bg);color:var(--good)}
+.delta-up{color:var(--bad)} .delta-down{color:var(--good)}
+
+/* Watchlist star */
+.watch-star{cursor:pointer;border:0;background:none;font-size:15px;color:var(--star);
+  padding:0 2px;opacity:.75}
+.watch-star:hover{opacity:1;transform:scale(1.15)}
+.watch-star.on{opacity:1}
+
+/* Site nav pills (website.py _nav_html) */
+.site-nav{margin:0 0 18px}
+.site-nav a{display:inline-block;padding:7px 16px;margin-right:6px;border-radius:999px;
+  text-decoration:none;font-size:13.5px;font-weight:600;
+  background:var(--card);color:var(--accent);border:1px solid var(--line)}
+.site-nav a:hover{background:var(--hover);text-decoration:none}
+.site-nav a.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.site-nav a.on:hover{filter:brightness(1.08)}
+
+/* Archive coverage strip cells */
+.cov-cell{display:inline-block;width:14px;height:14px;margin-right:3px;
+  border-radius:3px;vertical-align:middle}
+.cov-both{background:var(--good)} .cov-one{background:var(--warn)}
+.cov-none{background:var(--bad)}
+
+/* Details/summary */
+details{border-radius:var(--radius-s)}
+details>summary{cursor:pointer;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"\25B8";display:inline-block;margin-right:6px;
+  color:var(--faint);transition:transform .15s}
+details[open]>summary::before{transform:rotate(90deg)}
+
+/* Flat map (Leaflet) */
+#map-container{margin:20px 0;border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;box-shadow:var(--shadow)}
+#map-container .map-header{padding:10px 14px;background:var(--accent);color:#fff;
+  font-size:13px;font-weight:600;letter-spacing:.02em}
+#map-container #map{width:100%;height:400px}
+.school-label{background:none;border:none;color:var(--bad);font-weight:bold;
+  font-size:12px;text-shadow:0 1px 2px #fff,0 -1px 2px #fff,1px 0 2px #fff,-1px 0 2px #fff}
+
+/* Price-timeline subrows */
+.timeline-row td{border-top:none;background:var(--row-alt);font-size:11.5px;
+  line-height:1.6;color:var(--muted);padding:6px 10px}
+
+/* Accessibility & small screens */
+a:focus-visible,.watch-star:focus-visible,th.sort-th:focus-visible,
+summary:focus-visible{outline:2px solid var(--link);outline-offset:2px;border-radius:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (max-width:720px){
+  body{padding:0 10px 30px;font-size:14px}
+  th,td{padding:6px 7px}
+  .kpi{min-width:70px;padding:6px 10px}
+}
 </style></head><body>
-<nav class="site-nav" aria-label="Sections" style="margin:0 0 16px 0"><a href="index.html" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#eaf1f7;color:#1a5276">Flats</a><a href="cars.html" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#eaf1f7;color:#1a5276">Cars</a><a href="market.html" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#eaf1f7;color:#1a5276">Market</a><a href="archive.html" style="display:inline-block;padding:8px 14px;margin-right:4px;border-radius:4px;text-decoration:none;background:#eaf1f7;color:#1a5276">Archive</a></nav>
+<style>.site-nav{margin:0 0 18px}.site-nav a{display:inline-block;padding:7px 16px;margin-right:6px;border-radius:999px;text-decoration:none;font-size:13.5px;font-weight:600;background:var(--card,#fff);color:var(--accent,#1d4ed8);border:1px solid var(--line,#e2e8f0)}.site-nav a:hover{background:var(--hover,#eef4fb);text-decoration:none}.site-nav a.on{background:var(--accent,#1d4ed8);color:#fff;border-color:var(--accent,#1d4ed8)}</style><nav class="site-nav" aria-label="Sections"><a href="index.html">Flats</a><a href="cars.html">Cars</a><a href="market.html">Market</a><a href="archive.html">Archive</a></nav>
 
 <h1>Riga flat & car deals — archive</h1>
 <p class="note">Districts: Zolitude, Sampeteris, Imanta · Sources: ss.com, city24.lv, pp.lv</p>
-<div style='margin:12px 0'><span title='2026-09-21: flat digest only' style='display:inline-block;width:14px;height:14px;background:#e67e22;margin-right:3px;border-radius:3px'></span><span title='2026-09-22: flat digest only' style='display:inline-block;width:14px;height:14px;background:#e67e22;margin-right:3px;border-radius:3px'></span><span title='2026-09-23: flat digest only' style='display:inline-block;width:14px;height:14px;background:#e67e22;margin-right:3px;border-radius:3px'></span><span title='2026-09-24: flat digest only' style='display:inline-block;width:14px;height:14px;background:#e67e22;margin-right:3px;border-radius:3px'></span><span title='2026-09-25: flat digest only' style='display:inline-block;width:14px;height:14px;background:#e67e22;margin-right:3px;border-radius:3px'></span><span title='2026-09-26: flat + car digests' style='display:inline-block;width:14px;height:14px;background:#27ae60;margin-right:3px;border-radius:3px'></span><span title='2026-09-27: flat + car digests' style='display:inline-block;width:14px;height:14px;background:#27ae60;margin-right:3px;border-radius:3px'></span><span title='2026-09-28: flat + car digests' style='display:inline-block;width:14px;height:14px;background:#27ae60;margin-right:3px;border-radius:3px'></span><span title='2026-09-29: flat + car digests' style='display:inline-block;width:14px;height:14px;background:#27ae60;margin-right:3px;border-radius:3px'></span><span title='2026-09-30: flat + car digests' style='display:inline-block;width:14px;height:14px;background:#27ae60;margin-right:3px;border-radius:3px'></span><span title='2026-10-01: flat + car digests' style='display:inline-block;width:14px;height:14px;background:#27ae60;margin-right:3px;border-radius:3px'></span><span title='2026-10-02: flat + car digests' style='display:inline-block;width:14px;height:14px;background:#27ae60;margin-right:3px;border-radius:3px'></span><span title='2026-10-03: flat + car digests' style='display:inline-block;width:14px;height:14px;background:#27ae60;margin-right:3px;border-radius:3px'></span><span title='2026-10-04: no scan' style='display:inline-block;width:14px;height:14px;background:#c0392b;margin-right:3px;border-radius:3px'></span><div class='note'>Last 14 days: green = both digests, amber = one source only, red = no scan. Hover a cell for the date.</div></div>
+<div class='card'><span class='cov-cell cov-one' title='2026-09-21: flat digest only'></span><span class='cov-cell cov-one' title='2026-09-22: flat digest only'></span><span class='cov-cell cov-one' title='2026-09-23: flat digest only'></span><span class='cov-cell cov-one' title='2026-09-24: flat digest only'></span><span class='cov-cell cov-one' title='2026-09-25: flat digest only'></span><span class='cov-cell cov-both' title='2026-09-26: flat + car digests'></span><span class='cov-cell cov-both' title='2026-09-27: flat + car digests'></span><span class='cov-cell cov-both' title='2026-09-28: flat + car digests'></span><span class='cov-cell cov-both' title='2026-09-29: flat + car digests'></span><span class='cov-cell cov-both' title='2026-09-30: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-01: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-02: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-03: flat + car digests'></span><span class='cov-cell cov-none' title='2026-10-04: no scan'></span><div class='note'>Last 14 days: green = both digests, amber = one source only, red = no scan. Hover a cell for the date.</div></div>
 <p><a href="index.html">← Back to today's deals</a></p>
-<h2>Flat digests (30 total)</h2>
+<div class='card'><h2>Flat digests (30 total)</h2>
 <table>
-<tr style="background:#f0f0f0"><th style="text-align:left;padding:8px">Date</th><th style="text-align:left;padding:8px">Summary</th></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-10-03.html'>2026-10-03 (latest)</a></td><td style='padding:8px;color:#666'>7 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-10-02.html'>2026-10-02</a></td><td style='padding:8px;color:#666'>5 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-10-01.html'>2026-10-01</a></td><td style='padding:8px;color:#666'>2 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-30.html'>2026-09-30</a></td><td style='padding:8px;color:#666'>1 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-29.html'>2026-09-29</a></td><td style='padding:8px;color:#666'>5 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-28.html'>2026-09-28</a></td><td style='padding:8px;color:#666'>1 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-27.html'>2026-09-27</a></td><td style='padding:8px;color:#666'>2 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-26.html'>2026-09-26</a></td><td style='padding:8px;color:#666'>1 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-25.html'>2026-09-25</a></td><td style='padding:8px;color:#666'>3 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-24.html'>2026-09-24</a></td><td style='padding:8px;color:#666'>2 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-23.html'>2026-09-23</a></td><td style='padding:8px;color:#666'>2 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-22.html'>2026-09-22</a></td><td style='padding:8px;color:#666'></td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-21.html'>2026-09-21</a></td><td style='padding:8px;color:#666'>4 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-20.html'>2026-09-20</a></td><td style='padding:8px;color:#666'>2 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-19.html'>2026-09-19</a></td><td style='padding:8px;color:#666'>1 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-18.html'>2026-09-18</a></td><td style='padding:8px;color:#666'>1 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-17.html'>2026-09-17</a></td><td style='padding:8px;color:#666'>1 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-16.html'>2026-09-16</a></td><td style='padding:8px;color:#666'>2 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-15.html'>2026-09-15</a></td><td style='padding:8px;color:#666'>3 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-14.html'>2026-09-14</a></td><td style='padding:8px;color:#666'>1 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-13.html'>2026-09-13</a></td><td style='padding:8px;color:#666'>4 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-12.html'>2026-09-12</a></td><td style='padding:8px;color:#666'>2 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-11.html'>2026-09-11</a></td><td style='padding:8px;color:#666'>3 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-10.html'>2026-09-10</a></td><td style='padding:8px;color:#666'>2 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-09.html'>2026-09-09</a></td><td style='padding:8px;color:#666'>1 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-08.html'>2026-09-08</a></td><td style='padding:8px;color:#666'></td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-07.html'>2026-09-07</a></td><td style='padding:8px;color:#666'>2 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-06.html'>2026-09-06</a></td><td style='padding:8px;color:#666'>6 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-05.html'>2026-09-05</a></td><td style='padding:8px;color:#666'>2 new/changed</td></tr>
-<tr><td style='padding:8px'><a href='archive/digest_2026-09-04.html'>2026-09-04</a></td><td style='padding:8px;color:#666'>2 new/changed</td></tr>
-</table>
-<h2>Car digests (8 total)</h2>
+<tr><th>Date</th><th>Summary</th></tr>
+<tr><td><b><a href='archive/digest_2026-10-03.html'>2026-10-03 (latest)</a></b></td><td class='note'>7 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-10-02.html'>2026-10-02</a></b></td><td class='note'>5 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-10-01.html'>2026-10-01</a></b></td><td class='note'>2 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-30.html'>2026-09-30</a></b></td><td class='note'>1 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-29.html'>2026-09-29</a></b></td><td class='note'>5 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-28.html'>2026-09-28</a></b></td><td class='note'>1 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-27.html'>2026-09-27</a></b></td><td class='note'>2 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-26.html'>2026-09-26</a></b></td><td class='note'>1 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-25.html'>2026-09-25</a></b></td><td class='note'>3 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-24.html'>2026-09-24</a></b></td><td class='note'>2 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-23.html'>2026-09-23</a></b></td><td class='note'>2 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-22.html'>2026-09-22</a></b></td><td class='note'></td></tr>
+<tr><td><b><a href='archive/digest_2026-09-21.html'>2026-09-21</a></b></td><td class='note'>4 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-20.html'>2026-09-20</a></b></td><td class='note'>2 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-19.html'>2026-09-19</a></b></td><td class='note'>1 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-18.html'>2026-09-18</a></b></td><td class='note'>1 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-17.html'>2026-09-17</a></b></td><td class='note'>1 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-16.html'>2026-09-16</a></b></td><td class='note'>2 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-15.html'>2026-09-15</a></b></td><td class='note'>3 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-14.html'>2026-09-14</a></b></td><td class='note'>1 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-13.html'>2026-09-13</a></b></td><td class='note'>4 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-12.html'>2026-09-12</a></b></td><td class='note'>2 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-11.html'>2026-09-11</a></b></td><td class='note'>3 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-10.html'>2026-09-10</a></b></td><td class='note'>2 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-09.html'>2026-09-09</a></b></td><td class='note'>1 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-08.html'>2026-09-08</a></b></td><td class='note'></td></tr>
+<tr><td><b><a href='archive/digest_2026-09-07.html'>2026-09-07</a></b></td><td class='note'>2 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-06.html'>2026-09-06</a></b></td><td class='note'>6 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-05.html'>2026-09-05</a></b></td><td class='note'>2 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-09-04.html'>2026-09-04</a></b></td><td class='note'>2 new/changed</td></tr>
+</table></div>
+<div class='card'><h2>Car digests (8 total)</h2>
 <table>
-<tr style="background:#f0f0f0"><th style="text-align:left;padding:8px">Date</th><th style="text-align:left;padding:8px">Summary</th></tr>
-<tr><td style='padding:8px'><a href='archive/cars_2026-10-03.html'>2026-10-03 (latest)</a></td><td style='padding:8px;color:#666'>216 qualifying, 125 new · 91 still active</td></tr>
-<tr><td style='padding:8px'><a href='archive/cars_2026-10-02.html'>2026-10-02</a></td><td style='padding:8px;color:#666'>164 qualifying, 110 new · 2 price drop · 52 reappeared</td></tr>
-<tr><td style='padding:8px'><a href='archive/cars_2026-10-01.html'>2026-10-01</a></td><td style='padding:8px;color:#666'>214 qualifying, 20 new · 6 reappeared · 188 still active</td></tr>
-<tr><td style='padding:8px'><a href='archive/cars_2026-09-30.html'>2026-09-30</a></td><td style='padding:8px;color:#666'>243 qualifying, 138 new · 2 price drop · 9 reappeared · 94 still active</td></tr>
-<tr><td style='padding:8px'><a href='archive/cars_2026-09-29.html'>2026-09-29</a></td><td style='padding:8px;color:#666'>236 qualifying</td></tr>
-<tr><td style='padding:8px'><a href='archive/cars_2026-09-28.html'>2026-09-28</a></td><td style='padding:8px;color:#666'>217 qualifying</td></tr>
-<tr><td style='padding:8px'><a href='archive/cars_2026-09-27.html'>2026-09-27</a></td><td style='padding:8px;color:#666'>188 qualifying</td></tr>
-<tr><td style='padding:8px'><a href='archive/cars_2026-09-26.html'>2026-09-26</a></td><td style='padding:8px;color:#666'>173 qualifying</td></tr>
-</table>
+<tr><th>Date</th><th>Summary</th></tr>
+<tr><td><b><a href='archive/cars_2026-10-03.html'>2026-10-03 (latest)</a></b></td><td class='note'>216 qualifying, 125 new · 91 still active</td></tr>
+<tr><td><b><a href='archive/cars_2026-10-02.html'>2026-10-02</a></b></td><td class='note'>164 qualifying, 110 new · 2 price drop · 52 reappeared</td></tr>
+<tr><td><b><a href='archive/cars_2026-10-01.html'>2026-10-01</a></b></td><td class='note'>214 qualifying, 20 new · 6 reappeared · 188 still active</td></tr>
+<tr><td><b><a href='archive/cars_2026-09-30.html'>2026-09-30</a></b></td><td class='note'>243 qualifying, 138 new · 2 price drop · 9 reappeared · 94 still active</td></tr>
+<tr><td><b><a href='archive/cars_2026-09-29.html'>2026-09-29</a></b></td><td class='note'>236 qualifying</td></tr>
+<tr><td><b><a href='archive/cars_2026-09-28.html'>2026-09-28</a></b></td><td class='note'>217 qualifying</td></tr>
+<tr><td><b><a href='archive/cars_2026-09-27.html'>2026-09-27</a></b></td><td class='note'>188 qualifying</td></tr>
+<tr><td><b><a href='archive/cars_2026-09-26.html'>2026-09-26</a></b></td><td class='note'>173 qualifying</td></tr>
+</table></div>
 <hr><p class="note">Generated by Flat_Searcher on 2026-10-04. Digests are kept
 for 30 days.</p>
 </body></html>

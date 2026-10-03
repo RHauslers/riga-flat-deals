@@ -13,14 +13,15 @@ from urllib.parse import urlparse
 
 import config
 import utils
+import web_style
 
 ALLOWED_HOSTS = {"www.ss.com", "ss.com", "pp.lv", "www.pp.lv"}
 
-BADGE_STYLES = {
-    "NEW": "background:#27ae60;color:#fff",
-    "PRICE DROP": "background:#c0392b;color:#fff",
-    "STILL ACTIVE": "background:#7f8c8d;color:#fff",
-    "REAPPEARED": "background:#e67e22;color:#fff",
+BADGE_CLASSES = {
+    "NEW": "b-new",
+    "PRICE DROP": "b-down",
+    "STILL ACTIVE": "b-ended",
+    "REAPPEARED": "b-reg",
 }
 
 
@@ -78,9 +79,7 @@ def _badge_html(key, badges):
     b = badges.get(key)
     if not b:
         return ""
-    style = BADGE_STYLES.get(b, "background:#555;color:#fff")
-    return (f'<span style="{style};padding:2px 6px;border-radius:3px;'
-            f'font-size:11px;font-weight:bold">{_e(b)}</span>')
+    return web_style.badge(_e(b), BADGE_CLASSES.get(b, "b-src"))
 
 
 def _listing_links(l):
@@ -101,7 +100,7 @@ def _comps_html(l):
         thin = False
     if not thin:
         return txt
-    return (f"<span style='color:#a08c00' title='Only {int(n)} comparable "
+    return (f"<span style='color:var(--warn)' title='Only {int(n)} comparable "
             f"ads — the median is less reliable'>{txt}~</span>")
 
 
@@ -116,7 +115,7 @@ def _pool_note(l):
         km = int(round(float(mileage) / 1000))
     except (TypeError, ValueError):
         return ""
-    return (f"<br><span style='color:#777;font-size:11px'>"
+    return (f"<br><span style='color:var(--muted);font-size:11px'>"
             f"pool ~{_e(year)} · ~{km}k km</span>")
 
 
@@ -171,7 +170,7 @@ def _history_html(l, run_date=None):
         bits.append(f'<span title="{tip}">{trail}</span>')
     if not bits:
         return ""
-    return ("<br><span style='color:#777;font-size:12px'>"
+    return ("<br><span style='color:var(--muted);font-size:12px'>"
             + " · ".join(bits) + _sparkline(hist) + "</span>")
 
 
@@ -426,8 +425,8 @@ function __carBudgetInit() {
     svg.style.verticalAlign = '-3px'; svg.style.marginLeft = '4px';
     var pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     pl.setAttribute('points', coords); pl.setAttribute('fill', 'none');
-    pl.setAttribute('stroke', pts[pts.length - 1] < pts[0] ? '#c0392b'
-      : (pts[pts.length - 1] > pts[0] ? '#27ae60' : '#7f8c8d'));
+    pl.setAttribute('stroke', pts[pts.length - 1] < pts[0] ? 'var(--bad)'
+      : (pts[pts.length - 1] > pts[0] ? 'var(--good)' : 'var(--muted)'));
     pl.setAttribute('stroke-width', '1.5');
     svg.appendChild(pl);
     return svg;
@@ -452,7 +451,7 @@ function __carBudgetInit() {
     if (!bits.length) return;
     td.appendChild(document.createElement('br'));
     var s = document.createElement('span');
-    s.style.color = '#777'; s.style.fontSize = '12px';
+    s.style.color = 'var(--muted)'; s.style.fontSize = '12px';
     s.textContent = bits.join(' · ');
     td.appendChild(s);
     var spark = sparkEl(hist);
@@ -511,7 +510,7 @@ function __carBudgetInit() {
     table.id = 'car-custom-table';
     var headers = ['Listing', 'Asking', 'Median ask', 'Comps', 'Discount €', 'Discount %', 'Score'];
     var hr = document.createElement('tr');
-    hr.style.background = '#f0f0f0';
+    hr.style.background = 'var(--line)';
     headers.forEach(function (name, col) {
       var th = document.createElement('th');
       th.className = 'sort-th';
@@ -546,7 +545,7 @@ function __carBudgetInit() {
       td.appendChild(document.createTextNode(r[idx.make] + ' ' + r[idx.model]));
       td.appendChild(document.createElement('br'));
       var spec = document.createElement('span');
-      spec.style.color = '#777';
+      spec.style.color = 'var(--muted)';
       spec.style.fontSize = '12px';
       var parts = [r[idx.year], r[idx.fuel],
         r[idx.engine_l] != null ? r[idx.engine_l] + 'L' : '?L',
@@ -576,7 +575,7 @@ function __carBudgetInit() {
       if (cautions.length) {
         td.appendChild(document.createElement('br'));
         var c = document.createElement('span');
-        c.style.color = '#a04000';
+        c.style.color = 'var(--bad)';
         c.style.fontSize = '12px';
         c.textContent = cautions.join('; ');
         td.appendChild(c);
@@ -588,7 +587,7 @@ function __carBudgetInit() {
       if (item.poolYear != null) {
         medTd.appendChild(document.createElement('br'));
         var pn = document.createElement('span');
-        pn.style.color = '#777';
+        pn.style.color = 'var(--muted)';
         pn.style.fontSize = '11px';
         pn.textContent = 'pool ~' + item.poolYear + ' · ~' +
           Math.round(item.poolMileage / 1000) + 'k km';
@@ -599,7 +598,7 @@ function __carBudgetInit() {
       if (item.comps < cfg.thinPool) {
         compsTd.title = 'Only ' + item.comps + ' comparable ads — ' +
           'the median is less reliable';
-        compsTd.style.color = '#a08c00';
+        compsTd.style.color = 'var(--warn)';
         compsTd.appendChild(document.createTextNode('~'));
       }
       tr.appendChild(compsTd);
@@ -609,7 +608,7 @@ function __carBudgetInit() {
       var scTd = cell(item.score != null ? String(item.score) : '—',
         item.score, false);
       scTd.style.fontWeight = 'bold';
-      if (item.good) scTd.style.color = '#1a7a3a';
+      if (item.good) scTd.style.color = 'var(--good)';
       tr.appendChild(scTd);
       table.appendChild(tr);
     });
@@ -819,7 +818,7 @@ function __carWatchInit() {
       rm.setAttribute('data-key', key);
       rm.title = 'Stop watching';
       rm.textContent = '✕';
-      rm.style.cssText = 'border:0;background:none;color:#c0392b;cursor:pointer;margin-right:6px';
+      rm.style.cssText = 'border:0;background:none;color:var(--bad);cursor:pointer;margin-right:6px';
       td.appendChild(rm);
       var label = w0.label || key;
       var url = (cur && cur[idx.url]) ? cur[idx.url] : (w0.url || '');
@@ -837,27 +836,27 @@ function __carWatchInit() {
       meta.style.fontSize = '12px';
       var delta = null;
       if (cur) {
-        meta.style.color = '#777';
+        meta.style.color = 'var(--muted)';
         meta.textContent = ' — ' + fmtEur(cur[idx.price_eur]) +
           ' · still listed today';
         var p0 = Number(w0.price), p1 = Number(cur[idx.price_eur]);
         if (isFinite(p0) && isFinite(p1) && Math.abs(p1 - p0) >= 1) {
           delta = document.createElement('span');
-          delta.style.color = p1 < p0 ? '#1a7a3a' : '#c0392b';
+          delta.style.color = p1 < p0 ? 'var(--good)' : 'var(--bad)';
           delta.style.fontWeight = 'bold';
           delta.style.fontSize = '12px';
           delta.textContent = ' ' + (p1 < p0 ? '▼' : '▲') + ' ' +
             fmtEur(Math.abs(p1 - p0)) + ' since starred';
         }
       } else {
-        meta.style.color = '#c0392b';
+        meta.style.color = 'var(--bad)';
         meta.textContent = ' — last seen ' + fmtEur(w0.price) +
           ' · NO LONGER LISTED (sold or expired)';
       }
       td.appendChild(meta);
       if (delta) td.appendChild(delta);
       var since = document.createElement('span');
-      since.style.color = '#aaa';
+      since.style.color = 'var(--faint)';
       since.style.fontSize = '11px';
       since.textContent = ' · watching since ' + (w0.added || '?');
       td.appendChild(since);
@@ -914,7 +913,7 @@ def _row(l, badges):
         cautions.append("Older car — inspect carefully")
     caution_html = ""
     if cautions:
-        caution_html = ("<br><span style='color:#a04000;font-size:12px'>"
+        caution_html = ("<br><span style='color:var(--bad);font-size:12px'>"
                         f"{_e('; '.join(cautions))}</span>")
     sort_model = html.escape(
         f"{l.get('make') or ''} {l.get('model') or ''}".strip(), quote=True)
@@ -928,7 +927,7 @@ def _row(l, badges):
         f"title='Watch this listing'>☆</button> ")
     cells = [
         f"<td style='padding:6px' data-sort='{sort_model}'>{star}{_e(title)}<br>"
-        f"<span style='color:#777;font-size:12px'>{_e(l.get('make'))} {_e(l.get('model'))} — {_spec_text(l)}</span><br>"
+        f"<span style='color:var(--muted);font-size:12px'>{_e(l.get('make'))} {_e(l.get('model'))} — {_spec_text(l)}</span><br>"
         f"{_badge_html(key, badges)} {_listing_links(l)}{caution_html}"
         f"{_history_html(l)}</td>",
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('price_eur'))}'><b>{_fmt_eur(l.get('price_eur'))}</b></td>",
@@ -955,7 +954,7 @@ def _gone_html(gone, seen, run_date):
         today_d = date.today()
     rows = []
     for i, r in enumerate(gone):
-        zebra = " style='background:#fafafa'" if i % 2 else ""
+        zebra = " class='z'" if i % 2 else ""
         entry = seen.get(r.get("k")) or {}
         days = utils.days_since(entry.get("first_seen"), today_d)
         tracked = f"{days} d" if days is not None else "?"
@@ -970,22 +969,22 @@ def _gone_html(gone, seen, run_date):
             f"<td style='padding:6px'>{label or '—'}</td>"
             f"<td style='padding:6px;text-align:right;font-weight:bold'>"
             f"{_fmt_eur(r.get('p'))}</td>"
-            f"<td style='padding:6px;text-align:right;color:#666'>"
+            f"<td style='padding:6px;text-align:right;color:var(--muted)'>"
             f"{tracked}</td>"
-            f"<td style='padding:6px;font-size:12px;color:#999'>"
+            f"<td style='padding:6px;font-size:12px;color:var(--faint)'>"
             f"{_e(r.get('k', '').split(':', 1)[0])}</td>"
             f"<td style='padding:6px'>{link}</td></tr>")
     return (
-        "<div class='box' style='background:#fdf6ec;border-color:#e8d9b8'>"
+        "<div class='box' style='background:var(--warn-bg);border-color:var(--warn-line)'>"
         f"<b>Gone since yesterday ({len(gone)})</b> — ads that were live "
         "yesterday but are no longer listed (usually sold or withdrawn). "
         "'Tracked' is how long our scan had seen the ad."
-        f"<table><tr style='background:#f0e6d2'>"
+        f"<div class='scroll-x'><table><tr>"
         "<th style='text-align:left;padding:6px'>Car</th>"
         "<th style='text-align:right;padding:6px'>Last ask</th>"
         "<th style='text-align:right;padding:6px'>Tracked</th>"
         "<th style='padding:6px'>Source</th><th style='padding:6px'>Link</th>"
-        f"</tr>{''.join(rows)}</table></div>")
+        f"</tr>{''.join(rows)}</table></div></div>")
 
 
 def _coverage_html(source_counts, source_errors):
@@ -999,9 +998,9 @@ def _coverage_html(source_counts, source_errors):
     if source_errors:
         items = "".join(f"<li><b>{_e(src)}</b>: {_e(msg)}</li>"
                         for src, msg in source_errors.items())
-        err = (f"<div style='background:#fdecea;border:1px solid #c0392b;"
-               f"padding:10px 14px;margin:12px 0'>"
-               f"<b>Warning: source outage — coverage is incomplete:</b><ul>{items}</ul></div>")
+        err = ("<div class='warn'>"
+               "<b>Warning: source outage — coverage is incomplete:</b>"
+               f"<ul>{items}</ul></div>")
     reasons = ""
     drop = (source_counts or {}).get("_drop_reasons")
     if drop:
@@ -1023,7 +1022,7 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
 
     if both_failed:
         top_html = (
-            "<h2 style='color:#c0392b'>Warning: no current data — both sources failed</h2>"
+            "<h2 style='color:var(--bad)'>Warning: no current data — both sources failed</h2>"
             "<p>Today's car scan could not reach either source, so there is "
             "<b>no fresh data</b> in this digest. This page is generated for "
             f"{_e(run_date)} and intentionally shows no listings rather than "
@@ -1051,10 +1050,11 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             f"{badge_line}"
             "<p class='note'>Click a column header to sort; click again to "
             "reverse. Ranking below is the default (score, then savings). "
-            f"A Comps value with <b style='color:#a08c00'>~</b> means fewer "
+            f"A Comps value with <b style='color:var(--warn)'>~</b> means fewer "
             f"than {_e(config.CAR_THIN_POOL_COMPS)} comparable ads — the "
             "median for that row is less reliable.</p>"
-            "<table id='car-deals'><tr style='background:#f0f0f0'>"
+            "<div class='card'><div class='scroll-x'>"
+            "<table id='car-deals'><tr>"
             "<th class='sort-th' style='text-align:left;padding:6px' onclick=\"sortTable('car-deals', 0)\">Listing</th>"
             "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 1)\">Asking</th>"
             "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 2)\">Median ask</th>"
@@ -1062,7 +1062,7 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 4)\">Discount €</th>"
             "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 5)\">Discount %</th>"
             "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 6)\">Score</th></tr>"
-            f"{rows}</table>")
+            f"{rows}</table></div></div>")
 
     # The custom-budget tool: embed today's full market snapshot and let the
     # browser re-rank for any budget in [min, compMax]. Without market data
@@ -1079,40 +1079,37 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "<b>Your budget:</b> "
             f"<input type='number' id='car-budget-input' min='{config.CAR_MIN_PRICE_EUR}' "
             f"max='{config.CAR_COMPARABLE_MAX_PRICE_EUR}' step='100' placeholder='e.g. 3500' "
-            "style='padding:6px 8px;border:1px solid #b8c4cf;border-radius:4px;"
-            "font-size:14px;width:110px'> "
-            "<button type='button' id='car-budget-ok' style='padding:6px 10px;"
-            "border:0;border-radius:4px;background:#2874a6;color:#fff;cursor:pointer;"
-            "font-weight:bold'>OK</button> "
-            "<button type='button' id='car-budget-reset' style='padding:6px 10px;"
-            "border:0;border-radius:4px;background:#e7edf2;cursor:pointer;"
-            "font-weight:bold'>Reset</button> "
+            "style='width:110px'> "
+            "<button type='button' id='car-budget-ok' "
+            "style='background:var(--accent);color:#fff;border-color:var(--accent);"
+            "font-weight:600'>OK</button> "
+            "<button type='button' id='car-budget-reset'>Reset</button> "
             "<span class='note' id='car-budget-status'></span>"
             "<div style='margin-top:8px;font-size:14px'>"
             "<b>Filters:</b> "
             "<select id='car-filter-make' style='padding:5px;border:1px solid "
-            "#b8c4cf;border-radius:4px'><option value=''>Any make</option></select> "
+            "var(--line2);border-radius:4px'><option value=''>Any make</option></select> "
             "<input type='text' id='car-filter-model' placeholder='model' "
-            "style='padding:5px;border:1px solid #b8c4cf;border-radius:4px;"
+            "style='padding:5px;border:1px solid var(--line2);border-radius:4px;"
             "width:95px'> "
             "<select id='car-filter-fuel' style='padding:5px;border:1px solid "
-            "#b8c4cf;border-radius:4px'><option value=''>Any fuel</option>"
+            "var(--line2);border-radius:4px'><option value=''>Any fuel</option>"
             "<option value='petrol'>petrol</option><option value='diesel'>diesel</option>"
             "<option value='hybrid'>hybrid</option><option value='electric'>electric</option>"
             "<option value='lpg'>lpg</option></select> "
             "<select id='car-filter-gearbox' style='padding:5px;border:1px solid "
-            "#b8c4cf;border-radius:4px'><option value=''>Any gearbox</option>"
+            "var(--line2);border-radius:4px'><option value=''>Any gearbox</option>"
             "<option value='manual'>manual</option>"
             "<option value='automatic'>automatic</option></select> "
             "<input type='number' id='car-filter-year' placeholder='min year' "
             f"min='{config.CAR_MIN_YEAR}' style='padding:5px;border:1px solid "
-            "#b8c4cf;border-radius:4px;width:85px'> "
+            "var(--line2);border-radius:4px;width:85px'> "
             "<input type='number' id='car-filter-km' placeholder='max km' "
             "min='0' step='10000' style='padding:5px;border:1px solid "
-            "#b8c4cf;border-radius:4px;width:105px'> "
+            "var(--line2);border-radius:4px;width:105px'> "
             "<input type='number' id='car-filter-min' placeholder='min €' "
             f"min='{config.CAR_MIN_PRICE_EUR}' step='500' style='padding:5px;"
-            "border:1px solid #b8c4cf;border-radius:4px;width:80px'>"
+            "border:1px solid var(--line2);border-radius:4px;width:80px'>"
             "</div>"
             "<p class='note' style='margin:6px 0 0'>Enter a maximum price "
             f"(from €{config.CAR_MIN_PRICE_EUR:,} up — the whole plausible "
@@ -1147,30 +1144,23 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
 
     gone_html = _gone_html(gone, seen, run_date)
 
+    # KPI chips — qualifying / gone / health at a glance.
+    kpi_bits = [web_style.kpi("qualifying", len(qualified))]
+    n_new = sum(1 for b in badges.values() if b == "NEW")
+    if n_new:
+        kpi_bits.append(web_style.kpi("new", n_new, "good"))
+    if gone:
+        kpi_bits.append(web_style.kpi("gone", len(gone), "warn"))
+    if source_errors:
+        kpi_bits.append(web_style.kpi("errors", len(source_errors), "bad"))
+    kpi_html = f"<div class='kpis'>{''.join(kpi_bits)}</div>"
+
+    _STYLE = web_style.style_block()
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga car deals — {_e(run_date)}</title>
-<style>
-body{{font-family:Arial,sans-serif;color:#222;max-width:960px;margin:0 auto;padding:20px}}
-h1{{color:#1a5276}}h2{{color:#2874a6;margin-top:28px}}
-table{{width:100%;border-collapse:collapse;font-size:14px}}
-td,th{{border-bottom:1px solid #eee}}
-a{{color:#2874a6;text-decoration:none}}a:hover{{text-decoration:underline}}
-.note{{color:#777;font-size:13px}}
-.box{{background:#f7f9fb;border:1px solid #dbe4ea;padding:10px 14px;margin:12px 0}}
-th{{user-select:none;cursor:default;position:relative}}
-th.sort-th{{cursor:pointer}}
-th.sort-th:hover{{background:#e8e8e8}}
-th.sort-th::after{{content:"\\21C5";font-size:10px;color:#bbb;margin-left:4px;opacity:0}}
-th.sort-th:hover::after{{opacity:1}}
-th.sort-asc::after{{content:"\\2191";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
-th.sort-desc::after{{content:"\\2193";font-size:10px;color:#1a5276;margin-left:4px;opacity:1}}
-th{{position:sticky;top:0;background:#f0f0f0;z-index:1}}
-tr:hover td{{background:#f6f9fc}}
-.watch-star{{cursor:pointer;border:0;background:none;font-size:15px;color:#b8a03c;padding:0 2px}}
-.watch-star:hover{{color:#d4a017}}
-</style>
+{_STYLE}
 <script>
 // Click-to-sort table headers (same mechanism as the flats digest):
 // first click sorts ascending, second click reverses. Numeric columns use
@@ -1214,6 +1204,7 @@ scan of up to {_e(config.CAR_SS_MAX_MODELS)} model pages (newest
 observed ad volume — no model is favoured); pp.lv: newest
 {_e(config.CAR_PP_MAX_PAGES)} pages. This is <b>not</b> an exhaustive scan
 of either site.</p>
+{kpi_html}
 {budget_html}
 {error_html}
 {drop_html}

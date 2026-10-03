@@ -1,11 +1,27 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-04 00:19
+Last updated: 2026-10-04 00:49
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
 
+- 2026-10-04 00:49 — /iterate 10 session (5th): full visual overhaul —
+  new shared design system in web_style.py (BASE_CSS with CSS custom
+  properties, automatic dark mode via prefers-color-scheme, system-ui
+  font stack, card/kpi/badge/nav class kit) adopted by notifier,
+  car_digest, car_market and website; ~180 inline hex colors replaced
+  with var(--token) so every page themes from one palette; all status
+  badges are now rounded .badge pills (NEW/PRICE DROP/REAPPEARED/ENDS/
+  REG/ENDED/SHARE/also-on/cheaper); deal tables sit in .card panels
+  with .scroll-x mobile wrappers, hairline borders, sticky uppercase
+  headers, tabular numerals and zebra via tr.z; KPI chip rows on both
+  digests (n_gone plumbed through save_digest); site nav is pill-style
+  with a self-contained fallback stylesheet so injected nav still
+  looks right on pre-overhaul archived pages; archive page rebuilt as
+  cards with .cov-cell coverage strip; a11y pass (focus-visible,
+  prefers-reduced-motion, details markers, styled form controls);
+  sparkline SVGs follow the theme. 172 tests.
 - 2026-10-04 00:19 — /iterate 5 session (4th): scraper errors now
   reach the outage banner with real reasons — city24 re-raises scrape
   failures (was: silent [] -> vague "0 listings"), izsoles counts
@@ -79,6 +95,65 @@ Living document. Updated after each Devin session. Read this first.
   distance marker. 102 tests. Details in the session section below.
 - (earlier sessions predate the changelog — see the dated session
   sections below, newest first)
+
+## Session 2026-10-04 — /iterate 10 (modern GUI overhaul)
+
+User ran `/iterate 10` with "Change GUI html look to much more modern
+look". All 10 items form one design-system rollout:
+
+1. **`web_style.py` (new)** — `BASE_CSS`: CSS custom-property tokens
+   (light + `prefers-color-scheme: dark` palettes filled from Python
+   constants via `style_block()`, longest-key-first so L_LINE2 resolves
+   before L_LINE), system-ui stack, borderless hairline tables with
+   sticky uppercase th + tabular-nums + tr.z zebra + hover, `.card`
+   panels with radius+shadow, `.info/.warn/.amber/.card.err` status
+   boxes, `.kpi` chips, `.badge.b-*` pills, `.site-nav` pills,
+   `.cov-cell`, `.watch-star`, details ▸ markers, focus-visible +
+   reduced-motion + media queries, `.scroll-x` overflow wrapper.
+   `NAV_CSS` = standalone fallback-ful nav rules (`var(--x,#fallback)`)
+   so nav looks right even on legacy archived pages without :root vars.
+   Helpers: `badge(text,cls)`, `kpi(label,value,cls)`.
+2. **notifier.py** — `<style>` → `{_STYLE}` (web_style.style_block());
+   ~140 style attrs tokenized (hex→var(--*)), 6 section divs →
+   `class="card"`, warn/info/amber boxes → classes, zebra → `tr.z`,
+   `_BADGE_HTML` + auction NEW/ENDS/REG/ENDED/SHARE/bid-delta +
+   `(also on)`/`(−€X)` → `.badge` pills, `_change_color` → tokens,
+   map-link colors → vars, JS watchlist colors → vars.
+3. **car_digest.py** — same; `BADGE_STYLES` dict → `BADGE_CLASSES`;
+   `car-deals` table wrapped `.card>.scroll-x`; budget/filter inputs
+   lean on global `input,select,button` rules; JS color assignments →
+   `var(--*)` (el.style.color accepts var()).
+4. **car_market/flat_market** — market.html page gets `style_block(
+   _MTAB_CSS)`; `.mtab` pills; delta colors → tokens; zebra → tr.z.
+5. **Badge pills** — see 2/3. Test asserting `ENDED</b>` updated to the
+   span (text preserved).
+6. **KPI chips** — flat: deals/auctions/gone/health-issues (new
+   `n_gone` kwarg through `save_digest`, main passes `len(gone_rows)`);
+   car: qualifying/new/gone/errors.
+7. **Tables** — `border:1px solid #ddd` grid → hairline `border-bottom`
+   rows; `td,th{padding:5px}` → roomier CSS; uppercase 11px sticky
+   headers; `tabular-nums` on all td.
+8. **Mobile** — `.scroll-x` wraps all wide tables (main, still-active,
+   newest, near-school, gone, auctions, car-deals, car-gone);
+   `@media(max-width:720px)` shrinks padding/type.
+9. **Archive facelift** — coverage strip inside a `.card` with
+   `.cov-cell` classes, digest tables in `.card`s, dates bolded,
+   `(today)/(latest)` text kept (tests assert it).
+10. **A11y/polish** — see 1; `utils.sparkline_svg` strokes now
+    `var(--good/--bad/--muted)` (var() works in SVG presentation attrs).
+
+Gotchas found: `(today)/(latest)` archive labels are test-asserted —
+kept as text, not badge pills; `id='{tid}'` needed a trailing space
+before `data-sortable` after the scroll-x wrap (malformed attr merge —
+caught in test output); legacy archived digests keep their era's CSS
+but get styled nav via NAV_CSS fallbacks.
+
+Tests: **172 unittest** (same count — one markup assertion updated).
+
+Files touched: web_style.py (new), notifier.py, car_digest.py,
+car_market.py, flat_market.py, website.py, utils.py, main.py,
+tests/test_flats_pipeline.py. Live preview served from %TEMP%\preview
+(http.server :8642) during the session.
 
 ## Session 2026-10-04 — /iterate 5 #3 (error propagation, cheaper-alt, 429 retry, audit v2, README)
 

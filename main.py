@@ -367,7 +367,8 @@ def run():
                                        n_auctions=(len(auctions)
                                                    if config.IZSOLES_ENABLED
                                                    else None),
-                                       auctions_failed=auctions_failed)
+                                       auctions_failed=auctions_failed,
+                                       n_gone=len(gone_rows))
 
     # 8. Build hosted site (latest digest -> docs/index.html + archive)
     website.build()

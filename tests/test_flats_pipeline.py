@@ -1023,7 +1023,7 @@ class TestAuctionEndedLabel(unittest.TestCase):
                 "title": "Live auc", "price_eur": 1,
                 "auction_start_price": 1, "auction_end": "2099-01-01"}
         html = notifier.build_auctions_html([live, self._ended()])
-        self.assertIn("ENDED</b>", html)
+        self.assertIn(">ENDED</span>", html)
         self.assertLess(html.index("Live auc"), html.index("Over auc"))
         self.assertNotIn("ending", html.split("State & bailiff auctions")[1]
                          [:200])  # no "N ending ≤3d" for an ended row
