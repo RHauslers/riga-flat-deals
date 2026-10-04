@@ -8,7 +8,9 @@ Compliance notes:
   - Seller ads only: we scrape /sell/ listing pages and additionally skip
     rows whose title starts with a want-to-buy/exchange/rent word.
   - We fetch only list pages — never ad detail pages, phone numbers or
-    images. On HTTP 403/429 we stop immediately without retrying.
+    images. 429/5xx get one bounded retry honoring Retry-After (same
+    policy as the flat ss.com scraper); a still-blocked 403/429 then
+    aborts the whole scrape via SourceBlocked.
 
 Row structure (verified):
   Each listing is <tr id="tr_{numeric_id}">. The title link is
@@ -56,7 +58,7 @@ BODY_PATTERNS = (
     (re.compile(r"\bpikap\w*\b", re.I), "pickup"),
 )
 
-_last_request_ts = [0.0]
+_last_request_ts = 0.0
 
 
 class SourceBlocked(RuntimeError):
@@ -66,9 +68,10 @@ class SourceBlocked(RuntimeError):
 def _fetch(url):
     """Rate-limited GET. Connection/timeout errors retry a couple of times
     (usually transient); 403/429 still abort the scrape immediately."""
+    global _last_request_ts
     last = None
     for attempt in range(config.REQUEST_RETRIES + 1):
-        elapsed = time.monotonic() - _last_request_ts[0]
+        elapsed = time.monotonic() - _last_request_ts
         wait = max(1.0, config.CAR_SS_REQUEST_DELAY_SECONDS) - elapsed
         if wait > 0:
             time.sleep(wait)
@@ -81,11 +84,23 @@ def _fetch(url):
             )
         except (requests.ConnectionError, requests.Timeout) as e:
             last = e
-            _last_request_ts[0] = time.monotonic()
+            _last_request_ts = time.monotonic()
             if attempt < config.REQUEST_RETRIES:
                 time.sleep(config.REQUEST_RETRY_DELAY_SECONDS)
             continue
-        _last_request_ts[0] = time.monotonic()
+        # 429/5xx get one bounded retry honoring Retry-After before we
+        # declare the source blocked — same policy as the flat scraper on
+        # the same site (ss_com._fetch); 403 still aborts at once.
+        if (r.status_code in config.SS_COM_RETRY_STATUS
+                and attempt < config.REQUEST_RETRIES):
+            wait = utils.retry_after_seconds(r) or \
+                config.REQUEST_RETRY_DELAY_SECONDS * (attempt + 2)
+            print(f"[car ss.com] {r.status_code} on {url} — "
+                  f"retrying in {wait:.0f}s")
+            _last_request_ts = time.monotonic()
+            time.sleep(wait)
+            continue
+        _last_request_ts = time.monotonic()
         if r.status_code in (403, 429):
             raise SourceBlocked(f"HTTP {r.status_code} for {url}")
         r.encoding = "utf-8"

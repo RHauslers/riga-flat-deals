@@ -54,7 +54,7 @@ def eligible(listing, max_price=None):
             and config.CAR_MIN_YEAR <= year <= date.today().year + 1
             and mileage is not None and 0 <= mileage <= config.CAR_MAX_MILEAGE_KM
             and bool(listing.get("make")) and bool(listing.get("model"))
-            and listing.get("fuel") in ("petrol", "diesel", "hybrid", "electric", "lpg")
+            and listing.get("fuel") in config.CAR_FUEL_TYPES
             and (listing.get("fuel") == "electric" or (engine is not None and engine > 0)))
 
 

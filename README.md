@@ -16,10 +16,25 @@ publishes the result as a static site on GitHub Pages:
   sparkline), price sparklines on each flat row, auction countdown and
   registration-deadline badges plus NEW / bid-movement markers, and a
   "recently gone" section for sold/delisted flats, cars and ended auctions.
+- **Motivated sellers** — every row shows a `−€X` chip on a real asking-price
+  cut and an amber `MOTIVATED` pill when a cut combines with staleness or
+  repeated cutting (flats: drop ≥ €4,000 plus ≥45 days on market / ≥3
+  relistings / ≥2 observed cuts; cars: drop ≥ €400 plus ≥30 days seen / ≥2
+  cuts). `LOWEST SEEN` marks a flat at its cheapest observed price, and a
+  purple `RELISTED` chip flags a flat withdrawn and reposted within ~30
+  days (matched by street + district + rooms + area). Both digests end
+  with a "Biggest price cuts" card covering the entire scanned pool, not
+  just the top-N deals.
+- **Market context** — flat rows show `−X% vs district` when the listing's
+  €/m² undercuts the district median ≥10%; auction rows compare against
+  the city median and flag lots with no bids yet; the market page's flats
+  tab adds per-district median days-on-market and % of ads with a cut.
 - **Archive** — the last 30 days of both digests. Archived digest pages have
   the large embedded market JSON stripped (the budget tool is a live-page
   feature); tables and gone sections stay intact. The archive index also
   shows a 14-day coverage strip so missed runs are visible at a glance.
+  Hosted digests get previous/next-day links; every page has a dark-mode
+  toggle (OS preference by default, persisted in localStorage).
 
 Website only: the pipeline runs once each morning via the scheduled GitHub
 Actions job, and the site holds no credentials.
@@ -46,13 +61,16 @@ State lives in the repo so it survives between runs:
 | `data/car_seen.json` | car badges + gone tracking — v2 compact format (`v2` keys, epoch days); v1 files migrate on read |
 | `data/car_market_snapshot.json` | frozen comparable pool — v2 columnar format (`{v, date, fields, rows}`); v1 files migrate on read |
 | `data/car_market_stats.json`, `data/flat_market_stats.json` | per-model / per-district market stats behind the Market page and the browser-side budget scorer |
-| `data/flat_active.json` | yesterday's live flat + auction ads for gone/ended detection |
+| `data/flat_active.json` | yesterday's live flat + auction ads for gone/ended detection + `recent_gone` relist-matching pool |
+| `data/health_state.json` | consecutive per-source outage streaks behind the digest health banners |
 | `data/digests/` → `docs/` | generated HTML; pruned after `ARCHIVE_KEEP_DAYS` |
 
 `helper_scripts/compact_state.py` backs up and rewrites the legacy v1 state
 files to the v2 formats (safe to run repeatedly; v1 files also migrate
 transparently on first read). `helper_scripts/backfill_flat_market.py`
-seeds `flat_market_history.json` from `history.csv`, and
+seeds `flat_market_history.json` from `history.csv`,
+`helper_scripts/backfill_car_market.py` does the same for cars from the
+archived car-digest embeds, and
 `helper_scripts/audit_data.py` prints a health report over every state
 file (including lock leftovers, series ordering and digest embeds). All
 JSON state writes go through an atomic tmp+replace, so a crash mid-write

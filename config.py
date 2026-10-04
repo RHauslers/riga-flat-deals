@@ -31,6 +31,9 @@ REQUEST_RETRY_DELAY_SECONDS = 10
 SS_COM_RETRY_STATUS = (429, 500, 502, 503, 504)
 CAR_MIN_YEAR = 2005
 CAR_MAX_MILEAGE_KM = 400000
+# Fuel values a listing must carry to be eligible — checked by both
+# car_value.eligible() and cars._ineligible_reason().
+CAR_FUEL_TYPES = ("petrol", "diesel", "hybrid", "electric", "lpg")
 CAR_HIGH_MILEAGE_WARNING_KM = 300000
 CAR_AGE_WARNING_YEARS = 15
 CAR_MIN_PRICE_EUR = 1000
@@ -341,6 +344,19 @@ MAIN_LOCK_FILE = os.path.join(DATA_DIR, ".main.lock")
 MAIN_LOCK_STALE_HOURS = 4
 GONE_MAX_ROWS = 25    # flats "Disappeared" section cap
 CAR_GONE_MAX_ROWS = 20  # cars "Gone since yesterday" section cap
+# Gone-spike guardrail: when more than GONE_SPIKE_PCT % of yesterday's live
+# ads (and at least GONE_SPIKE_MIN) vanish overnight, a partially-failed
+# scrape is far more likely than a sales wave — flag it on the banner
+# instead of letting the gone list pass as real.
+GONE_SPIKE_PCT = 25
+GONE_SPIKE_MIN = 15
+# "Relisted" detection: a new listing is matched against ads that went
+# gone within this window (same district+street+rooms, area within
+# GONE_RELIST_AREA_DIFF_M2). Sellers who withdraw and repost — usually at
+# a cut — are a motivated-seller signal.
+GONE_RELIST_DAYS = 30
+GONE_RELIST_AREA_DIFF_M2 = 3.0
+HEALTH_STATE_JSON = os.path.join(DATA_DIR, "health_state.json")
 # seen_deals.json entries not re-shown for this many days are pruned — the
 # dict otherwise grows forever (2026-10-03: was a listed known issue).
 SEEN_DEALS_TTL_DAYS = 60

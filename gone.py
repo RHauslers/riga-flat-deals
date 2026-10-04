@@ -12,18 +12,18 @@ Rows are only reported for sources that produced data today — a scraper
 returning nothing might just have failed, and calling every one of its
 ads 'gone' would be noise (or wrong).
 """
-
-
-def listing_key(l):
-    return f"{l.get('source')}:{l.get('id')}"
+import config
+import utils
 
 
 def flat_active_rows(listings):
-    """Compact snapshot of today's live flat ads: {k, p, d, s, u} =
-    key, price, district, street (fallback title), url."""
+    """Compact snapshot of today's live flat ads: {k, p, d, s, u, r, a} =
+    key, price, district, street (fallback title), url, rooms, area_m2.
+    r/a feed the RELISTED match — a flat reposted under a new id keeps
+    the same district+street+rooms and an almost identical area."""
     rows = []
     for l in listings or []:
-        key = listing_key(l)
+        key = utils.listing_key(l)
         if not l.get("source") or not l.get("id"):
             continue
         rows.append({
@@ -32,6 +32,8 @@ def flat_active_rows(listings):
             "d": l.get("district") or "",
             "s": l.get("street") or l.get("title") or "",
             "u": l.get("url") or "",
+            "r": l.get("rooms"),
+            "a": l.get("area_m2"),
         })
     return rows
 
@@ -43,7 +45,7 @@ def car_snapshot_rows(listings):
         if not l.get("source") or not l.get("id"):
             continue
         rows.append({
-            "k": listing_key(l),
+            "k": utils.listing_key(l),
             "p": l.get("price_eur"),
             "mk": l.get("make") or "",
             "mo": l.get("model") or "",
@@ -72,4 +74,92 @@ def gone_rows(prev_rows, today_keys, ok_sources, max_rows):
         out.append(r)
         if len(out) >= max_rows:
             break
+    return out
+
+
+# ---------------------------------------------------------------------------
+# RELISTED — ads that vanished and came back under a new ad id. Sellers who
+# withdraw and repost (usually after a cut) are a motivated-seller signal.
+# recent_gone survives inside flat_active.json for GONE_RELIST_DAYS days.
+# ---------------------------------------------------------------------------
+
+_RECENT_GONE_CAP = 400
+
+
+def recent_gone_rows(prev_recent, gone_today, today, live_rows=None):
+    """Updated persistent gone list for flat_active.json['recent_gone'].
+
+    prev_recent: yesterday's stored list ({k,p,d,s,u,r,a,gone} dicts);
+    entries older than GONE_RELIST_DAYS or whose key is live again are
+    dropped. gone_today: today's gone_rows() output, stamped 'gone': today
+    and deduped against what is already stored (a relist detected later
+    rewrites the old entry's date — the LATEST disappearance is what
+    matters). live_rows: today's snapshot — keys that came back are
+    purged so a reactivated ad id is not reported as relisted."""
+    live_keys = {r.get("k") for r in (live_rows or [])}
+    kept = []
+    for r in prev_recent or []:
+        k = r.get("k")
+        if not k or k in live_keys:
+            continue
+        if utils.days_since(r.get("gone")) is None or \
+                utils.days_since(r.get("gone")) > config.GONE_RELIST_DAYS:
+            continue
+        kept.append(r)
+    new_keys = {r.get("k") for r in kept}
+    for r in gone_today or []:
+        k = r.get("k")
+        if not k or k in live_keys:
+            continue
+        if k in new_keys:
+            for old in kept:
+                if old.get("k") == k:
+                    old["gone"] = today  # re-gone: freshest date wins
+            continue
+        row = dict(r)
+        row["gone"] = today
+        kept.append(row)
+        new_keys.add(k)
+    return kept[-_RECENT_GONE_CAP:]
+
+
+def _norm_street(s):
+    return " ".join(utils.strip_diacritics(s or "").lower().split())
+
+
+def _same_flat(l, gone_row):
+    """Same physical flat under a different ad id: identical district +
+    normalised street + equal rooms, and — when both carry an area —
+    within GONE_RELIST_AREA_DIFF_M2. When area is missing on either side
+    the price must additionally be within 15% (weak-signal compensator).
+    """
+    if (l.get("district") or "") != (gone_row.get("d") or ""):
+        return False
+    ls, gs = l.get("street") or l.get("title"), gone_row.get("s")
+    if not ls or not gs or _norm_street(ls) != _norm_street(gs):
+        return False
+    lr, gr = utils.to_int(l.get("rooms")), utils.to_int(gone_row.get("r"))
+    if lr is None or gr is None or lr != gr:
+        return False
+    la, ga = utils.to_float(l.get("area_m2")), utils.to_float(gone_row.get("a"))
+    if la is not None and ga is not None:
+        return abs(la - ga) <= config.GONE_RELIST_AREA_DIFF_M2
+    lp, gp = utils.to_float(l.get("price_eur")), utils.to_float(gone_row.get("p"))
+    if lp is None or gp is None or gp <= 0:
+        return False
+    return abs(lp - gp) / gp <= 0.15
+
+
+def find_relisted(listings, prev_active_keys, recent_gone):
+    """{listing_key: gone_row} for live listings whose key was NOT live
+    yesterday but which match a recently-gone ad — i.e. reposted flats."""
+    out = {}
+    for l in listings or []:
+        key = utils.listing_key(l)
+        if not key or key in (prev_active_keys or ()):
+            continue
+        for r in recent_gone or []:
+            if _same_flat(l, r):
+                out[key] = r
+                break
     return out

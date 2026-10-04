@@ -63,6 +63,14 @@ jobs:
         run: |
           python -X utf8 -m main
 
+      - name: Audit persisted state (non-blocking)
+        # Read-only report over data/ — stale locks, out-of-order market
+        # histories, missing embeds, unpruned entries. Warnings land in
+        # the Actions log; || true keeps a data smell from failing the run.
+        continue-on-error: true
+        run: |
+          python -X utf8 helper_scripts/audit_data.py || true
+
       - name: Commit persisted state (rebase-safe)
         run: |
           set -e

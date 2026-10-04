@@ -92,6 +92,31 @@ BASE_CSS = """
     --shadow:0 1px 2px rgba(0,0,0,.35);
   }
 }
+/* Manual override: a data-theme attr on <html> beats the OS preference
+   (specificity :root[attr] > :root inside the media query). The light
+   override must re-declare the tokens or a dark-OS user could never
+   switch back. */
+:root[data-theme="dark"]{
+  --bg:D_BG; --card:D_CARD; --fg:D_FG; --muted:D_MUTED; --faint:D_FAINT;
+  --line:D_LINE; --line2:D_LINE2; --th-bg:D_THBG; --row-alt:D_ROWALT;
+  --hover:D_HOVER; --link:D_LINK; --accent:D_ACCENT;
+  --good:D_GOOD; --good-bg:D_GOODBG; --bad:D_BAD; --bad-bg:D_BADBG;
+  --warn:D_WARN; --warn-bg:D_WARNBG; --warn-line:D_WARNLINE;
+  --info-bg:D_INFOBG; --info-line:D_INFOLINE;
+  --auction:D_AUCTION; --star:D_STAR; --badge-bg:D_BADGEBG;
+  --shadow:0 1px 2px rgba(0,0,0,.35);
+}
+:root[data-theme="light"]{
+  --bg:L_BG; --card:L_CARD; --fg:L_FG; --muted:L_MUTED; --faint:L_FAINT;
+  --line:L_LINE; --line2:L_LINE2; --th-bg:L_THBG; --row-alt:L_ROWALT;
+  --hover:L_HOVER; --link:L_LINK; --accent:L_ACCENT;
+  --good:L_GOOD; --good-bg:L_GOODBG; --bad:L_BAD; --bad-bg:L_BADBG;
+  --warn:L_WARN; --warn-bg:L_WARNBG; --warn-line:L_WARNLINE;
+  --info-bg:L_INFOBG; --info-line:L_INFOLINE;
+  --auction:L_AUCTION; --star:L_STAR; --badge-bg:L_BADGEBG;
+  --radius:10px; --radius-s:6px;
+  --shadow:0 1px 2px rgba(15,23,42,.06),0 1px 3px rgba(15,23,42,.08);
+}
 *{box-sizing:border-box}
 body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   background:var(--bg);color:var(--fg);max-width:1020px;margin:0 auto;
@@ -146,6 +171,9 @@ input,select,button{font:inherit;font-size:13px;color:var(--fg);
 input:focus,select:focus{outline:2px solid var(--link);outline-offset:0;
   border-color:var(--link)}
 button{cursor:pointer}
+button.primary{background:var(--accent);color:#fff;
+  border-color:transparent;font-weight:700}
+button.ghost{background:var(--row-alt);font-weight:700}
 
 /* KPI stat chips */
 .kpis{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
@@ -169,6 +197,20 @@ button{cursor:pointer}
 .badge.b-src{border:1px solid var(--line2);color:var(--muted);background:transparent}
 .badge.b-cheap{background:var(--good-bg);color:var(--good)}
 .badge.b-mot{background:var(--warn-bg);color:var(--warn)}
+.badge.b-relist{background:transparent;border:1px solid var(--auction);color:var(--auction)}
+.badge.b-low{background:var(--good-bg);color:var(--good)}
+/* In-page section jump nav (chip row above the digest sections) */
+.secnav{margin:4px 0 14px;font-size:12px;color:var(--faint)}
+.secnav a{display:inline-block;padding:2px 9px;margin:2px 3px 2px 0;
+  border:1px solid var(--line2);border-radius:999px;color:var(--link);
+  text-decoration:none;background:var(--card)}
+.secnav a:hover{border-color:var(--accent);color:var(--accent)}
+/* Dark-mode manual toggle — fixed corner button */
+.theme-toggle{position:fixed;top:10px;right:12px;z-index:60;width:34px;
+  height:34px;border-radius:50%;border:1px solid var(--line2);
+  background:var(--card);color:var(--fg);font-size:16px;line-height:1;
+  cursor:pointer;box-shadow:var(--shadow);padding:0}
+.theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
 .delta-up{color:var(--bad)} .delta-down{color:var(--good)}
 
 /* Watchlist star */
@@ -243,7 +285,28 @@ NAV_CSS = (
     ".site-nav a:hover{background:var(--hover,#eef4fb);text-decoration:none}"
     ".site-nav a.on{background:var(--accent,#1d4ed8);color:#fff;"
     "border-color:var(--accent,#1d4ed8)}"
+    # prev/next day bar injected by website._refresh_daynav
+    ".daynav{font-size:12px;margin:2px 0 12px;color:var(--faint,#94a3b8)}"
+    ".daynav a{color:var(--link,#2563eb);text-decoration:none;padding:1px 6px}"
+    ".daynav a:hover{text-decoration:underline}"
+    ".daynav .cur{font-weight:600;color:var(--fg,#0f172a);padding:0 6px}"
+    ".daynav .off{color:var(--faint,#94a3b8);padding:1px 6px}"
 )
+
+
+# Applies a saved theme choice BEFORE first paint (no flash); rides inside
+# style_block() so every generated page gets it for free.
+THEME_HEAD_JS = """<script>(function(){try{var t=localStorage.getItem('fs_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>"""
+
+# The fixed corner button + its handler. Reads OS preference as the
+# default when nothing was saved; persists to localStorage fs_theme.
+THEME_TOGGLE_HTML = """<button type="button" id="theme-toggle" class="theme-toggle"
+title="Toggle dark/light (your choice is remembered)">&#9790;</button>
+<script>(function(){var b=document.getElementById('theme-toggle');var de=document.documentElement;
+function cur(){return de.getAttribute('data-theme')||(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');}
+function paint(){b.innerHTML=cur()==='dark'?'&#9788;':'&#9790;';}
+b.onclick=function(){var next=cur()==='dark'?'light':'dark';de.setAttribute('data-theme',next);try{localStorage.setItem('fs_theme',next);}catch(e){}paint();};
+paint();})();</script>"""
 
 
 def style_block(extra=""):
@@ -273,7 +336,7 @@ def style_block(extra=""):
     # L_WARN, etc., or the shorter prefix eats the longer token name.
     for k in sorted(tokens, key=len, reverse=True):
         css = css.replace(k, tokens[k])
-    return f"<style>{css}{extra}</style>"
+    return f"<style>{css}{extra}</style>{THEME_HEAD_JS}"
 
 
 def kpi(label, value, cls=""):
@@ -285,3 +348,47 @@ def kpi(label, value, cls=""):
 def badge(text, cls):
     """Rounded status pill."""
     return f"<span class='badge {cls}'>{text}</span>"
+
+
+# Click-to-sort table headers, shared by both digests.
+SORT_JS = r"""// Click-to-sort table headers. Timeline rows stay attached to their
+// parent row (the flat digest interleaves them; tables without
+// .timeline-row elements are unaffected).
+var sortState = {};
+function sortTable(tableId, colIdx) {
+  var table = document.getElementById(tableId);
+  if (!table) return;
+  var ths = table.querySelectorAll('th.sort-th');
+  ths.forEach(function(th) { th.classList.remove('sort-asc','sort-desc'); });
+  var rows = Array.from(table.querySelectorAll('tr')).slice(1);
+  var groups = [];
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].classList.contains('timeline-row')) {
+      if (groups.length) groups[groups.length-1].push(rows[i]);
+    } else {
+      groups.push([rows[i]]);
+    }
+  }
+  var key = tableId + '_' + colIdx;
+  sortState[key] = !sortState[key];
+  var asc = sortState[key];
+  var clickedTh = table.querySelectorAll('th')[colIdx];
+  if (clickedTh) clickedTh.classList.add(asc ? 'sort-asc' : 'sort-desc');
+  groups.sort(function(a, b) {
+    var va = a[0].children[colIdx].getAttribute('data-sort');
+    var vb = b[0].children[colIdx].getAttribute('data-sort');
+    if (va === null || vb === null) return 0;
+    va = va.trim(); vb = vb.trim();
+    var na = parseFloat(va), nb = parseFloat(vb);
+    if (!isNaN(na) && !isNaN(nb)) {
+      return asc ? na - nb : nb - na;
+    }
+    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  for (var g = 0; g < groups.length; g++) {
+    for (var r = 0; r < groups[g].length; r++) {
+      table.appendChild(groups[g][r]);
+    }
+  }
+}
+"""

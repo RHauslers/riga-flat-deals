@@ -47,7 +47,7 @@ def _rows_by_day(csv_path):
             if utils.is_new_build(
                     {"series": r.get("series"), "title": r.get("title")}):
                 continue
-            key = f"{r.get('source')}:{r.get('id')}"
+            key = utils.listing_key(r)
             per_day.setdefault(day, {}).setdefault(district, {})[key] = r
     return per_day
 

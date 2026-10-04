@@ -25,6 +25,7 @@ from html import escape
 import config
 import car_market
 import flat_market
+import utils
 import web_style
 
 
@@ -72,15 +73,12 @@ def prune_old_digests(today=None, keep_days=None):
     return removed
 
 
-def _extract_date(filename):
-    """'digest_2026-09-04.html' -> '2026-09-04'."""
-    m = re.match(r"digest_(\d{4}-\d{2}-\d{2})\.html", filename)
-    return m.group(1) if m else None
-
-
-def _extract_car_date(filename):
-    """'cars_2026-09-04.html' -> '2026-09-04'."""
-    m = re.match(r"cars_(\d{4}-\d{2}-\d{2})\.html", filename)
+def _digest_date(filename, kind):
+    """'digest_2026-09-04.html' -> '2026-09-04' for kind 'digest' (or
+    'cars'). One regex (DIGEST_FILE_RE) serves both kinds."""
+    if not filename.startswith(kind + "_"):
+        return None
+    m = DIGEST_FILE_RE.match(filename)
     return m.group(1) if m else None
 
 
@@ -122,6 +120,44 @@ def _real_body_tag(content):
     return None
 
 
+_DAYNAV_MARK = "<div class='daynav'>"
+_DAYNAV_RE = re.compile(r"<div class='daynav'>.*?</div>\n?", re.S)
+
+
+def _day_nav_html(prev_href, prev_label, next_href, next_label, current):
+    """'← 2026-10-02 | 2026-10-04 | 2026-10-05 →' bar between dated digest
+    copies. Absent sides render a muted dash (first/last day)."""
+    prev = (f"<a href='{escape(prev_href)}'>&larr; {escape(prev_label)}</a>"
+            if prev_href else "<span class='off'>&larr; —</span>")
+    nxt = (f"<a href='{escape(next_href)}'>{escape(next_label)} &rarr;</a>"
+           if next_href else "<span class='off'>— &rarr;</span>")
+    return (f"<div class='daynav'>{prev}"
+            f"<span class='cur'>{escape(current)}</span>{nxt}</div>\n")
+
+
+def _refresh_daynav(path, daynav_html):
+    """Insert or replace the day-navigation bar right after the site nav.
+    Recomputed every build so links never point at pruned days — unlike
+    _inject_nav this is NOT insert-once, it drifts with the archive."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except OSError:
+        return
+    stripped = _DAYNAV_RE.sub("", content)
+    if "</nav>" in stripped:
+        new = stripped.replace("</nav>", "</nav>\n" + daynav_html, 1)
+    else:
+        m = _real_body_tag(stripped)
+        new = (stripped[:m.end()] + "\n" + daynav_html + stripped[m.end():]
+               if m else daynav_html + stripped)
+    if new != content:
+        try:
+            utils.write_text(path, new)
+        except OSError:
+            pass
+
+
 def _inject_nav(path, active, prefix, extra_top=""):
     """Insert the tab bar at the top of <body> of a hosted copy. Idempotent:
     files already carrying the nav are left untouched."""
@@ -139,8 +175,7 @@ def _inject_nav(path, active, prefix, extra_top=""):
     else:
         content = nav + content
     try:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
+        utils.write_text(path, content)
     except OSError:
         pass
 
@@ -164,6 +199,7 @@ def _cars_placeholder_html():
 <link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga car deals</title>
 {_STYLE}</head><body>
+{web_style.THEME_TOGGLE_HTML}
 {_nav_html("", "cars")}
 <h1>Riga car deals</h1>
 <p>Not generated yet — the car digest has not run yet.</p>
@@ -208,8 +244,7 @@ def _strip_archive_embeds():
         if stripped == content:
             continue
         try:
-            with open(path, "w", encoding="utf-8") as fh:
-                fh.write(stripped)
+            utils.write_text(path, stripped)
         except OSError:
             pass
 
@@ -266,7 +301,7 @@ def build():
     if digests:
         latest = digests[-1]
         latest_path = os.path.join(config.DIGEST_DIR, latest)
-        latest_date = _extract_date(latest) or today
+        latest_date = _digest_date(latest, "digest") or today
 
         # copy latest -> docs/index.html (homepage)
         shutil.copy2(latest_path, os.path.join(DOCS_DIR, "index.html"))
@@ -294,7 +329,7 @@ def build():
     if car_digests:
         latest_car = car_digests[-1]
         latest_car_path = os.path.join(config.DIGEST_DIR, latest_car)
-        car_date = _extract_car_date(latest_car) or today
+        car_date = _digest_date(latest_car, "cars") or today
 
         shutil.copy2(latest_car_path, os.path.join(DOCS_DIR, "cars.html"))
         car_archive_name = f"cars_{car_date}.html"
@@ -307,9 +342,8 @@ def build():
         if car_date != today:
             car_stale_banner = _stale_digest_banner("car", car_date, today)
     else:
-        with open(os.path.join(DOCS_DIR, "cars.html"), "w",
-                  encoding="utf-8") as f:
-            f.write(_cars_placeholder_html())
+        utils.write_text(os.path.join(DOCS_DIR, "cars.html"),
+                         _cars_placeholder_html())
 
     # Archive copies of car digests lose the ~800 KB embedded market JSON
     # (the budget tool is a live-page feature; tables stay intact).
@@ -318,8 +352,7 @@ def build():
     # Market tab: per-model stats rendered from the JSON cars.run() writes.
     # Not archived — it is a live view, not a dated digest.
     market_path = os.path.join(DOCS_DIR, "market.html")
-    with open(market_path, "w", encoding="utf-8") as f:
-        f.write(car_market.build_page())
+    utils.write_text(market_path, car_market.build_page())
     market_stale = ""
     stats_dates = [s.get("date") for s in
                    (car_market.load_stats(), flat_market.load_stats())
@@ -334,11 +367,64 @@ def build():
                 extra_top=flat_stale_banner)
     _inject_nav(os.path.join(DOCS_DIR, "cars.html"), "cars", "",
                 extra_top=car_stale_banner)
+
+    # Prev/next day navigation: recomputed on every build (so links never
+    # point at pruned days) into hosted copies only.
+    arch_flat_dates = sorted(
+        d for f in os.listdir(ARCHIVE_DIR)
+        for d in [_digest_date(f, "digest")] if f.startswith("digest_") and d)
+    arch_car_dates = sorted(
+        d for f in os.listdir(ARCHIVE_DIR)
+        for d in [_digest_date(f, "cars")] if f.startswith("cars_") and d)
+    if latest_date:
+        _refresh_daynav(
+            os.path.join(DOCS_DIR, "index.html"),
+            _day_nav_html(
+                (f"archive/digest_{arch_flat_dates[-2]}.html"
+                 if len(arch_flat_dates) > 1 else None),
+                (arch_flat_dates[-2] if len(arch_flat_dates) > 1 else None),
+                None, None, latest_date))
+    if car_digests:
+        _refresh_daynav(
+            os.path.join(DOCS_DIR, "cars.html"),
+            _day_nav_html(
+                (f"archive/cars_{arch_car_dates[-2]}.html"
+                 if len(arch_car_dates) > 1 else None),
+                (arch_car_dates[-2] if len(arch_car_dates) > 1 else None),
+                None, None, car_date))
+
+    def _arch_daynav(dates, current, kind, live_href):
+        """Prev/next links inside an archive copy; the newest one points
+        forward at the live tab."""
+        i = dates.index(current) if current in dates else -1
+        prev_d = dates[i - 1] if i > 0 else None
+        if 0 <= i < len(dates) - 1:
+            next_href, next_label = f"{kind}{dates[i + 1]}.html", dates[i + 1]
+        elif i == len(dates) - 1:
+            next_href, next_label = live_href, "latest"
+        else:
+            next_href = next_label = None
+        return _day_nav_html(
+            f"{kind}{prev_d}.html" if prev_d else None, prev_d,
+            next_href, next_label, current)
+
     for f in os.listdir(ARCHIVE_DIR):
         if f.startswith("digest_") and f.endswith(".html"):
-            _inject_nav(os.path.join(ARCHIVE_DIR, f), "flats", "../")
+            p = os.path.join(ARCHIVE_DIR, f)
+            _inject_nav(p, "flats", "../")
+            d = _digest_date(f, "digest")
+            if d:
+                _refresh_daynav(
+                    p, _arch_daynav(arch_flat_dates, d, "digest_",
+                                    "../index.html"))
         elif f.startswith("cars_") and f.endswith(".html"):
-            _inject_nav(os.path.join(ARCHIVE_DIR, f), "cars", "../")
+            p = os.path.join(ARCHIVE_DIR, f)
+            _inject_nav(p, "cars", "../")
+            d = _digest_date(f, "cars")
+            if d:
+                _refresh_daynav(
+                    p, _arch_daynav(arch_car_dates, d, "cars_",
+                                    "../cars.html"))
 
     # generate archive.html
     archive_files = sorted(
@@ -354,7 +440,7 @@ def build():
 
     rows = []
     for f in archive_files:
-        d = _extract_date(f) or f
+        d = _digest_date(f, "digest") or f
         fpath = os.path.join(ARCHIVE_DIR, f)
         try:
             with open(fpath, "r", encoding="utf-8") as fh:
@@ -376,7 +462,7 @@ def build():
 
     car_rows = []
     for f in car_archive_files:
-        d = _extract_car_date(f) or f
+        d = _digest_date(f, "cars") or f
         fpath = os.path.join(ARCHIVE_DIR, f)
         try:
             with open(fpath, "r", encoding="utf-8") as fh:
@@ -397,8 +483,8 @@ def build():
     # Coverage strip for the last ARCHIVE_GAP_DAYS days: green = both
     # digests, amber = only one source, red = no scan at all (run failed
     # or never ran). Makes CI gaps visible at a glance.
-    flat_dates = {d for d in (_extract_date(f) for f in archive_files) if d}
-    car_dates = {d for d in (_extract_car_date(f) for f in car_archive_files) if d}
+    flat_dates = {d for d in (_digest_date(f, "digest") for f in archive_files) if d}
+    car_dates = {d for d in (_digest_date(f, "cars") for f in car_archive_files) if d}
     strip = []
     for i in range(config.ARCHIVE_GAP_DAYS - 1, -1, -1):
         d = (date.today() - timedelta(days=i)).isoformat()
@@ -422,6 +508,7 @@ def build():
 <link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga flat & car deals — archive</title>
 {_STYLE}</head><body>
+{web_style.THEME_TOGGLE_HTML}
 {_nav_html("", "")}
 <h1>Riga flat & car deals — archive</h1>
 <p class="note">Districts: {', '.join(config.DISTRICTS.keys())} · Sources: ss.com, city24.lv, pp.lv</p>
@@ -441,8 +528,7 @@ def build():
 for {config.ARCHIVE_KEEP_DAYS} days.</p>
 </body></html>"""
 
-    with open(os.path.join(DOCS_DIR, "archive.html"), "w", encoding="utf-8") as f:
-        f.write(archive_html)
+    utils.write_text(os.path.join(DOCS_DIR, "archive.html"), archive_html)
 
     print(f"[site] built: index.html ({'digest ' + latest_date if latest_date else 'no flat digest'}), cars.html "
           f"({car_archive_name or 'placeholder'}), archive.html "

@@ -7,7 +7,7 @@ many were first seen today. main.run() writes the JSON; the page renders
 from it, so no extra scraping is involved.
 """
 
-import json
+from datetime import date
 from html import escape as _e
 from urllib.parse import quote as _q
 
@@ -46,12 +46,28 @@ def compute_district_stats(listings, price_data=None, today=None):
         cheapest = min((l for l in items if l.get("price_eur")),
                        key=lambda l: l["price_eur"], default=None)
         new_today = 0
-        if today:
-            for l in items:
-                key = f"{l.get('source')}:{l.get('id')}"
-                entry = price_data.get(key) or {}
-                if entry.get("first_seen") == today:
-                    new_today += 1
+        ages = []
+        n_cuts = 0
+        for l in items:
+            key = utils.listing_key(l)
+            entry = price_data.get(key) or {}
+            if today and entry.get("first_seen") == today:
+                new_today += 1
+            # Market temperature: how old the district's ads are on
+            # average (cenu days_on_market, else our own first_seen) and
+            # how many have already cut their ask. A district full of
+            # stale + cutting ads is where negotiation room lives.
+            cenu = entry.get("cenumednieks") or {}
+            age = cenu.get("days_on_market")
+            if age is None and entry.get("first_seen"):
+                _t = (date.fromisoformat(today)
+                      if isinstance(today, str) else today)
+                age = utils.days_since(entry["first_seen"], _t)
+            if age is not None:
+                ages.append(age)
+            info = utils.flat_motivated(entry)
+            if info and info.get("drop_eur"):
+                n_cuts += 1
         stats.append({
             "district": district, "ads": len(items),
             "median_ppu": _median([l.get("price_per_m2") for l in items]),
@@ -59,6 +75,8 @@ def compute_district_stats(listings, price_data=None, today=None):
             "min_price": cheapest.get("price_eur") if cheapest else None,
             "min_url": (cheapest.get("url") or "") if cheapest else "",
             "new_today": new_today,
+            "median_age": _median(ages),
+            "cut_pct": round(100.0 * n_cuts / len(items)) if items else 0,
         })
     stats.sort(key=lambda s: (-s["ads"], s["median_ppu"] or 0))
     return stats
@@ -77,7 +95,7 @@ def flat_section_html(stats, run_date=None, history=None):
     history = history or {}
     as_of = f" — as of {_e(str(run_date))}" if run_date else ""
     headers = ["District", "Ads", "New", "Median €/m²", "Δ 7d", "Trend",
-               "Median ask", "Cheapest"]
+               "Med. days", "Cuts", "Median ask", "Cheapest"]
     head = "".join(
         "<th class='sort-th' style='padding:6px;{align}' "
         "onclick=\"sortTable('flat-market', {i})\">{name}</th>".format(
@@ -121,6 +139,13 @@ def flat_section_html(stats, run_date=None, history=None):
             f"<td style='padding:6px' data-sort='{delta_sort:.2f}'>"
             f"{spark}</td>"
             f"<td style='padding:6px;text-align:right' "
+            f"data-sort='{s.get('median_age') or 0}'>"
+            + (f"{int(round(s['median_age']))} d"
+               if s.get("median_age") is not None else "—") + "</td>"
+            f"<td style='padding:6px;text-align:right' "
+            f"data-sort='{s.get('cut_pct') or 0}'>"
+            f"{s.get('cut_pct') or 0}%</td>"
+            f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['median_price'] or 0}'>"
             f"{_fmt_eur(s['median_price'])}</td>"
             f"<td style='padding:6px;text-align:right' "
@@ -132,8 +157,10 @@ def flat_section_html(stats, run_date=None, history=None):
         "grouped by district. Median €/m² is the asking-price reality "
         "check; <b>New</b> = ads first seen today; <b>Δ 7d</b> = median "
         "€/m² change over the last week; <b>Trend</b> = the same as a "
-        "sparkline. Clicking a district opens the Flats tab filtered to "
-        "it.</p>"
+        "sparkline. <b>Med. days</b> = median ad age (market "
+        "temperature); <b>Cuts</b> = share of ads that already cut their "
+        "ask — high on both means sellers are waiting and negotiating. "
+        "Clicking a district opens the Flats tab filtered to it.</p>"
         f"<table id='flat-market'><tr>{head}</tr>{''.join(rows)}</table>")
 
 
@@ -159,19 +186,8 @@ def _append_history(stats, run_date, path=None):
         pts = hist.setdefault(str(s["district"]), [])
         point = [run_date, s["median_ppu"], s.get("median_price"),
                  s["ads"]]
-        # Same-date point is replaced wherever it sits, and the point is
-        # inserted in date order — a backfill merged after live appends
-        # had produced out-of-order/duplicate tails (2026-10-03).
-        for i, p in enumerate(pts):
-            if p[0] == run_date:
-                pts[i] = point
-                break
-            if str(p[0]) > run_date:
-                pts.insert(i, point)
-                break
-        else:
-            pts.append(point)
-        del pts[:-config.FLAT_MARKET_HISTORY_MAX_POINTS]
+        utils.upsert_history_point(
+            pts, run_date, point, config.FLAT_MARKET_HISTORY_MAX_POINTS)
     try:
         utils.write_json(path, hist, indent=None)
     except OSError:
@@ -185,8 +201,4 @@ def load_history(path=None):
 
 def load_stats(path=None):
     path = path or config.FLAT_MARKET_STATS_JSON
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return None
+    return utils.read_json(path, None)

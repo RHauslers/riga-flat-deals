@@ -31,25 +31,21 @@ except ImportError:
     _HAS_NUMPY = False
 
 
-def _to_float(v):
-    return utils.to_float(v)
-
-
-def _to_int(v):
-    return utils.to_int(v)
-
-
 # ---------------------------------------------------------------------------
 # Fallback: per-bucket €/m² z-score
 # ---------------------------------------------------------------------------
 def _fallback_scores(new_listings, history):
     # group history €/m² by (deal_type, district, rooms)
     buckets = {}
+    # per-deal-type pools, computed once — the thin-bucket fallback below
+    # used to rebuild this list inside the per-listing loop (O(n*m)).
+    type_ppu = {}
     for r in history:
-        key = (r.get("deal_type"), r.get("district"), _to_int(r.get("rooms")))
-        ppu = _to_float(r.get("price_per_m2"))
+        key = (r.get("deal_type"), r.get("district"), utils.to_int(r.get("rooms")))
+        ppu = utils.to_float(r.get("price_per_m2"))
         if ppu and ppu > 0:
             buckets.setdefault(key, []).append(ppu)
+            type_ppu.setdefault(r.get("deal_type"), []).append(ppu)
 
     scored = []
     for l in new_listings:
@@ -62,10 +58,7 @@ def _fallback_scores(new_listings, history):
             z = (mu - ppu) / sd  # below average -> positive (good deal)
         else:
             # not enough local data: compare against same deal_type overall
-            all_ppu = [_to_float(r.get("price_per_m2")) for r in history
-                       if r.get("deal_type") == l.get("deal_type")
-                       and _to_float(r.get("price_per_m2"))]
-            all_ppu = [v for v in all_ppu if v and v > 0]
+            all_ppu = type_ppu.get(l.get("deal_type"), [])
             if len(all_ppu) >= 3:
                 mu = statistics.mean(all_ppu)
                 sd = statistics.pstdev(all_ppu) or 1.0
@@ -82,10 +75,10 @@ def _fallback_scores(new_listings, history):
 def _build_features(l, encoders):
     """Build a numeric feature vector for one listing using fitted encoders."""
     feats = []
-    feats.append(_to_float(l.get("rooms")) or 0.0)
-    feats.append(_to_float(l.get("area_m2")) or 0.0)
-    feats.append(_to_float(l.get("floor_num")) or 0.0)
-    feats.append(_to_float(l.get("floor_total")) or 0.0)
+    feats.append(utils.to_float(l.get("rooms")) or 0.0)
+    feats.append(utils.to_float(l.get("area_m2")) or 0.0)
+    feats.append(utils.to_float(l.get("floor_num")) or 0.0)
+    feats.append(utils.to_float(l.get("floor_total")) or 0.0)
     for field, cats in encoders.items():
         val = l.get(field) or ""
         # rare / unseen categories fall into the shared "__other__" bucket
@@ -134,9 +127,9 @@ def _regression_scores(new_listings, history_rows):
 
     X_rows, y_rows = [], []
     for r in history_rows:
-        price = _to_float(r.get("price_eur"))
-        area = _to_float(r.get("area_m2"))
-        rooms = _to_float(r.get("rooms"))
+        price = utils.to_float(r.get("price_eur"))
+        area = utils.to_float(r.get("area_m2"))
+        rooms = utils.to_float(r.get("rooms"))
         if price is None or price <= 0 or area is None or area <= 0 or rooms is None:
             continue
         X_rows.append(_build_features(r, encoders))
@@ -180,7 +173,7 @@ def _regression_scores(new_listings, history_rows):
         x = np.array(_build_features(l, encoders), dtype=float)
         xb = np.concatenate([[1.0], x])
         pred = float(xb @ coef)
-        actual = _to_float(l.get("price_eur")) or 0.0
+        actual = utils.to_float(l.get("price_eur")) or 0.0
         z = -(actual - pred) / resid_std  # cheaper than predicted -> higher z
         scored.append((l, z, "regression"))
     return scored

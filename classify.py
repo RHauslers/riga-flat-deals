@@ -26,15 +26,6 @@ import config
 import utils
 
 
-def _to_float(v):
-    return utils.to_float(v)
-
-
-def _days_since(date_str, today=None):
-    """Return days between today and date_str (ISO), or None if unparseable."""
-    return utils.days_since(date_str, today)
-
-
 def _pct_drop(old_price, new_price):
     if not old_price or old_price <= 0 or new_price is None:
         return 0.0
@@ -47,10 +38,6 @@ def _last_digest_keys(last_digest, deal_type):
         return set()
     items = last_digest.get(deal_type, [])
     return {it.get("key") for it in items if it.get("key")}
-
-
-def _key(listing):
-    return f"{listing.get('source')}:{listing.get('id')}"
 
 
 def classify(scored_by_type, seen_deals, last_digest):
@@ -73,8 +60,8 @@ def classify(scored_by_type, seen_deals, last_digest):
 
         for entry in items:
             listing, score, method = entry
-            key = _key(listing)
-            today_price = _to_float(listing.get("price_eur"))
+            key = utils.listing_key(listing)
+            today_price = utils.to_float(listing.get("price_eur"))
             is_daily = listing.get("price_unit") == "day"
 
             if key not in seen_deals:
@@ -84,7 +71,7 @@ def classify(scored_by_type, seen_deals, last_digest):
                 continue
 
             prev = seen_deals[key] or {}
-            prev_price = _to_float(prev.get("last_shown_price"))
+            prev_price = utils.to_float(prev.get("last_shown_price"))
             drop_pct = _pct_drop(prev_price, today_price)
 
             if prev_price and drop_pct >= config.PRICE_DROP_MIN_PCT:
@@ -98,7 +85,7 @@ def classify(scored_by_type, seen_deals, last_digest):
             if key in yest_keys:
                 # was in yesterday's top N -> still active section
                 # (unless too stale)
-                days = _days_since(prev.get("last_shown_date"), today)
+                days = utils.days_since(prev.get("last_shown_date"), today)
                 if days is not None and days > config.STILL_ACTIVE_MAX_DAYS:
                     badge = "SHORT_TERM" if is_daily else "REAPPEARED"
                     main_list.append((listing, score, method, badge, None))
@@ -125,11 +112,11 @@ def comparison_header(scored_by_type, last_digest):
     last_date = last_digest.get("date")
 
     if not last_date:
-        return ("<div style='background:#eaf6ff;padding:10px;border-radius:6px;margin:12px 0'>"
+        return ("<div class='info'>"
                 "<strong>First run</strong> — establishing baseline for daily comparisons. "
                 "Tomorrow you'll see how today's best deals compare.</div>")
 
-    lines = [f"<div style='background:#eaf6ff;padding:10px;border-radius:6px;margin:12px 0'>"
+    lines = [f"<div class='info'>"
              f"<strong>Compared to {last_date}:</strong><br>"]
 
     any_change = False
@@ -147,8 +134,9 @@ def comparison_header(scored_by_type, last_digest):
         else:
             yest_best = None
 
+        yest_keys = {it.get("key") for it in yest_items}
         new_count = sum(1 for entry in today_items
-                        if _key(entry[0]) not in {it.get("key") for it in yest_items})
+                        if utils.listing_key(entry[0]) not in yest_keys)
 
         if today_best is not None and yest_best is not None:
             if today_best > yest_best:

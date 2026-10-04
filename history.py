@@ -23,14 +23,6 @@ def _ensure_dirs():
     os.makedirs(config.DIGEST_DIR, exist_ok=True)
 
 
-def _listing_key(listing):
-    return f"{listing['source']}:{listing['id']}"
-
-
-def _read_json(path, default):
-    return utils.read_json(path, default)
-
-
 def _write_json(path, data):
     _ensure_dirs()
     # Compact JSON — these files are committed daily, pretty-printing was
@@ -42,7 +34,7 @@ def _write_json(path, data):
 # seen_deals.json  (dict: "{source}:{id}" -> metadata)
 # ---------------------------------------------------------------------------
 def load_seen_deals():
-    return _read_json(config.SEEN_DEALS_JSON, {})
+    return utils.read_json(config.SEEN_DEALS_JSON, {})
 
 
 def save_seen_deals(seen_deals):
@@ -55,12 +47,12 @@ def update_seen_deals(scored_by_type, seen_deals):
     for dt, items in scored_by_type.items():
         for entry in items:
             listing, score, _method = entry
-            key = _listing_key(listing)
+            key = utils.listing_key(listing)
             prev = seen_deals.get(key, {})
             seen_deals[key] = {
                 "first_shown_date": prev.get("first_shown_date", today),
                 "last_shown_date": today,
-                "last_shown_price": _to_float(listing.get("price_eur")),
+                "last_shown_price": utils.to_float(listing.get("price_eur")),
                 "last_shown_score": float(score) if score is not None else None,
                 "deal_type": listing.get("deal_type", dt),
             }
@@ -78,15 +70,11 @@ def update_seen_deals(scored_by_type, seen_deals):
     save_seen_deals(seen_deals)
 
 
-def _to_float(v):
-    return utils.to_float(v)
-
-
 # ---------------------------------------------------------------------------
 # last_digest.json  (yesterday's top deals for comparison)
 # ---------------------------------------------------------------------------
 def load_last_digest():
-    return _read_json(config.LAST_DIGEST_JSON, {})
+    return utils.read_json(config.LAST_DIGEST_JSON, {})
 
 
 def save_last_digest(scored_by_type, today):
@@ -97,9 +85,9 @@ def save_last_digest(scored_by_type, today):
         for entry in items:
             l, score, _method = entry
             digest[dt].append({
-                "key": _listing_key(l),
+                "key": utils.listing_key(l),
                 "score": float(score) if score is not None else None,
-                "price": _to_float(l.get("price_eur")),
+                "price": utils.to_float(l.get("price_eur")),
                 "district": l.get("district", ""),
                 "rooms": l.get("rooms"),
                 "area_m2": l.get("area_m2"),
@@ -113,7 +101,17 @@ def save_last_digest(scored_by_type, today):
 # ---------------------------------------------------------------------------
 # history.csv  (training data, unique listings by source:id)
 # ---------------------------------------------------------------------------
-def append_history(listings):
+def latest_prices(rows):
+    """{key: latest_price} across already-loaded history rows — caller
+    supplies load_history() output so append_history doesn't rescan the
+    file (it used to re-read the whole CSV just for this map)."""
+    latest = {}
+    for r in rows:
+        latest[utils.listing_key(r)] = utils.to_float(r.get('price_eur'))
+    return latest
+
+
+def append_history(listings, latest_price=None):
     """Append unified listings to history.csv.
 
     A listing is appended when:
@@ -128,17 +126,16 @@ def append_history(listings):
         return
     _ensure_dirs()
     exists = os.path.exists(config.HISTORY_CSV)
-    # Track the latest price per source:id so we can detect changes
-    latest_price = {}
-    if exists:
-        with open(config.HISTORY_CSV, "r", encoding="utf-8-sig", newline="") as f:
-            for r in csv.DictReader(f):
-                key = f"{r.get('source')}:{r.get('id')}"
-                # DictReader yields rows in file order, so the last one wins
-                try:
-                    latest_price[key] = float(r.get('price_eur') or 0)
-                except (ValueError, TypeError):
-                    latest_price[key] = None
+    if latest_price is None:
+        # Standalone path — scan the file ourselves for the latest price
+        # per key (the pipeline passes latest_prices(load_history()) and
+        # skips this second read entirely).
+        latest_price = {}
+        if exists:
+            with open(config.HISTORY_CSV, "r", encoding="utf-8-sig", newline="") as f:
+                for r in csv.DictReader(f):
+                    # DictReader yields rows in file order, so the last one wins
+                    latest_price[utils.listing_key(r)] = utils.to_float(r.get('price_eur'))
     today = date.today().isoformat()
     new_rows = 0
     with open(config.HISTORY_CSV, "a", encoding="utf-8-sig", newline="") as f:
@@ -146,7 +143,7 @@ def append_history(listings):
         if not exists:
             writer.writeheader()
         for l in listings:
-            key = _listing_key(l)
+            key = utils.listing_key(l)
             current_price = l.get('price_eur')
             try:
                 current_price_f = float(current_price) if current_price else None
@@ -156,8 +153,11 @@ def append_history(listings):
             if prev is not None and current_price_f is not None and prev == current_price_f:
                 # Same price as last record — skip (no new info)
                 continue
-            # New listing OR price changed — append a row
-            latest_price[key] = current_price_f
+            # New listing OR price changed — append a row. Only record a
+            # real price: writing None would erase the dedupe baseline so
+            # tomorrow's run re-appends the same unchanged listing.
+            if current_price_f is not None:
+                latest_price[key] = current_price_f
             row = {"scrape_date": today}
             for col in config.HISTORY_COLUMNS:
                 if col == "scrape_date":

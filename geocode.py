@@ -29,7 +29,10 @@ def _e(v):
     return utils.esc(v)
 
 
-GEOCODE_CACHE_JSON = config.GEOCODE_CACHE_JSON
+def _cache_path():
+    """Read the path lazily so test patches on config.GEOCODE_CACHE_JSON
+    are honored (a module-level alias froze it at import)."""
+    return config.GEOCODE_CACHE_JSON
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 NOMINATIM_USER_AGENT = "FlatSearcher/1.0 (riga-flat-deals)"
@@ -59,6 +62,13 @@ def distance_to_school(listing):
     return haversine_km(lat, lon, config.SCHOOL_LAT, config.SCHOOL_LON)
 
 
+def annotate_school_km(listings):
+    """Set ``_school_km`` on every listing (None when unlocated)."""
+    for l in listings:
+        l["_school_km"] = distance_to_school(l)
+    return listings
+
+
 def proximity_score(listing):
     """Proximity z-equivalent score for a listing (sale ranking only).
 
@@ -73,20 +83,16 @@ def proximity_score(listing):
     return max(-1.5, 2.0 - d)
 
 
-def _read_json(path, default):
-    return utils.read_json(path, default)
-
-
 def _write_json(path, data):
     utils.write_json(path, data, indent=None)  # compact — committed daily
 
 
 def load_cache():
-    return _read_json(GEOCODE_CACHE_JSON, {})
+    return utils.read_json(_cache_path(), {})
 
 
 def save_cache(data):
-    _write_json(GEOCODE_CACHE_JSON, data)
+    _write_json(_cache_path(), data)
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +303,7 @@ def enrich_coordinates(listings):
             n_cached += 1
             continue
         # A cached MISS is retried only after GEOCODE_RETRY_FAILED_DAYS.
-        if cached and not _is_older_than_days(cached.get("fetched_at"),
+        if cached and not utils.older_than_days(cached.get("fetched_at"),
                                               config.GEOCODE_RETRY_FAILED_DAYS):
             n_failed += 1
             continue
@@ -322,16 +328,6 @@ def enrich_coordinates(listings):
               f"{n_failed} without coordinates")
 
     return listings
-
-
-def _is_older_than_days(date_str, days):
-    if not date_str:
-        return True
-    try:
-        d = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except (ValueError, TypeError):
-        return True
-    return (date.today() - d).days >= days
 
 
 def coverage(listings):
@@ -405,7 +401,7 @@ def get_map_data(listings):
         popup += "</div>"
 
         markers.append({
-            "marker_id": f"{source}:{listing.get('id')}",
+            "marker_id": utils.listing_key(listing),
             "lat": lat,
             "lon": lon,
             "popup": popup,

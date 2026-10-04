@@ -8,7 +8,7 @@ run_date) -> str
 import html
 import json
 from collections import Counter
-from datetime import date, datetime
+from datetime import date
 from urllib.parse import urlparse
 
 import config
@@ -26,11 +26,7 @@ BADGE_CLASSES = {
 
 
 def _riga_stamp(run_date):
-    try:
-        from zoneinfo import ZoneInfo
-        return datetime.now(ZoneInfo("Europe/Riga")).strftime("%Y-%m-%d %H:%M") + " Riga time"
-    except Exception:
-        return str(run_date)
+    return utils.riga_now_str()
 
 
 def _safe_url(url):
@@ -53,7 +49,7 @@ def _link(url, text):
 
 
 def _e(value):
-    return html.escape("" if value is None else str(value))
+    return utils.esc(value)
 
 
 def _fmt(value, suffix=""):
@@ -918,6 +914,10 @@ def _motivated_chip(l, run_date=None):
         bits.append(f"<span class='badge b-mot' "
                     f"title='Seller may be negotiable: "
                     f"{_e('; '.join(why))}'>MOTIVATED</span>")
+    if info.get("at_low"):
+        bits.append(f"<span class='badge b-low' "
+                    f"title='Cheapest ask we have ever observed for "
+                    f"this car — best moment to offer'>LOWEST SEEN</span>")
     return " " + " ".join(bits)
 
 
@@ -982,7 +982,7 @@ def build_cuts_html(assessed, run_date=None, top_n=None):
 
 
 def _row(l, badges, run_date=None):
-    key = f"{l.get('source')}:{l.get('id')}"
+    key = utils.listing_key(l)
     title = l.get("title") or f"{l.get('make', '')} {l.get('model', '')}"
     cautions = []
     mileage = l.get("mileage_km")
@@ -1164,35 +1164,28 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             f"max='{config.CAR_COMPARABLE_MAX_PRICE_EUR}' step='100' placeholder='e.g. 3500' "
             "style='width:110px'> "
             "<button type='button' id='car-budget-ok' "
-            "style='background:var(--accent);color:#fff;border-color:var(--accent);"
-            "font-weight:600'>OK</button> "
-            "<button type='button' id='car-budget-reset'>Reset</button> "
+            "class='primary'>OK</button> "
+            "<button type='button' id='car-budget-reset' "
+            "class='ghost'>Reset</button> "
             "<span class='note' id='car-budget-status'></span>"
             "<div style='margin-top:8px;font-size:14px'>"
             "<b>Filters:</b> "
-            "<select id='car-filter-make' style='padding:5px;border:1px solid "
-            "var(--line2);border-radius:4px'><option value=''>Any make</option></select> "
+            "<select id='car-filter-make'><option value=''>Any make</option></select> "
             "<input type='text' id='car-filter-model' placeholder='model' "
-            "style='padding:5px;border:1px solid var(--line2);border-radius:4px;"
-            "width:95px'> "
-            "<select id='car-filter-fuel' style='padding:5px;border:1px solid "
-            "var(--line2);border-radius:4px'><option value=''>Any fuel</option>"
+            "style='width:95px'> "
+            "<select id='car-filter-fuel'><option value=''>Any fuel</option>"
             "<option value='petrol'>petrol</option><option value='diesel'>diesel</option>"
             "<option value='hybrid'>hybrid</option><option value='electric'>electric</option>"
             "<option value='lpg'>lpg</option></select> "
-            "<select id='car-filter-gearbox' style='padding:5px;border:1px solid "
-            "var(--line2);border-radius:4px'><option value=''>Any gearbox</option>"
+            "<select id='car-filter-gearbox'><option value=''>Any gearbox</option>"
             "<option value='manual'>manual</option>"
             "<option value='automatic'>automatic</option></select> "
             "<input type='number' id='car-filter-year' placeholder='min year' "
-            f"min='{config.CAR_MIN_YEAR}' style='padding:5px;border:1px solid "
-            "var(--line2);border-radius:4px;width:85px'> "
+            f"min='{config.CAR_MIN_YEAR}' style='width:85px'> "
             "<input type='number' id='car-filter-km' placeholder='max km' "
-            "min='0' step='10000' style='padding:5px;border:1px solid "
-            "var(--line2);border-radius:4px;width:105px'> "
+            "min='0' step='10000' style='width:105px'> "
             "<input type='number' id='car-filter-min' placeholder='min €' "
-            f"min='{config.CAR_MIN_PRICE_EUR}' step='500' style='padding:5px;"
-            "border:1px solid var(--line2);border-radius:4px;width:80px'>"
+            f"min='{config.CAR_MIN_PRICE_EUR}' step='500' style='width:80px'>"
             "</div>"
             "<p class='note' style='margin:6px 0 0'>Enter a maximum price "
             f"(from €{config.CAR_MIN_PRICE_EUR:,} up — the whole plausible "
@@ -1246,40 +1239,13 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
 <title>Riga car deals — {_e(run_date)}</title>
 {_STYLE}
 <script>
-// Click-to-sort table headers (same mechanism as the flats digest):
-// first click sorts ascending, second click reverses. Numeric columns use
-// the data-sort attribute on each cell; the Listing column falls back to
-// string comparison of "make model".
-var sortState = {{}};
-function sortTable(tableId, colIdx) {{
-  var table = document.getElementById(tableId);
-  if (!table) return;
-  var ths = table.querySelectorAll('th.sort-th');
-  ths.forEach(function(th) {{ th.classList.remove('sort-asc','sort-desc'); }});
-  var rows = Array.from(table.querySelectorAll('tr')).slice(1);
-  var key = tableId + '_' + colIdx;
-  sortState[key] = !sortState[key];
-  var asc = sortState[key];
-  var clickedTh = table.querySelectorAll('th')[colIdx];
-  if (clickedTh) clickedTh.classList.add(asc ? 'sort-asc' : 'sort-desc');
-  rows.sort(function(a, b) {{
-    var va = a.children[colIdx].getAttribute('data-sort');
-    var vb = b.children[colIdx].getAttribute('data-sort');
-    if (va === null || vb === null) return 0;
-    va = va.trim(); vb = vb.trim();
-    var na = parseFloat(va), nb = parseFloat(vb);
-    if (!isNaN(na) && !isNaN(nb)) {{
-      return asc ? na - nb : nb - na;
-    }}
-    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-  }});
-  rows.forEach(function(r) {{ table.appendChild(r); }});
-}}
+{web_style.SORT_JS}
 </script>
 {market_html}
 {car_budget_script}
 {car_watch_script}
 </head><body>
+{web_style.THEME_TOGGLE_HTML}
 <h1>Riga car deals — {_e(stamp)}</h1>
 <p class="note">Coverage: {coverage}. ss.com: the newest
 {_e(config.CAR_SS_MAX_PAGES_PER_MAKE)} pages per make, then a bounded deep
@@ -1331,9 +1297,12 @@ gearbox/body reduce confidence in the match. Asking prices are not final
 selling prices, and mechanical/service condition cannot be verified from a
 listing.
 </div>
-{top_html}
-{cuts_html}
-{gone_html}
+<p class="secnav">Jump to:
+<a href="#sec-deals">Deals</a><a href="#sec-cuts">Price cuts</a><a
+href="#sec-gone">Gone</a></p>
+<div id="sec-deals">{top_html}</div>
+<div id="sec-cuts">{cuts_html}</div>
+<div id="sec-gone">{gone_html}</div>
 <div class="box">
 <b>Before buying:</b> check mileage and history in the CSDD register
 (e.csdd.lv), get an independent mechanical inspection, and verify all

@@ -16,8 +16,10 @@ import flat_market
 import car_market
 import geocode
 import health
+import history
 import notifier
 import utils
+import main
 from scrapers import izsoles
 
 
@@ -741,7 +743,7 @@ class TestPriceHistoryPrune(unittest.TestCase):
                 _json.dump(dead, f)
             listing = {"source": "city24.lv", "id": "legacy",
                        "price_eur": 60000}
-            with mock.patch.object(price_history, "PRICE_HISTORY_JSON", path):
+            with mock.patch.object(config, "PRICE_HISTORY_JSON", path):
                 hist = price_history.update_price_history([listing])
             with open(path, encoding="utf-8") as f:
                 raw = f.read()
@@ -1002,8 +1004,7 @@ class TestPriceHistoryIdless(unittest.TestCase):
         import tempfile, price_history
         with tempfile.TemporaryDirectory() as td:
             path = os.path.join(td, "ph.json")
-            with mock.patch.object(price_history, "PRICE_HISTORY_JSON",
-                                   path):
+            with mock.patch.object(config, "PRICE_HISTORY_JSON", path):
                 out = price_history.update_price_history(
                     [{"source": "ss.com", "price_eur": 100},
                      {"id": "x", "price_eur": 100}])
@@ -1044,14 +1045,105 @@ class TestCenuMissCaching(unittest.TestCase):
                                    ), \
                  mock.patch.object(price_history.time, "sleep",
                                    lambda s: None), \
-                 mock.patch.object(price_history,
-                                   "PRICE_HISTORY_JSON", path):
+                 mock.patch.object(config, "PRICE_HISTORY_JSON", path):
                 price_history.update_price_history([listing])
                 price_history.update_price_history([listing])
                 self.assertEqual(len(calls), 1)  # one fetch total
                 with open(path, encoding="utf-8") as f:
                     entry = json.load(f)["ss.com:x"]
                 self.assertTrue(entry.get("cenumednieks_attempt"))
+
+
+class TestSharedHelpers(unittest.TestCase):
+    """/improve batch: utils.listing_key, write_text, older_than_days,
+    upsert_history_point, retry_after_seconds, to_float default."""
+
+    def test_listing_key(self):
+        self.assertEqual(utils.listing_key({"source": "ss.com", "id": 5}),
+                         "ss.com:5")
+        self.assertEqual(utils.listing_key({"source": "ss.com"}), "ss.com:")
+        self.assertEqual(utils.listing_key({}), ":")
+
+    def test_write_text_atomic(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "sub", "x.html")
+            utils.write_text(p, "<html>ok</html>")
+            with open(p, encoding="utf-8") as f:
+                self.assertEqual(f.read(), "<html>ok</html>")
+            self.assertFalse(os.path.exists(p + ".tmp"))
+
+    def test_older_than_days(self):
+        self.assertTrue(utils.older_than_days(None, 7))
+        self.assertTrue(utils.older_than_days("junk", 7))
+        self.assertTrue(utils.older_than_days("2020-01-01", 7))
+        self.assertFalse(utils.older_than_days(
+            date.today().isoformat(), 7))
+
+    def test_upsert_history_point(self):
+        pts = [["2026-10-01", 100], ["2026-10-03", 300]]
+        utils.upsert_history_point(pts, "2026-10-02", ["2026-10-02", 200], 10)
+        self.assertEqual([p[0] for p in pts],
+                         ["2026-10-01", "2026-10-02", "2026-10-03"])
+        utils.upsert_history_point(pts, "2026-10-02", ["2026-10-02", 999], 10)
+        self.assertEqual(len(pts), 3)
+        self.assertEqual(pts[1][1], 999)          # same-date replaced
+        utils.upsert_history_point(pts, "2026-10-04", ["2026-10-04", 400], 2)
+        self.assertEqual([p[0] for p in pts],
+                         ["2026-10-03", "2026-10-04"])  # cap keeps newest
+
+    def test_retry_after_seconds(self):
+        class R:
+            def __init__(s, v): s.headers = {"Retry-After": v}
+        self.assertEqual(utils.retry_after_seconds(R("12")), 12.0)
+        self.assertEqual(utils.retry_after_seconds(R("99")), 30.0)  # capped
+        self.assertIsNone(utils.retry_after_seconds(R("")))
+
+    def test_to_float_default(self):
+        self.assertEqual(utils.to_float("3.5"), 3.5)
+        self.assertEqual(utils.to_float("x", 0.0), 0.0)
+        self.assertIsNone(utils.to_float("x"))
+
+    def test_riga_now_str(self):
+        s = utils.riga_now_str()
+        self.assertRegex(s, r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \((Riga time|UTC)\)$")
+
+    def test_latest_prices(self):
+        rows = [{"source": "s", "id": "1", "price_eur": "100"},
+                {"source": "s", "id": "1", "price_eur": "90"},
+                {"source": "s", "id": "2", "price_eur": "50"}]
+        self.assertEqual(history.latest_prices(rows),
+                         {"s:1": 90.0, "s:2": 50.0})
+
+
+class TestRunLockFinally(unittest.TestCase):
+    """An exception inside the run body must still release the lock —
+    otherwise the next run is blocked for MAIN_LOCK_STALE_HOURS."""
+
+    def test_lock_released_on_exception(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            lock = os.path.join(td, ".main.lock")
+            with mock.patch.object(config, "MAIN_LOCK_FILE", lock), \
+                 mock.patch.object(main, "_run_body",
+                                   side_effect=RuntimeError("boom")):
+                with self.assertRaises(RuntimeError):
+                    main.run()
+            self.assertFalse(os.path.exists(lock))
+
+    def test_lock_not_released_by_foreign_run(self):
+        # run() returns early when another pid holds a fresh lock and does
+        # NOT release it (it's not ours).
+        import tempfile, json, time
+        with tempfile.TemporaryDirectory() as td:
+            lock = os.path.join(td, ".main.lock")
+            with open(lock, "w") as f:
+                json.dump({"pid": 999999, "ts": time.time(),
+                           "date": "2026-10-04"}, f)
+            with mock.patch.object(config, "MAIN_LOCK_FILE", lock):
+                out = main.run()
+            self.assertIn("another run", out)
+            self.assertTrue(os.path.exists(lock))
 
 
 class TestMotivatedSeller(unittest.TestCase):
@@ -1142,5 +1234,242 @@ class TestMotivatedSeller(unittest.TestCase):
             (listing, 1.5, "model", "NEW", ""), pd2, 0))
 
 
+class TestGoneSpikeGuardrail(unittest.TestCase):
+    def _rows(self, n, prefix="k"):
+        return [{"k": f"{prefix}{i}"} for i in range(n)]
+
+    def test_spike_and_normal(self):
+        hit = health.gone_spike_issue(self._rows(50, "p"),
+                                      self._rows(20, "g"))
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "gone_spike")
+        self.assertIn("vanished", hit[1])
+        # below the absolute floor -> no issue
+        self.assertIsNone(health.gone_spike_issue(self._rows(50, "p"),
+                                                  self._rows(10, "g")))
+        # below the share threshold -> no issue
+        self.assertIsNone(health.gone_spike_issue(self._rows(200, "p"),
+                                                  self._rows(20, "g")))
+        # empty yesterday -> nothing to compare
+        self.assertIsNone(health.gone_spike_issue([],
+                                                  self._rows(99, "g")))
+
+
+class TestOutageStreaks(unittest.TestCase):
+    def test_streak_accumulates_and_resets(self):
+        import tempfile
+        path = os.path.join(tempfile.mkdtemp(), "hs.json")
+        # streaks below 2 stay quiet
+        s1 = health.update_streaks({"ss.com": False, "city24": True},
+                                   "2026-10-04", path=path)
+        self.assertEqual(s1, {})
+        s2 = health.update_streaks({"ss.com": False},
+                                   "2026-10-05", path=path)
+        self.assertEqual(s2["ss.com"], 2)
+        s3 = health.update_streaks({"ss.com": True},
+                                   "2026-10-06", path=path)
+        self.assertNotIn("ss.com", s3)
+
+
+class TestRelisted(unittest.TestCase):
+    def _flat(self, **kw):
+        d = {"source": "ss.com", "id": "1", "street": "Brivibas 1",
+             "district": "Centrs", "rooms": 3, "area_m2": 85,
+             "price_eur": 200000}
+        d.update(kw)
+        return d
+
+    def test_match_and_nomatch(self):
+        import gone
+        recent_gone = [{"k": "ss.com:9", "p": 210000, "d": "Centrs",
+                        "s": "brivibas 1", "r": 3, "a": 85,
+                        "gone": "2026-10-01", "u": "https://x/9"}]
+        out = gone.find_relisted(
+            [self._flat(id="2", price_eur=195000)], set(), recent_gone)
+        self.assertIn("ss.com:2", out)
+        self.assertEqual(out["ss.com:2"]["p"], 210000)
+        # area outside tolerance -> no match
+        self.assertEqual(gone.find_relisted(
+            [self._flat(id="3", area_m2=95)], set(), recent_gone), {})
+        # different street -> no match
+        self.assertEqual(gone.find_relisted(
+            [self._flat(id="4", street="Kugu 2")], set(), recent_gone), {})
+        # ad was already live yesterday -> not a relist
+        self.assertEqual(gone.find_relisted(
+            [self._flat(id="2", price_eur=195000)], {"ss.com:2"},
+            recent_gone), {})
+
+
+class TestLowestSeen(unittest.TestCase):
+    def test_flat_at_low(self):
+        info = utils.flat_motivated({"cenumednieks": {
+            "original_price": 100000, "current_price": 90000}})
+        self.assertTrue(info["at_low"])
+        info2 = utils.flat_motivated({"cenumednieks": {
+            "original_price": 80000, "current_price": 90000}})
+        self.assertFalse(info2["at_low"])
+        info3 = utils.flat_motivated(
+            {"cenumednieks": {"current_price": 90000}})
+        self.assertFalse(info3["at_low"])
+        info4 = utils.flat_motivated({"cenumednieks": {
+            "original_price": "abc", "current_price": 90000}})
+        self.assertFalse(info4["at_low"])
+
+    def test_car_at_low(self):
+        l = {"_price_hist": [["2026-09-01", 3000], ["2026-09-10", 2500]],
+             "_first_seen": "2026-09-01"}
+        info = utils.car_motivated(l, today=date(2026, 10, 4))
+        self.assertTrue(info["at_low"])
+        # rising price -> no drop info at all, certainly not at low
+        l2 = {"_price_hist": [["2026-09-01", 2000], ["2026-09-10", 2500]],
+              "_first_seen": "2026-09-01"}
+        self.assertFalse((utils.car_motivated(
+            l2, today=date(2026, 10, 4)) or {}).get("at_low"))
+        l3 = {"_price_hist": [["bad", "x"], ["2026-09-10", 2500]],
+              "_first_seen": "2026-09-01"}
+        self.assertFalse((utils.car_motivated(
+            l3, today=date(2026, 10, 4)) or {}).get("at_low"))
+
+    def test_chips_render(self):
+        listing = {"source": "ss.com", "id": "l1", "district": "Centrs",
+                   "street": "Brivibas 1", "url": "https://www.ss.com/x",
+                   "price_eur": 90000, "price_per_m2": 1500, "rooms": 2,
+                   "area_m2": 60, "floor": 3, "deal_type": "sale",
+                   "_district_median_ppu": 2000}
+        pd = {"ss.com:l1": {"cenumednieks": {"original_price": 100000,
+                                             "current_price": 90000}}}
+        row = notifier._main_row_html((listing, 1.0, "m", "", ""), pd, 0)
+        self.assertIn("LOWEST SEEN", row)
+        self.assertIn("vs district", row)
+
+
+class TestBudgetEmbedSignals(unittest.TestCase):
+    def test_signal_fields_tail(self):
+        self.assertEqual(
+            notifier._FLAT_FIELDS[-5:],
+            ("_drop_eur", "_mot", "_at_low", "_relisted_price",
+             "_vs_district_pct"))
+        listing = {"source": "ss.com", "id": "e1", "price_eur": 50000,
+                   "price_per_m2": 1000, "district": "Z", "street": "X 1",
+                   "_district_median_ppu": 1250,
+                   "_relisted": {"price": 55000, "key": "ss.com:old"}}
+        import re
+        import json as _json
+        html = notifier._flat_market_data_html(
+            {"sale": [(listing, 1.0, "m")]},
+            price_data={"ss.com:e1": {"cenumednieks": {
+                "original_price": 60000, "current_price": 50000,
+                "days_on_market": 50}}})
+        m = re.search(r'id="flat-listings-data">(.*)</script>', html)
+        payload = _json.loads(m.group(1).replace("<\\/", "</"))
+        tail = payload["rows"][0][-5:]
+        self.assertEqual(tail[0], 10000)
+        self.assertEqual(tail[1], 1)
+        self.assertEqual(tail[2], 1)
+        self.assertEqual(tail[3], 55000)
+        self.assertEqual(tail[4], -20)
+        self.assertIn("b-mot", notifier.FLAT_BUDGET_JS)
+
+
+class TestDistrictTemperature(unittest.TestCase):
+    def test_median_age_and_cut_pct(self):
+        listings = [
+            {"district": "Z", "price_eur": 50000, "price_per_m2": 1000,
+             "area_m2": 50, "source": "ss.com", "id": "a",
+             "deal_type": "sale"},
+            {"district": "Z", "price_eur": 60000, "price_per_m2": 1200,
+             "area_m2": 50, "source": "ss.com", "id": "b",
+             "deal_type": "sale"},
+        ]
+        price_data = {
+            "ss.com:a": {"first_seen": "2026-01-01",
+                         "cenumednieks": {"original_price": 70000,
+                                          "current_price": 50000}},
+        }
+        stats = flat_market.compute_district_stats(listings, price_data)
+        z = next(s for s in stats if s["district"] == "Z")
+        self.assertIn("median_age", z)
+        self.assertEqual(z["cut_pct"], 50)
+
+
+class TestAuctionMarketSignals(unittest.TestCase):
+    def test_median_chip_and_no_bids(self):
+        auc = {"title": "Flat", "address": "X 1", "url": "https://x/1",
+               "auction_start_price": 40000, "auction_current_bid": "",
+               "area_m2": 50, "price_per_m2": 800}
+        html = notifier.build_auctions_html([auc], median_ppu=1600)
+        self.assertIn("vs market", html)
+        self.assertIn("no bids yet", html)
+        self.assertIn("no bids yet", notifier.build_auctions_html([auc]))
+
+
+class TestSectionNav(unittest.TestCase):
+    def test_anchors_resolve(self):
+        html = notifier.build_html({"sale": []}, {}, "", "")
+        for anchor in ("sec-deals", "sec-newest", "sec-school",
+                       "sec-auctions", "sec-cuts", "sec-gone"):
+            self.assertIn('id="' + anchor + '"', html)
+            self.assertIn('href="#' + anchor + '"', html)
+
+
+class TestColdReviewFixes(unittest.TestCase):
+    """Regression tests for the /improve 15 cold-review items."""
+
+    def test_flat_motivated_reads_price_key(self):
+        # our_tracking entries store {"date","price"} — motivated must
+        # see the drop, not silently produce nothing.
+        entry = {"our_tracking": [
+            {"date": "2026-09-01", "price": 100000},
+            {"date": "2026-10-01", "price": 90000},
+        ]}
+        mot = utils.flat_motivated(entry)
+        self.assertIsNotNone(mot)
+        self.assertTrue(mot["at_low"])
+
+    def test_append_history_preserves_latest_price_on_missing(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            csv_path = os.path.join(td, "history.csv")
+            with mock.patch.object(config, "HISTORY_CSV", csv_path):
+                latest = {"ss.com:np1": 120000.0}
+                history.append_history(
+                    [{"source": "ss.com", "id": "np1", "district": "Centrs",
+                      "price_eur": 120000}],
+                    latest_price=latest)
+                # same listing scraped next day with the price missing:
+                # the caller's baseline must stay 120000, not become None
+                history.append_history(
+                    [{"source": "ss.com", "id": "np1", "district": "Centrs",
+                      "price_eur": None}],
+                    latest_price=latest)
+                self.assertEqual(latest["ss.com:np1"], 120000.0)
+
+    def test_city24_closes_browser_when_context_fails(self):
+        from scrapers import city24
+        browser = mock.Mock()
+        browser.new_context.side_effect = RuntimeError("profile lock")
+        pw = mock.Mock()
+        pw.chromium.launch.return_value = browser
+        with self.assertRaises(RuntimeError):
+            city24._scrape_deal_type(pw, "sale")
+        browser.close.assert_called_once()
+
+    def test_row_builders_share_output_shape(self):
+        # _still_row_html must render the same cells as _main_row_html
+        # minus the Status cell.
+        listing = {"source": "ss.com", "id": "r1", "district": "Centrs",
+                   "rooms": 2, "area_m2": 50, "floor": "3/5",
+                   "price_eur": 120000, "price_per_m2": 2400,
+                   "url": "https://ss.com/x"}
+        main_row = notifier._main_row_html((listing, 1.5, "m", "NEW", ""), {})
+        still_row = notifier._still_row_html((listing, 1.5, "m"), {})
+        self.assertIn("NEW", main_row)
+        self.assertNotIn("NEW", still_row)
+        # identical apart from the status cell
+        stripped = main_row.replace("<td><span class=\"badge", "", 1)
+        self.assertEqual(still_row.count("<td"), main_row.count("<td") - 1)
+
+
 if __name__ == "__main__":
     unittest.main()
+

@@ -4,16 +4,21 @@ Flat_Searcher - daily orchestrator.
 
 Pipeline (runs ONCE a day via .github/workflows/daily.yml; output is the
 static website in docs/):
-  1. Scrape ss.com + city24.lv (+ izsoles.ta.gov.lv auctions) for sales.
-  2. Load history BEFORE appending (no leakage), then append today's rows.
-  3. Load state: seen_deals, last_digest (yesterday's top deals).
-  4. Score ALL current listings (not just new) -> today's true top N.
-  5. Classify into main_deals (NEW/PRICE_DROP/REAPPEARED) + still_active.
-     Build "vs yesterday" comparison header.
-  6. Run the car digest (cars.run) — independent, never aborts flats.
-  7. Save the flat HTML digest, build the hosted site (docs/).
-  8. Update state: seen_deals (today's shown prices/scores) + last_digest.
-  9. Copy a status prompt to the clipboard (local runs only; no-op in CI).
+  1. Scrape ss.com + city24.lv for sales; filter implausible prices,
+      exclude new builds, dedupe the same flat across portals.
+  2. Update price history (CenuMednieks + our own tracking), geocode,
+      compute school distance; scrape izsoles.ta.gov.lv auctions.
+  3. Flat-source health check -> digest outage banner + loud CI log lines.
+  4. Run the car digest (cars.run) — independent, never aborts flats.
+  5. Training baseline = history BEFORE today (no leakage), then append
+      today's rows; load seen_deals + last_digest state.
+  6. Score ALL current listings -> today's true top N per deal type.
+  7. Classify into main_deals (NEW/PRICE_DROP/REAPPEARED) + still_active;
+      build comparison header and all HTML sections (map, newest,
+      near-school, auctions, market stats, gone-tracking).
+  8. Save the flat HTML digest; build the hosted site (docs/).
+  9. Update state: seen_deals (today's shown prices/scores) + last_digest.
+ 10. Copy a status prompt to the clipboard (local runs only; no-op in CI).
 
 Run locally:  python -X utf8 -m main
 Run in CI:    python -X utf8 -m main
@@ -127,9 +132,18 @@ def run():
     _t0 = time.monotonic()
     if not _acquire_run_lock():
         return "Skipped — another run is in progress."
+    try:
+        return _run_body(today, _t0)
+    finally:
+        # Release unconditionally — an exception mid-run must not strand
+        # the lock for MAIN_LOCK_STALE_HOURS and block the next run.
+        _release_run_lock()
+
+
+def _run_body(today, _t0):
     print(f"=== Flat_Searcher daily run {today} ===")
 
-    # 1. Scrape (tracking per-source counts for health checks; raw scraper
+    # Step 1: scrape (tracking per-source counts for health checks; raw scraper
     #    exceptions are remembered for the digest outage banner)
     all_listings = []
     source_counts = {"ss.com": 0, "city24.lv": 0}
@@ -153,7 +167,7 @@ def run():
     print(f"[main] total scraped (target districts): {len(all_listings)} "
           f"per source: {source_counts}")
 
-    # 1b. Sanity filter: drop listings with implausible prices only.
+    # Step 1 cont: sanity filter: drop listings with implausible prices only.
     #     No upper bound — the buyer's budget is applied by the browser-side
     #     budget tool, so every plausible listing is kept for scoring/embed.
     min_price = {"sale": config.MIN_SALE_PRICE_EUR, "rent": config.MIN_RENT_PRICE_EUR}
@@ -165,28 +179,27 @@ def run():
     if dropped:
         print(f"[main] dropped {dropped} listing(s) with implausible/out-of-budget prices")
 
-    # 1b2. Exclude newly built apartments (buyer's explicit requirement)
+    # Step 1 cont: exclude newly built apartments (buyer's explicit requirement)
     all_listings, n_new_builds = utils.filter_new_builds(all_listings)
     if n_new_builds:
         print(f"[main] excluded {n_new_builds} new-build listing(s)")
 
-    # 1c. Merge the same flat listed on multiple portals (before history/scoring
+    # Step 1 cont: merge the same flat listed on multiple portals (before history/scoring
     #     so it is not double-counted in the training baseline)
     all_listings, _n_merged = utils.dedupe_cross_source(all_listings)
 
-    # 1d. Update price history (CenuMednieks backfill + our own daily tracking)
+    # Step 2: update price history (CenuMednieks backfill + our own daily tracking)
     price_data = price_history.update_price_history(all_listings)
 
-    # 1e. Geocode listings (city24 has coords from API, SS.com via Nominatim)
+    # Step 2 cont: geocode listings (city24 has coords from API, SS.com via Nominatim)
     if config.GEOCODE_ENABLED:
         all_listings = geocode.enrich_coordinates(all_listings)
 
-    # 1e2. Compute distance to school for each listing (used in sale scoring
+    # Step 2 cont: compute distance to school for each listing (used in sale scoring
     #      and shown as a Distance column in the digest)
-    for l in all_listings:
-        l["_school_km"] = geocode.distance_to_school(l)
+    geocode.annotate_school_km(all_listings)
 
-    # 1e3. State/bailiff auctions (izsoles.ta.gov.lv) — separate section,
+    # Step 2 cont: state/bailiff auctions (izsoles.ta.gov.lv) — separate section,
     #      NOT part of the main ranking. Budget filter applies to the
     #      current bid (or start price when nobody has bid yet), then
     #      geocoded for distance to school + map markers.
@@ -208,13 +221,12 @@ def run():
                   f"out-of-budget auction(s)")
         if auctions and config.GEOCODE_ENABLED:
             auctions = geocode.enrich_coordinates(auctions)
-        for a in auctions:
-            a["_school_km"] = geocode.distance_to_school(a)
+        geocode.annotate_school_km(auctions)
         if auctions:
             print(f"[main] auctions: {len(auctions)} in-budget active "
                   f"auction(s) after filters")
 
-    # 1f. Health check -> loud log line if a scraper (or the geocoder) looks
+    # Step 3: health check -> loud log line if a scraper (or the geocoder) looks
     #     broken. The same issue list feeds the digest's outage banner.
     geocoded = geocode.coverage(all_listings) if config.GEOCODE_ENABLED else None
     digest_issues = health.evaluate(source_counts, len(all_listings),
@@ -222,12 +234,31 @@ def run():
     for _src, _err in sorted(source_errors.items()):
         if not any(k == f"source_zero:{_src}" for k, _ in digest_issues):
             digest_issues.append((f"source_failed:{_src}", _err))
+    # Consecutive-outage streaks: a source that produced nothing AND
+    # raised nothing still counts as failed (a legit 0-day is rare two
+    # days running). Streak >= 2 days escalates onto the banner — that
+    # distinguishes a blip from a dead parser/block.
+    _flat_ok = {f"flat:{s}": source_counts.get(s, 0) > 0
+                and s not in source_errors
+                for s in source_counts}
+    if config.IZSOLES_ENABLED:
+        _flat_ok["flat:izsoles"] = not auctions_failed
+    for _key, _days in health.update_streaks(_flat_ok, today).items():
+        _src = _key.split(":", 1)[1]
+        digest_issues.append((
+            f"outage_streak:{_key}",
+            f"{_src} has failed {_days} days in a row — likely a dead "
+            f"parser or a block, not a one-off blip."))
+        print(f"[health] ISSUE outage_streak:{_key}: {_days} days")
     health.check(source_counts, len(all_listings), context="daily",
                  geocoded=geocoded)
 
     _t_scrape = time.monotonic()
     print(f"[main] flat scrape+enrich took {_t_scrape-_t0:.0f}s")
 
+    # Step 4: the car digest is a self-contained sub-pipeline — a car
+    # failure must never abort the flat digest, so it runs inside its own
+    # try/except and only reports a status string back.
     car_status = ""
     try:
         car_status = cars.run()
@@ -245,29 +276,42 @@ def run():
         msg = ("Flat_Searcher finished with 0 listings today. "
                "Flat digest not updated. Check scrapers / site availability. Next steps?")
         _inject_chat(msg)
-        _release_run_lock()
         return msg
 
-    # 2. Training baseline = everything scraped BEFORE today.
+    # Step 5: training baseline = everything scraped BEFORE today.
     #    Excluding today by DATE (not just "before this append") is essential:
     #    a manual rerun would otherwise have already inserted today's listings,
     #    and a listing would help define the average it is judged against,
     #    making genuine bargains look ordinary.
-    hist_rows = history.load_history(exclude_today=True)
-    history.append_history(all_listings)
+    hist_rows_all = history.load_history()          # one CSV read total
+    hist_rows = [r for r in hist_rows_all if r.get('scrape_date') != today]
+    history.append_history(all_listings,
+                           latest_price=history.latest_prices(hist_rows_all))
 
-    # 4. Load state
+    # Step 5 cont: load state
     seen_deals = history.load_seen_deals()
     last_digest = history.load_last_digest()
     print(f"[main] seen_deals: {len(seen_deals)} entries; "
           f"last_digest date: {(last_digest or {}).get('date', 'none')}")
 
-    # 5. Score ALL current listings -> today's true top N per deal type
+    # Step 6: score ALL current listings -> today's true top N per deal type
     status_note = scoring.model_status(hist_rows)
     print(f"[main] {status_note}")
     all_scored = scoring.score_and_rank(all_listings, hist_rows)
 
-    # 6. Classify into main (badges) + still_active; build comparison header
+    # District medians annotate each listing (_district_median_ppu) so
+    # every later row builder can render a "vs district" chip; the stats
+    # themselves are persisted further down for market.html. Computing
+    # here (not at the save site) is required so Newest/near-school rows
+    # — built before this section — see the annotation too.
+    _flat_stats = flat_market.compute_district_stats(
+        all_listings, price_data, today)
+    _district_ppu = {s["district"]: s.get("median_ppu")
+                     for s in _flat_stats if s.get("median_ppu")}
+    for _l in all_listings:
+        _l["_district_median_ppu"] = _district_ppu.get(_l.get("district"))
+
+    # Step 7: classify into main (badges) + still_active; build comparison header
     main_deals, still_active = classify.classify(all_scored, seen_deals, last_digest)
     comparison_html = classify.comparison_header(all_scored, last_digest)
 
@@ -276,7 +320,7 @@ def run():
     print(f"[main] classified: {n_main} main (new/changed/reappeared), "
           f"{n_still} still active from yesterday")
 
-    # 6b. Build map markers from ALL listings with coordinates (not just
+    # Step 7 cont: build map markers from ALL listings with coordinates (not just
     #     the top N scored — the map should show everything we found, so
     #     the user can see all options at a glance).
     map_markers = []
@@ -285,9 +329,9 @@ def run():
         score_map = {}
         for dt, items in all_scored.items():
             for listing, score, method in items:
-                score_map[f"{listing.get('source')}:{listing.get('id')}"] = score
+                score_map[utils.listing_key(listing)] = score
         for listing in all_listings:
-            key = f"{listing.get('source')}:{listing.get('id')}"
+            key = utils.listing_key(listing)
             listing["_score"] = score_map.get(key)
         map_markers = geocode.get_map_data(all_listings)
         # School marker (rendered distinctly on the map as the reference point)
@@ -299,7 +343,28 @@ def run():
               f"(of {len(all_listings)} total listings + 1 school "
               f"+ {len(auctions)} auctions)")
 
-    # 6c. Build "Newest listings today" section (listings with NEW badge,
+    # Step 7 cont: yesterday's live-ad snapshot supplies auction bid
+    #     deltas AND the RELISTED match below (loaded once, before the
+    #     flat_active.json overwrite further down).
+    prev_active = utils.read_json(config.FLAT_ACTIVE_JSON, {})
+    _prev_bids = {r["k"]: r["p"] for r in prev_active.get("rows", [])
+                  if r.get("k", "").startswith("izsoles.")}
+    # RELISTED: a flat live today under a NEW ad id that matches a
+    # recently-gone ad (same district+street+rooms+~area) — the seller
+    # withdrew and reposted. Annotated before every section builder so
+    # each row can badge it.
+    _prev_keys = {r.get("k") for r in prev_active.get("rows") or []}
+    _relisted = gone.find_relisted(
+        all_listings, _prev_keys, prev_active.get("recent_gone"))
+    for _l in all_listings:
+        _g = _relisted.get(utils.listing_key(_l))
+        if _g:
+            _l["_relisted"] = {"price": _g.get("p"), "gone": _g.get("gone")}
+    if _relisted:
+        print(f"[main] {len(_relisted)} relisted ad(s) detected "
+              f"(withdrawn and reposted)")
+
+    # Step 7 cont: build "Newest listings today" section (listings with NEW badge,
     #     ranked by deal score). This replaces the old "exceptional deals"
     #     composite score, which was misleading — it rewarded flats that
     #     were statistically cheap, but couldn't distinguish a genuine
@@ -307,7 +372,7 @@ def run():
     newest_html = notifier.build_newest_html(main_deals, price_data)
     print(f"[main] newest listings section built")
 
-    # 6d. Build "Walking distance to school" section: every in-budget
+    # Step 7 cont: build "Walking distance to school" section: every in-budget
     #     listing within NEAR_SCHOOL_RADIUS_KM, sorted by distance. A
     #     fairly-priced flat scores ~0 on value and falls below the top-N
     #     cutoff even when it is exactly what the buyer needs (affordable,
@@ -317,24 +382,27 @@ def run():
     near_school_html = notifier.build_near_school_html(all_listings + auctions)
     print(f"[main] near-school section built")
 
-    # 6e. Build "State & bailiff auctions" section (izsoles.ta.gov.lv):
+    # Step 7 cont: build "State & bailiff auctions" section (izsoles.ta.gov.lv):
     #     sorted by distance, budget-filtered, with start price / current
     #     bid / end date. Not part of the deal-score ranking.
     #     prev_active (loaded before the 6g overwrite below) supplies
     #     yesterday's auction bids -> NEW badges and bid-move deltas.
-    prev_active = utils.read_json(config.FLAT_ACTIVE_JSON, {})
-    _prev_bids = {r["k"]: r["p"] for r in prev_active.get("rows", [])
-                  if r.get("k", "").startswith("izsoles.")}
+    # City-wide median EUR/m2 across today's plausible sale listings —
+    # the market-relative signal for auction "vs market" chips and flat
+    # "vs district" chips below (official appraisals are often stale).
+    _city_median_ppu = utils.median(
+        [utils.to_float(l.get("price_per_m2")) for l in all_listings
+         if l.get("deal_type") == "sale" and l.get("price_per_m2")])
     auctions_html = notifier.build_auctions_html(
-        auctions, failed=auctions_failed, prev_bids=_prev_bids)
+        auctions, failed=auctions_failed, prev_bids=_prev_bids,
+        median_ppu=_city_median_ppu)
     print(f"[main] auctions section built")
 
-    # 6f. District-level market stats for the Market tab (docs/market.html)
-    flat_market.save_stats(
-        flat_market.compute_district_stats(all_listings, price_data, today),
-        today, len(all_listings))
+    # Step 7 cont: district-level market stats for the Market tab
+    #     (computed earlier so the rows could carry _district_median_ppu).
+    flat_market.save_stats(_flat_stats, today, len(all_listings))
 
-    # 6g. "Disappeared — likely sold/removed": yesterday's live-ad ids
+    # Step 7 cont: "Disappeared — likely sold/removed": yesterday's live-ad ids
     #     minus today's, restricted to sources that produced data today.
     #     Auctions are tracked too — one that vanished usually ended or was
     #     settled, which is a real signal for the buyer. Today's rows are
@@ -345,18 +413,26 @@ def run():
         ok_sources.add("izsoles.ta.gov.lv")
     gone_rows = gone.gone_rows(
         prev_active.get("rows"),
-        {gone.listing_key(l) for l in live_now},
+        {utils.listing_key(l) for l in live_now},
         ok_sources,
         config.GONE_MAX_ROWS)
-    utils.write_json(config.FLAT_ACTIVE_JSON,
-                     {"date": today,
-                      "rows": gone.flat_active_rows(live_now)},
-                     indent=None)
+    spike = health.gone_spike_issue(prev_active.get("rows"), gone_rows)
+    if spike:
+        digest_issues.append(spike)
+        print(f"[health] ISSUE gone_spike: {spike[1]}")
     gone_html = notifier.build_gone_html(gone_rows, price_data, today)
     if gone_rows:
         print(f"[main] {len(gone_rows)} flat ad(s) disappeared since yesterday")
+    utils.write_json(config.FLAT_ACTIVE_JSON,
+                     {"date": today,
+                      "rows": gone.flat_active_rows(live_now),
+                      "recent_gone": gone.recent_gone_rows(
+                          prev_active.get("recent_gone"),
+                          gone_rows, today,
+                          live_rows=gone.flat_active_rows(live_now))},
+                     indent=None)
 
-    # 7. Save today's digest (pass price history + map markers + sections)
+    # Step 8: save today's digest (pass price history + map markers + sections)
     _path, info = notifier.save_digest(main_deals, still_active, comparison_html,
                                        status_note, price_data, map_markers,
                                        newest_html, near_school_html,
@@ -370,10 +446,10 @@ def run():
                                        auctions_failed=auctions_failed,
                                        n_gone=len(gone_rows))
 
-    # 8. Build hosted site (latest digest -> docs/index.html + archive)
+    # Step 8 cont: build hosted site (latest digest -> docs/index.html + archive)
     website.build()
 
-    # 9. Update state: record today's surfaced deals + save today's digest
+    # Step 9: update state: record today's surfaced deals + save today's digest
     history.update_seen_deals(all_scored, seen_deals)
     history.save_last_digest(all_scored, today)
 
@@ -385,7 +461,6 @@ def run():
            f"{info}. Scoring: {status_note}.{(' ' + car_status) if car_status else ''} "
            f"Feedback or next steps?")
     _inject_chat(msg)
-    _release_run_lock()
     return msg
 
 

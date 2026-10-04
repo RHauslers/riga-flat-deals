@@ -13,6 +13,7 @@ from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import config   # noqa: E402
 import geocode  # noqa: E402
 
 DRY_RUN = False
@@ -40,7 +41,7 @@ def main():
     print(f"\nresolved {fixed}, still missing {still}")
     if not DRY_RUN:
         geocode.save_cache(cache)
-        print(f"cache saved -> {geocode.GEOCODE_CACHE_JSON}")
+        print(f"cache saved -> {config.GEOCODE_CACHE_JSON}")
     try:
         import pyperclip
         pyperclip.copy(f"regeocode_failed.py done: {fixed} resolved, {still} "

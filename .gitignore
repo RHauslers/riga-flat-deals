@@ -25,3 +25,4 @@ data/*.log
 data/*.v1.bak
 data/.main.lock
 data/*.tmp
+docs/*.tmp

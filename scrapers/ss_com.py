@@ -19,6 +19,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import config
+import utils
 
 
 def _parse_price(text):
@@ -61,13 +62,10 @@ def _parse_floor(text):
 
 
 def _match_district(cell_text):
-    """Return canonical district name if cell text matches a target, else None."""
-    low = cell_text.lower()
-    for canon, aliases in config.DISTRICTS.items():
-        for alias in aliases:
-            if alias in low:
-                return canon
-    return None
+    """Return canonical district name if cell text matches a target, else
+    None. Delegates to utils.match_district — same alias list as city24,
+    plus diacritic-insensitive matching for transliterated names."""
+    return utils.match_district(cell_text)
 
 
 def _row_to_listing(tr, deal_type, forced_district=None):
@@ -83,7 +81,6 @@ def _row_to_listing(tr, deal_type, forced_district=None):
         return None
     list_id = m.group(1)
 
-    cells = tr.find_all("td", class_=re.compile(r"msga2-o|msg2"))
     # The descriptive cells (district, rooms, area, floor, series, price/m2, price)
     # are the ones with class containing "msga2-o". The title cell is class "msg2".
     desc_cells = tr.find_all("td", class_=re.compile(r"msga2-o"))
@@ -95,15 +92,10 @@ def _row_to_listing(tr, deal_type, forced_district=None):
     parts = re.split(r"<br\s*/?>", district_html, maxsplit=1)
 
     if forced_district:
-        # District-specific page: first cell is just the street
+        # District-specific page: the cell is just "Street" (no district
+        # prefix) — take the text before any <br>.
         district = forced_district
         street = BeautifulSoup(parts[0], "lxml").get_text(strip=True)
-        if len(parts) > 1:
-            # If there's a <br>, the first part might still be district
-            first_part = BeautifulSoup(parts[0], "lxml").get_text(strip=True)
-            second_part = BeautifulSoup(parts[1], "lxml").get_text(strip=True)
-            # On district pages, the cell is just "Street" (no district prefix)
-            street = first_part
     else:
         # "Today" page: cell is "District<br>Street"
         district_name_raw = BeautifulSoup(parts[0], "lxml").get_text(strip=True)
@@ -177,16 +169,17 @@ def _to_float(text):
 # Shared throttle across flat-page fetches — district pages fired ~40
 # requests back-to-back before this delay existed (the car scraper had a
 # 1 s gap all along).
-_last_request_ts = [0.0]
+_last_request_ts = 0.0
 
 
 def _fetch(url):
     """GET one page, with a politeness delay since the previous request.
     Connection/timeout errors get a couple of retries — they are usually a
     transient blip. HTTP errors propagate at once."""
+    global _last_request_ts
     last = None
     for attempt in range(config.REQUEST_RETRIES + 1):
-        elapsed = time.monotonic() - _last_request_ts[0]
+        elapsed = time.monotonic() - _last_request_ts
         wait = config.SS_COM_REQUEST_DELAY_SECONDS - elapsed
         if wait > 0:
             time.sleep(wait)
@@ -203,30 +196,23 @@ def _fetch(url):
             # politeness delay, and one patient retry often clears it.
             if (r.status_code in config.SS_COM_RETRY_STATUS
                     and attempt < config.REQUEST_RETRIES):
-                wait = _retry_after_seconds(r) or \
+                wait = utils.retry_after_seconds(r) or \
                     config.REQUEST_RETRY_DELAY_SECONDS * (attempt + 2)
                 print(f"[ss.com] {r.status_code} on {url} — "
                       f"retrying in {wait:.0f}s")
-                _last_request_ts[0] = time.monotonic()
+                _last_request_ts = time.monotonic()
                 time.sleep(wait)
                 continue
             r.raise_for_status()
-            _last_request_ts[0] = time.monotonic()
+            _last_request_ts = time.monotonic()
             return r.text
         except (requests.ConnectionError, requests.Timeout) as e:
             last = e
-            _last_request_ts[0] = time.monotonic()
+            _last_request_ts = time.monotonic()
             if attempt < config.REQUEST_RETRIES:
                 time.sleep(config.REQUEST_RETRY_DELAY_SECONDS)
     raise last
 
-
-def _retry_after_seconds(resp):
-    """Parse the Retry-After header (seconds form), capped at 30 s."""
-    try:
-        return min(float(resp.headers.get("Retry-After", "")), 30.0)
-    except (TypeError, ValueError):
-        return None
 
 
 def _next_page_url(soup, base_url):

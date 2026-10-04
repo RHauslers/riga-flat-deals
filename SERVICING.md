@@ -1,11 +1,142 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-04 01:12
+Last updated: 2026-10-04 18:49
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
 
+- 2026-10-04 18:49 — /improve 15 (cold read first, changelog sanity filter
+  after proposing — 0 dropped). Bugs fixed:
+  (1) utils.flat_motivated read o.get("p") but our_tracking entries store
+    "price" — flat own-trail drops + at_low were silently dead (44 real
+    entries gain drop detection, 96 gain at_low; reads both keys);
+  (2) web_style.SORT_JS began with "#" — JS SyntaxError would have killed
+    sortTable on every future generated page; now "//" comment;
+  (3) notifier._vs_district_chip title printed "EUR/m2/m2" (same class as
+    the auction chip bug fixed yesterday) — _fmt_ppu already suffixes;
+  (4) car_ss docstring claimed 403/429 abort without retry — 429 retries
+    now; documented;
+  (5) dead cells/second_part vars in ss_com forced-district branch;
+  (6) ss_com._match_district duplicated utils.match_district minus
+    diacritic stripping — now delegates;
+  (7) car-fuel allowlist tuple duplicated in car_value/cars — centralised
+    as config.CAR_VALID_FUELS;
+  (8) format_price_timeline_html raw hexes -> theme vars (dark-mode safe);
+  (9) scoring._fallback_scores rebuilt all_ppu over full history per
+    listing — hoisted;
+  (10) classify.comparison_header rebuilt yest-key set inside sum() per
+    item — hoisted;
+  (11) price_history/geocode bound config paths at import time — now
+    resolved per call so test patches work; regeocode_failed.py + tests
+    updated to patch config;
+  (12) history.append_history wrote latest_price[key]=None on missing
+    price — caller's dedupe baseline is now preserved;
+  (13) website._extract_date/_extract_car_date collapsed into
+    _digest_date(filename, kind);
+  (14) city24 browser leaked when new_context/new_page raised before the
+    try — nested try/finally guarantees browser.close();
+  (15) notifier._main_row_html/_still_row_html (~120-line twins) unified
+    into _deal_row_html(listing, score, status_cell, ...) — identical
+    output minus the Status cell; also dropped dead days_val.
+  Tests: 204 -> 208 (+4 regression tests in TestColdReviewFixes), all
+  green.
+
+- 2026-10-04 18:40 — /iterate 15 (feature batch; changelog checked first —
+  no duplicates). New-visible-value items:
+  (1) gone-spike guardrail — health.gone_spike_issue() raises a digest
+    banner when >GONE_SPIKE_PCT% of yesterday's live ads vanish AND the
+    count clears GONE_SPIKE_MIN (a partially-failed scrape otherwise
+    silently mass-marks flats "sold");
+  (2) RELISTED badge — flat_active.json now persists a recent_gone pool
+    (GONE_RELIST_DAYS horizon); a live ad matching a recently-gone flat
+    (district + normalised street + rooms + area±3m2, price≤15% as
+    compensator when area missing) gets _relisted + purple chip with the
+    prior ask. gone.find_relisted / recent_gone_rows own the logic;
+  (3) auction market signals — build_auctions_html(median_ppu=) shows a
+    "-N% vs market" chip when the lot's EUR/m2 undercuts today's city
+    median ≥15%, and empty bids render a "no bids yet" badge;
+  (4) district market temperature — compute_district_stats adds
+    median_age (cenu days_on_market, else own first_seen) + cut_pct; the
+    market page flats tab gains "Med. days" + "Cuts" columns;
+  (5) flat rows carry _district_median_ppu (annotated early in main, same
+    pattern as _school_km/_relisted) and show "-N% vs district" chip at
+    ≤-10%;
+  (6) in-page "Jump to:" section nav (secnav) with anchors in both
+    digests;
+  (7) website.build() injects prev/next-day links (daynav div, recomputed
+    each build so pruning stays consistent);
+  (8) helper_scripts/backfill_car_market.py — seeds car_market_history
+    from archived cars_*.html embeds; ran it: 6 days / 791 points / 265
+    series (Δ7d activates once a point ages to 7d);
+  (9) .gitignore += docs/*.tmp; dead `import json` removed from both
+    market modules;
+  (10) daily.yml gained a non-blocking audit_data.py step before the
+    state commit;
+  (11) dark-mode toggle — web_style THEME_HEAD_JS/THEME_JS +
+    [data-theme] overrides, persisted in localStorage, injected into all
+    five page templates (theme scripts now ship inside every generated
+    page: <script> count per digest went 1->3, test updated);
+  (12) consecutive-outage streaks — health.update_streaks writes
+    data/health_state.json ({src: fail_days,last_ok,last_fail}); streaks
+    >=2 land on the digest banner as "failed N days in a row". Wired for
+    flats (main) and cars (cars.run, incl. early-return paths);
+  (13) LOWEST SEEN chip — flat/car motivated info gains at_low (current
+    ask <= every observed price, >1 distinct point); green chip rendered
+    beside the drop/MOTIVATED chips in both digests;
+  (14) budget-tool signal parity — _FLAT_FIELDS gained _drop_eur, _mot,
+    _at_low, _relisted_price, _vs_district_pct (appended at END —
+    positional indices are hardcoded); FLAT_BUDGET_JS renders the same
+    chips in the custom view's Source cell;
+  (15) README documents motivated sellers, price-cuts card, RELISTED,
+    market-temperature columns, day-nav, dark toggle, backfill helper.
+  Fixes found while testing: auction chip title printed "EUR/m2/m2"
+  (fmt fn already suffixes); flat_market.compute_district_stats passed a
+  str `today` into days_since (expects date) — normalised; car/main-run
+  tests wrote the real data/health_state.json — test-side now patched to
+  tmp paths. Tests: 194 -> 204, all green.
+
+- 2026-10-04 18:16 — /improve 20 (first cold-read review; sanity filter
+  checked the changelog after proposing — 0 items dropped, none already
+  done/rejected; items 9-10 extended rather than revisited prior work).
+  Consolidation batch, no behavior changes intended:
+  (1) main.run() now wraps _run_body() in try/finally so an exception
+  can't strand data/.main.lock for up to 4h;
+  (2) main.py docstring/inline step markers renumbered 1-10 to match the
+  real flow (old scheme had 1b/1e2/6b-6g and no step 3);
+  (3) digest/site HTML writes go through new utils.write_text (atomic
+  tmp+os.replace, same discipline as write_json);
+  (4) canonical utils.listing_key(listing) replaces ~10 inline
+  f"{source}:{id}" copies + local _key/listing_key helpers;
+  (5-8) dead pass-through wrappers removed: scoring._to_float/_to_int,
+  cars._read_json, history._read_json/_to_float, geocode._read_json,
+  classify._key/_to_float/_days_since, price_history._listing_key/
+  _safe_float/_read_json/_is_older_than_days, gone.listing_key —
+  callers now use utils.{to_float,to_int,read_json,listing_key,
+  older_than_days,days_since} (to_float/to_int gained a default arg);
+  (9) flat_market._append_history + car_market._append_history share
+  utils.upsert_history_point (same-date replace + sorted insert + cap);
+  market load_stats/load_history use utils.read_json;
+  (10) scrapers/car_ss.py got ss_com's 429/5xx retry honoring
+  Retry-After via shared utils.retry_after_seconds (403 still aborts);
+  (11) sortTable JS deduplicated into web_style.SORT_JS — flat digest
+  timeline-grouping variant covers plain tables; notifier, car_digest
+  AND the third copy in car_market (market page) all embed it;
+  (12-13) last raw hex colors gone: classify comparison box uses tokens,
+  budget/filter controls in notifier + car_digest use shared
+  button.primary/.ghost + BASE_CSS form styles;
+  (14-15) function-local `import re` hoisted in notifier, redundant
+  `import timedelta as _td` dropped in price_history;
+  (16) dead data/*.v1.bak files deleted;
+  (17) _last_request_ts mutable-list hack -> module float + `global` in
+  ss_com + car_ss;
+  (18) utils.riga_now_str() is the single Riga/UTC header timestamp
+  (replaces notifier._now_header_str + car_digest._riga_stamp);
+  (19) geocode.annotate_school_km(listings) helper replaces the
+  duplicated _school_km loops in main (listings + auctions);
+  (20) history.latest_prices(rows) + append_history(latest_price=...)
+  halve the history.csv reads per run (was scanned twice).
+  Tests +10 -> 194 pass.
 - 2026-10-04 01:12 — motivated-seller detection + legacy email purge:
   new utils.flat_motivated / utils.car_motivated / utils.is_motivated —
   a flat is MOTIVATED when it has a real asking-price cut plus either

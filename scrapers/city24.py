@@ -102,9 +102,6 @@ def _scrape_deal_type(playwright, deal_type):
     page_size = None
 
     browser = playwright.chromium.launch(headless=True)
-    context = browser.new_context(user_agent=config.CITY24_USER_AGENT)
-    page = context.new_page()
-
     captured = []
 
     def on_response(resp):
@@ -114,43 +111,50 @@ def _scrape_deal_type(playwright, deal_type):
         except Exception:
             pass
 
-    page.on("response", on_response)
-
     try:
-        for pg in range(1, config.CITY24_MAX_PAGES + 1):
-            captured.clear()
-            url = f"{base}/pg={pg}"
-            try:
-                page.goto(url, timeout=config.CITY24_NAV_TIMEOUT, wait_until="networkidle")
-            except Exception as e:
-                print(f"[city24.lv] goto page {pg} failed: {e}")
-                break
-            page.wait_for_timeout(1500)
+        context = browser.new_context(user_agent=config.CITY24_USER_AGENT)
+        try:
+            page = context.new_page()
+            page.on("response", on_response)
 
-            page_items = []
-            for payload in captured:
-                if isinstance(payload, list):
-                    page_items.extend(payload)
-                elif isinstance(payload, dict):
-                    # some wrappers: items / realities / data
-                    for key in ("items", "realties", "data", "results"):
-                        if isinstance(payload.get(key), list):
-                            page_items.extend(payload[key])
-                            break
+            for pg in range(1, config.CITY24_MAX_PAGES + 1):
+                captured.clear()
+                url = f"{base}/pg={pg}"
+                try:
+                    page.goto(url, timeout=config.CITY24_NAV_TIMEOUT, wait_until="networkidle")
+                except Exception as e:
+                    print(f"[city24.lv] goto page {pg} failed: {e}")
+                    break
+                page.wait_for_timeout(1500)
 
-            if not page_items:
-                break  # nothing more
+                page_items = []
+                for payload in captured:
+                    if isinstance(payload, list):
+                        page_items.extend(payload)
+                    elif isinstance(payload, dict):
+                        # some wrappers: items / realities / data
+                        for key in ("items", "realties", "data", "results"):
+                            if isinstance(payload.get(key), list):
+                                page_items.extend(payload[key])
+                                break
 
-            for it in page_items:
-                item = _extract_item(it, deal_type)
-                if item:
-                    results.append(item)
+                if not page_items:
+                    break  # nothing more
 
-            page_size = page_size or len(page_items)
-            if len(page_items) < (page_size or 50):
-                break  # last page reached
+                for it in page_items:
+                    item = _extract_item(it, deal_type)
+                    if item:
+                        results.append(item)
+
+                page_size = page_size or len(page_items)
+                if len(page_items) < (page_size or 50):
+                    break  # last page reached
+        finally:
+            # new_context/new_page can raise (profile locks, sandbox
+            # issues) — the browser still has to die either way or a
+            # failed run leaks a headless Chromium.
+            context.close()
     finally:
-        context.close()
         browser.close()
 
     # de-duplicate by id within this run

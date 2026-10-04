@@ -7,7 +7,7 @@ import os
 import re
 import statistics
 import unicodedata
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from html import escape as _html_escape
 
 import config
@@ -57,21 +57,51 @@ def write_json(path, data, indent=2):
         raise
 
 
+def write_text(path, text):
+    """Atomic UTF-8 text write — same tmp+os.replace discipline as
+    write_json, for the HTML digests: a crash mid-write must not leave a
+    truncated page for website.build() to publish."""
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Listing identity — every module used to build "source:id" keys inline
+# ---------------------------------------------------------------------------
+def listing_key(listing):
+    """Canonical 'source:id' key for a listing dict ('' for missing parts)."""
+    return f"{listing.get('source') or ''}:{listing.get('id') or ''}"
+
+
 # ---------------------------------------------------------------------------
 # Number coercion (was duplicated as _to_float/_safe_float/_number everywhere)
 # ---------------------------------------------------------------------------
-def to_float(v):
+def to_float(v, default=None):
     try:
         return float(v)
     except (TypeError, ValueError):
-        return None
+        return default
 
 
-def to_int(v):
+def to_int(v, default=None):
     try:
         return int(float(v))
     except (TypeError, ValueError):
-        return None
+        return default
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +141,20 @@ def median(values):
         return None
 
 
+def riga_now_str():
+    """'YYYY-MM-DD HH:MM (Riga time)' for digest headers — Europe/Riga when
+    tzdata is available, UTC labelled as such otherwise. Was duplicated
+    (with different fallbacks) in notifier._now_header_str and
+    car_digest._riga_stamp."""
+    try:
+        from zoneinfo import ZoneInfo
+        return (datetime.now(ZoneInfo("Europe/Riga"))
+                .strftime("%Y-%m-%d %H:%M") + " (Riga time)")
+    except Exception:
+        return (datetime.now(timezone.utc)
+                .strftime("%Y-%m-%d %H:%M") + " (UTC)")
+
+
 def days_since(date_str, today=None):
     """Days between today and an ISO date string, or None if unparseable."""
     if not date_str or date_str == "unknown":
@@ -145,8 +189,16 @@ def flat_motivated(entry):
             drop_pct = drop_eur / float(op) * 100
     except (TypeError, ValueError):
         pass
-    obs = [o.get("p") for o in (entry.get("our_tracking") or [])
-           if o.get("p") is not None]
+    # our_tracking rows are {"date", "price"} dicts (price_history writes
+    # them) — read both keys so legacy/"p"-shaped rows still decode.
+    obs = []
+    for o in (entry.get("our_tracking") or []):
+        v = o.get("price") if isinstance(o, dict) else None
+        if v is None and isinstance(o, dict):
+            v = o.get("p")
+        v = to_float(v)
+        if v is not None:
+            obs.append(v)
     own_drops = sum(1 for a, b in zip(obs, obs[1:]) if b < a)
     # No cenu data at all -> fall back to our own trail only.
     if not c and len(obs) >= 2 and obs[-1] < obs[0]:
@@ -154,11 +206,23 @@ def flat_motivated(entry):
         drop_pct = drop_eur / float(obs[0]) * 100
     if not drop_eur and not own_drops and not c:
         return None
+    # at_low: current ask is the lowest point in the whole observed
+    # record (cenu original/current + our trail) AND something was once
+    # higher — the best moment to make an offer.
+    cur = to_float(cp if c else (obs[-1] if obs else None))
+    all_prices = ([to_float(op)] if c and to_float(op) is not None else [])
+    all_prices += [to_float(p) for p in obs if to_float(p) is not None]
+    if cur is not None:
+        all_prices.append(cur)
+    at_low = bool(cur is not None and all_prices
+                  and cur <= min(all_prices)
+                  and len(set(all_prices)) > 1)
     return {
         "drop_eur": drop_eur, "drop_pct": drop_pct,
         "days": c.get("days_on_market") or 0,
         "relists": len(c.get("previous_listings") or []),
         "trail_drops": own_drops,
+        "at_low": at_low,
         "was": op if drop_eur and c else (obs[0] if drop_eur else None),
         "now": cp if drop_eur and c else (obs[-1] if drop_eur else None),
     }
@@ -190,9 +254,12 @@ def car_motivated(l, today=None):
     days = days_since(l.get("_first_seen"), today=today) or 0
     if not drop_eur and not n_drops:
         return None
+    prices = [p for _, p in hist]
+    at_low = bool(prices and hist[-1][1] <= min(prices)
+                  and len(set(prices)) > 1)
     return {
         "drop_eur": drop_eur, "drop_pct": drop_pct, "days": days,
-        "relists": 0, "trail_drops": n_drops,
+        "relists": 0, "trail_drops": n_drops, "at_low": at_low,
         "was": hist[0][1] if drop_eur else None,
         "now": hist[-1][1] if drop_eur else None,
     }
@@ -205,6 +272,39 @@ def is_motivated(info, stale_days, min_drop_eur):
     repeated = (info.get("trail_drops", 0) >= config.MOTIVATED_MIN_TRAIL_DROPS
                 or info.get("relists", 0) >= config.MOTIVATED_MIN_RELISTINGS)
     return info.get("days", 0) >= stale_days or repeated
+
+
+def older_than_days(date_str, days, today=None):
+    """True when date_str is missing/unparseable or older than `days` —
+    the retry-gate convention used for weekly-refetch style stamps."""
+    n = days_since(date_str, today=today)
+    return True if n is None else n >= days
+
+
+def retry_after_seconds(resp):
+    """Parse the Retry-After response header (seconds form), capped at 30 s.
+    Shared by the flat and car ss.com fetchers' 429/5xx retry."""
+    try:
+        return min(float(resp.headers.get("Retry-After", "")), 30.0)
+    except (TypeError, ValueError):
+        return None
+
+
+def upsert_history_point(points, run_date, point, max_points):
+    """Insert `point` ([date, ...]) into `points` sorted by date; a same-date
+    point is replaced wherever it sits, then the series is capped at
+    max_points. Shared by the flat/car market history writers — a backfill
+    merged after live appends had produced unordered duplicate tails."""
+    for i, p in enumerate(points):
+        if p[0] == run_date:
+            points[i] = point
+            break
+        if str(p[0]) > run_date:
+            points.insert(i, point)
+            break
+    else:
+        points.append(point)
+    del points[:-max_points]
 
 
 def delta_7d(points, value_idx=1):

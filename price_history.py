@@ -31,9 +31,10 @@ import config
 import utils
 
 # ---------------------------------------------------------------------------
-# File paths
+# File paths — read config.PRICE_HISTORY_JSON at call time, not import
+# time: a module-level alias would freeze the path before tests (or a
+# helper script) can point config at a temp file.
 # ---------------------------------------------------------------------------
-PRICE_HISTORY_JSON = config.PRICE_HISTORY_JSON
 
 # ---------------------------------------------------------------------------
 # CenuMednieks.lv scraper
@@ -45,11 +46,6 @@ CENU_USER_AGENT = (
 )
 CENU_TIMEOUT = 15
 CENU_DELAY = 1.0  # seconds between requests (be respectful)
-
-
-def _safe_float(v, default=0.0):
-    r = utils.to_float(v)
-    return default if r is None else r
 
 
 def _parse_price(text):
@@ -173,10 +169,6 @@ def fetch_cenumednieks(ss_id):
 # ---------------------------------------------------------------------------
 # Price history storage (data/price_history.json)
 # ---------------------------------------------------------------------------
-def _read_json(path, default):
-    return utils.read_json(path, default)
-
-
 def _write_json(path, data):
     # Compact JSON — the file is committed daily and pretty-printing was
     # adding ~35% dead whitespace (same reason car state went v2).
@@ -185,15 +177,11 @@ def _write_json(path, data):
 
 def load_price_history():
     """Load the full price history cache. Returns dict keyed by listing key."""
-    return _read_json(PRICE_HISTORY_JSON, {})
+    return utils.read_json(config.PRICE_HISTORY_JSON, {})
 
 
 def save_price_history(data):
-    _write_json(PRICE_HISTORY_JSON, data)
-
-
-def _listing_key(listing):
-    return f"{listing.get('source')}:{listing.get('id')}"
+    _write_json(config.PRICE_HISTORY_JSON, data)
 
 
 def _extract_ss_id(listing):
@@ -236,7 +224,7 @@ def update_price_history(listings):
             # no id -> the key would collapse every id-less listing into
             # one shared "source:None" entry
             continue
-        key = _listing_key(listing)
+        key = utils.listing_key(listing)
 
         entry = history.get(key, {
             'cenumednieks': None,
@@ -260,8 +248,7 @@ def update_price_history(listings):
             old_price = listing.get('old_price')
             if old_price and float(old_price) > 0 and float(old_price) != float(price):
                 # Use yesterday as the date (we don't know when it changed)
-                from datetime import timedelta as _td
-                yesterday = (date.today() - _td(days=1)).isoformat()
+                yesterday = (date.today() - timedelta(days=1)).isoformat()
                 entry['our_tracking'].append({'date': yesterday, 'price': float(old_price)})
                 entry['city24_old_price'] = float(old_price)
 
@@ -289,10 +276,10 @@ def update_price_history(listings):
             cached = entry.get('cenumednieks')
             needs_refresh = (
                 not cached
-                or _is_older_than_days(cached.get('fetched_at'),
+                or utils.older_than_days(cached.get('fetched_at'),
                                        config.CENU_REFRESH_DAYS)
             )
-            due = _is_older_than_days(entry.get('cenumednieks_attempt'),
+            due = utils.older_than_days(entry.get('cenumednieks_attempt'),
                                       config.CENU_REFRESH_DAYS)
             if needs_refresh and due:
                 entry['cenumednieks_attempt'] = today
@@ -338,16 +325,6 @@ def _entry_last_activity(entry):
     return max(dates) if dates else None
 
 
-def _is_older_than_days(date_str, days):
-    if not date_str:
-        return True
-    try:
-        d = datetime.strptime(date_str, '%Y-%m-%d').date()
-        return (date.today() - d).days >= days
-    except ValueError:
-        return True
-
-
 # ---------------------------------------------------------------------------
 # Timeline formatting (for digest/website)
 # ---------------------------------------------------------------------------
@@ -363,21 +340,21 @@ def get_price_timeline(listing, history=None):
     but tagged with source='CenuMednieks (previous ad)' so the formatter
     can separate them from the current ad's price history.
     """
-    key = _listing_key(listing)
+    key = utils.listing_key(listing)
     if history is None:
         history = load_price_history()
     entry = history.get(key)
     if not entry:
         return None
 
-    current_price = _safe_float(listing.get('price_eur'))
+    current_price = utils.to_float(listing.get('price_eur'), 0.0)
     timeline = []
 
     # CenuMednieks data (historical)
     cenu = entry.get('cenumednieks')
     if cenu:
         if cenu.get('first_listed_date') and cenu.get('original_price'):
-            orig = _safe_float(cenu['original_price'])
+            orig = utils.to_float(cenu['original_price'], 0.0)
             # Sanity check: if original_price is wildly different from the
             # current price (>5x or <1/5), it's likely from a different deal
             # type (e.g. a 275k sale price showing up for a 1.1k rental).
@@ -393,7 +370,7 @@ def get_price_timeline(listing, history=None):
         # Previous listings from same address (context only — different ads).
         # Also filter by price ratio to exclude cross-deal-type noise.
         for prev in cenu.get('previous_listings', []):
-            prev_price = _safe_float(prev.get('price'))
+            prev_price = utils.to_float(prev.get('price'), 0.0)
             if current_price > 0 and prev_price > 0:
                 ratio = max(prev_price, current_price) / min(prev_price, current_price)
                 if ratio > 5.0:
@@ -452,7 +429,7 @@ def format_price_timeline_html(listing, history=None):
     parts = []
     if len(current_timeline) == 1:
         t = current_timeline[0]
-        parts.append(f'<span style="color:#888;font-size:11px">'
+        parts.append(f'<span style="color:var(--muted);font-size:11px">'
                      f'Listed at <b>{t["price"]:,.0f} EUR</b> ({t["date"]}), '
                      f'unchanged</span>')
     else:
@@ -460,13 +437,14 @@ def format_price_timeline_html(listing, history=None):
             price = t['price']
             date_str = t['date']
             if i == 0:
-                parts.append(f'<span style="color:#888;font-size:11px">'
+                parts.append(f'<span style="color:var(--muted);font-size:11px">'
                             f'First: <b>{price:,.0f} EUR</b> ({date_str})</span>')
             else:
                 prev_price = current_timeline[i - 1]['price']
                 if price != prev_price:
                     pct = ((price - prev_price) / prev_price) * 100
-                    color = '#e74c3c' if price > prev_price else '#27ae60'
+                    # Up = bad for the buyer (red), down = good (green).
+                    color = 'var(--bad)' if price > prev_price else 'var(--good)'
                     arrow = '↑' if price > prev_price else '↓'
                     parts.append(f' &rarr; <span style="color:{color};font-size:11px">'
                                 f'<b>{price:,.0f} EUR</b> ({date_str}) '
@@ -485,21 +463,21 @@ def format_price_timeline_html(listing, history=None):
         prev_parts = []
         for t in shown:
             prev_parts.append(
-                f'<span style="color:#aaa;font-size:10px">'
+                f'<span style="color:var(--faint);font-size:10px">'
                 f'{t["price"]:,.0f} EUR ({t["date"]})</span>'
             )
         prev_str = " &middot; ".join(prev_parts)
         if hidden_count > 0:
-            prev_str += (f' <span style="color:#bbb;font-size:10px">'
+            prev_str += (f' <span style="color:var(--faint);font-size:10px">'
                          f'(+{hidden_count} earlier)</span>')
         prev_html = (f'<div style="margin:3px 0 0 0;padding-top:3px;'
-                     f'border-top:1px dotted #ccc">'
-                     f'<span style="color:#999;font-size:10px">'
+                     f'border-top:1px dotted var(--line)">'
+                     f'<span style="color:var(--faint);font-size:10px">'
                      f'Previous ads at this address:</span> '
                      f'{prev_str}</div>')
 
     # Add "days on market" from CenuMednieks if available
-    key = _listing_key(listing)
+    key = utils.listing_key(listing)
     if history is None:
         history = load_price_history()
     entry = history.get(key, {})
@@ -508,7 +486,7 @@ def format_price_timeline_html(listing, history=None):
 
     header = ''
     if days_market is not None and days_market > 0:
-        header = (f'<div style="font-size:11px;color:#666;margin:2px 0">'
+        header = (f'<div style="font-size:11px;color:var(--muted);margin:2px 0">'
                   f'On market: <b>{days_market} days</b></div>')
 
     spark = utils.sparkline_svg(

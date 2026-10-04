@@ -32,10 +32,6 @@ from scrapers import car_ss, car_pp
 SOURCES = (("ss.com", car_ss), ("pp.lv", car_pp))
 
 
-def _read_json(path, default):
-    return utils.read_json(path, default)
-
-
 def _write_json(path, data):
     """Compact JSON (no indent): car_seen/snapshot are ~1 MB each when
     pretty-printed and are rewritten every day into git history."""
@@ -72,7 +68,7 @@ def _read_seen(path=None):
     """Load car_seen.json as the familiar {key: {first_seen, last_seen,
     last_price, last_shown, first_shown, prices}} dict. Reads the compact
     v2 layout and the old verbose one transparently."""
-    data = _read_json(path or config.CAR_SEEN_JSON, {})
+    data = utils.read_json(path or config.CAR_SEEN_JSON, {})
     if data.get("v") != 2:
         return data
     seen = {}
@@ -110,7 +106,7 @@ def load_snapshot(path=None):
     """Yesterday's market snapshot as {"date": ..., "listings": [...]}.
     Reads both the old {"listings": [dict, ...]} layout and the columnar
     v2 one ({v: 2, fields: [...], rows: [[...]]})."""
-    data = _read_json(path or config.CAR_MARKET_SNAPSHOT_JSON, {})
+    data = utils.read_json(path or config.CAR_MARKET_SNAPSHOT_JSON, {})
     if data.get("v") == 2:
         fields = data.get("fields") or []
         return {"date": data.get("date"),
@@ -142,7 +138,7 @@ def _ineligible_reason(l):
         return "missing mileage"
     if not l.get("make") or not l.get("model"):
         return "missing make/model"
-    if l.get("fuel") not in ("petrol", "diesel", "hybrid", "electric", "lpg"):
+    if l.get("fuel") not in config.CAR_FUEL_TYPES:
         return "unknown fuel"
     if l.get("fuel") != "electric" and not l.get("engine_l"):
         return "missing engine"
@@ -176,10 +172,8 @@ def _badge(entry, price, today=None):
 
 
 def _save_digest(html_text, today):
-    os.makedirs(config.DIGEST_DIR, exist_ok=True)
     path = os.path.join(config.DIGEST_DIR, f"cars_{today}.html")
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(html_text)
+    utils.write_text(path, html_text)  # makedirs inside write_text
     return path
 
 
@@ -229,6 +223,17 @@ def run():
                 "no eligible car listings (source may be empty or parser changed)"
     source_counts["_drop_reasons"] = drop_reasons
 
+    # Consecutive-outage streaks (same health_state.json as the flats —
+    # "cars:" prefix keeps the two ss.com scrapes distinct). A streak
+    # >= 2 days appends "· down Nd" to the source error so the outage
+    # box says it's persistent, not a blip.
+    _car_ok = {f"cars:{n}": n not in source_errors for n, _ in SOURCES}
+    for _key, _days in health.update_streaks(_car_ok, today).items():
+        _src = _key.split(":", 1)[1]
+        if _src in source_errors:
+            source_errors[_src] += f" · down {_days}d in a row"
+        print(f"[health] ISSUE outage_streak:{_key}: {_days} days")
+
     ok_sources = [n for n, _ in SOURCES if n not in source_errors]
     if not ok_sources:
         html_text = car_digest.build_html([], [], source_counts, source_errors,
@@ -253,7 +258,7 @@ def run():
     ok_source_names = {n for n, _ in SOURCES if n not in source_errors}
     gone_car_rows = gone.gone_rows(
         gone.car_snapshot_rows(prev_snapshot.get("listings")),
-        {gone.listing_key(l) for l in deduped},
+        {utils.listing_key(l) for l in deduped},
         ok_source_names, config.CAR_GONE_MAX_ROWS)
 
     qualified, assessed = car_value.score_and_rank(deduped)
@@ -267,11 +272,11 @@ def run():
     seen = _read_seen()
     badges = {}
     for l in qualified:
-        key = f"{l.get('source')}:{l.get('id')}"
+        key = utils.listing_key(l)
         badges[key] = _badge(seen.get(key), l.get("price_eur"), today)
 
     for l in deduped:
-        key = f"{l.get('source')}:{l.get('id')}"
+        key = utils.listing_key(l)
         entry = seen.setdefault(key, {"first_seen": today, "last_seen": today,
                                       "last_price": None, "last_shown": None,
                                       "first_shown": None, "prices": []})
@@ -291,7 +296,7 @@ def run():
                 hist.append([today, p])
         del hist[:-config.CAR_PRICE_HISTORY_MAX_POINTS]
     for l in qualified:
-        entry = seen[f"{l.get('source')}:{l.get('id')}"]
+        entry = seen[utils.listing_key(l)]
         entry["first_shown"] = (entry.get("first_shown")
                                 or entry.get("last_shown") or today)
         entry["last_shown"] = today
@@ -299,7 +304,7 @@ def run():
     # embedded market JSON the browser re-ranker uses). score_and_rank
     # returns COPIES, so annotate both the market rows and the scored ones.
     for l in deduped + assessed:
-        entry = seen.get(f"{l.get('source')}:{l.get('id')}")
+        entry = seen.get(utils.listing_key(l))
         if entry:
             l["_first_seen"] = entry.get("first_seen")
             l["_price_hist"] = entry.get("prices") or []

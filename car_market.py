@@ -10,7 +10,6 @@ Flow: cars.run() computes stats and writes config.CAR_MARKET_STATS_JSON;
 website.build() renders docs/market.html from it and injects the nav.
 """
 
-import json
 from html import escape as _e
 from urllib.parse import quote as _q
 
@@ -58,7 +57,7 @@ def compute_market_stats(listings, qualified=None, today=None):
     _first_seen annotation set by cars.run()). Models with fewer than
     config.CAR_MARKET_MIN_LISTINGS ads are dropped as noise.
     """
-    deal_keys = {f"{l.get('source')}:{l.get('id')}" for l in (qualified or [])}
+    deal_keys = {utils.listing_key(l) for l in (qualified or [])}
     groups = {}
     display = {}
     for l in listings:
@@ -77,7 +76,7 @@ def compute_market_stats(listings, qualified=None, today=None):
         cheapest = min((l for l in items if l.get("price_eur")),
                        key=lambda l: l["price_eur"], default=None)
         deals = sum(1 for l in items
-                    if f"{l.get('source')}:{l.get('id')}" in deal_keys)
+                    if utils.listing_key(l) in deal_keys)
         new_today = (sum(1 for l in items if l.get("_first_seen") == today)
                      if today else 0)
         stats.append({
@@ -95,35 +94,8 @@ def compute_market_stats(listings, qualified=None, today=None):
     return stats
 
 
-_SORT_JS = """
-// Click-to-sort (same mechanism as the deals digests): first click sorts
-// ascending, second click reverses; numeric columns use data-sort.
-var sortState = {};
-function sortTable(tableId, colIdx) {
-  var table = document.getElementById(tableId);
-  if (!table) return;
-  var ths = table.querySelectorAll('th.sort-th');
-  ths.forEach(function(th) { th.classList.remove('sort-asc','sort-desc'); });
-  var rows = Array.from(table.querySelectorAll('tr')).slice(1);
-  var key = tableId + '_' + colIdx;
-  sortState[key] = !sortState[key];
-  var asc = sortState[key];
-  var clickedTh = table.querySelectorAll('th')[colIdx];
-  if (clickedTh) clickedTh.classList.add(asc ? 'sort-asc' : 'sort-desc');
-  rows.sort(function(a, b) {
-    var va = a.children[colIdx].getAttribute('data-sort');
-    var vb = b.children[colIdx].getAttribute('data-sort');
-    if (va === null || vb === null) return 0;
-    va = va.trim(); vb = vb.trim();
-    var na = parseFloat(va), nb = parseFloat(vb);
-    if (!isNaN(na) && !isNaN(nb)) {
-      return asc ? na - nb : nb - na;
-    }
-    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-  });
-  rows.forEach(function(r) { table.appendChild(r); });
-}
-"""
+# Sorting comes from web_style.SORT_JS — its timeline-row grouping is a
+# no-op for this page's plain tables.
 
 
 def _spark_html(points):
@@ -225,8 +197,9 @@ def build_market_html(stats, run_date, total_ads, history=None,
 <link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga market — {_e(str(run_date))}</title>
 {_STYLE}
-<script>{_SORT_JS}</script>
+<script>{web_style.SORT_JS}</script>
 </head><body>
+{web_style.THEME_TOGGLE_HTML}
 <h1>Riga market — {_e(str(run_date))}</h1>
 <div class="mtabs">
 <button type="button" class="mtab" id="mtab-cars"
@@ -282,11 +255,7 @@ function __mktTab(w) {{
 def load_stats(path=None):
     """Read the stats JSON written by cars.run(); None when absent."""
     path = path or config.CAR_MARKET_STATS_JSON
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return None
+    return utils.read_json(path, None)
 
 
 def build_page(path=None):
@@ -301,6 +270,7 @@ def build_page(path=None):
 <link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
 <title>Riga car market</title>
 {_STYLE}</head><body>
+{web_style.THEME_TOGGLE_HTML}
 <h1>Riga car market</h1>
 <p>Not generated yet — the market stats are written by the daily car
 scan.</p>
@@ -327,29 +297,15 @@ def _append_history(stats, run_date,
     """car_market_history.json: {make|model: [[date, median_eur], ...]},
     capped at CAR_MARKET_HISTORY_MAX_POINTS points per model."""
     path = path or config.CAR_MARKET_HISTORY_JSON
-    try:
-        with open(path, encoding="utf-8") as f:
-            hist = json.load(f)
-    except (OSError, ValueError):
-        hist = {}
+    hist = utils.read_json(path, {})
     for s in stats:
         if s.get("median_price") is None:
             continue
         key = f"{_group_key(s)[0]}|{_group_key(s)[1]}"
         pts = hist.setdefault(key, [])
         point = [run_date, s["median_price"]]
-        # Same-date replace + sorted insert (same ordering fix as
-        # flat_market._append_history).
-        for i, p in enumerate(pts):
-            if p[0] == run_date:
-                pts[i] = point
-                break
-            if str(p[0]) > run_date:
-                pts.insert(i, point)
-                break
-        else:
-            pts.append(point)
-        del pts[:-config.CAR_MARKET_HISTORY_MAX_POINTS]
+        utils.upsert_history_point(
+            pts, run_date, point, config.CAR_MARKET_HISTORY_MAX_POINTS)
     try:
         utils.write_json(path, hist, indent=None)
     except OSError:
@@ -359,8 +315,4 @@ def _append_history(stats, run_date,
 def load_history(path=None):
     """{make|model: [[date, median_eur], ...]} — {} when absent."""
     path = path or config.CAR_MARKET_HISTORY_JSON
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return {}
+    return utils.read_json(path, {})

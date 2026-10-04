@@ -19,6 +19,38 @@ Detected conditions:
                         flats silently had no position for weeks)
 """
 import config
+import utils
+
+
+def update_streaks(statuses, today=None, path=None):
+    """data/health_state.json — per-source consecutive failure days.
+
+    statuses: {key: bool} — True = the source produced data this run
+    (e.g. "flat:ss.com", "cars:pp.lv"). A failing day increments
+    fail_days; a good day resets it and records last_ok. Returns
+    {key: fail_days} for streaks >= 2 — a 1-day blip stays quiet, a
+    persistent outage escalates onto the digest banner.
+    """
+    from datetime import date as _date
+    today = today or _date.today().isoformat()
+    path = path or config.HEALTH_STATE_JSON
+    st = utils.read_json(path, {})
+    out = {}
+    for key, ok in statuses.items():
+        ent = st.setdefault(key, {})
+        if ok:
+            ent["fail_days"] = 0
+            ent["last_ok"] = today
+        else:
+            ent["fail_days"] = int(ent.get("fail_days") or 0) + 1
+            ent["last_fail"] = today
+        if ent["fail_days"] >= 2:
+            out[key] = ent["fail_days"]
+    try:
+        utils.write_json(path, st, indent=None)
+    except OSError:
+        pass
+    return out
 
 
 def evaluate(source_counts, total, geocoded=None):
@@ -68,6 +100,25 @@ def evaluate(source_counts, total, geocoded=None):
                 f"against the failed keys in data/geocode_cache.json."))
 
     return issues
+
+
+def gone_spike_issue(prev_rows, gone):
+    """(key, message) when an implausible share of yesterday's live ads
+    vanished — a partially-failed scrape marks them all 'sold', which is
+    far more likely than a genuine one-night sales wave. None otherwise."""
+    n_prev = len(prev_rows or [])
+    n_gone = len(gone or [])
+    if (n_gone < config.GONE_SPIKE_MIN
+            or n_prev == 0
+            or n_gone * 100 < n_prev * config.GONE_SPIKE_PCT):
+        return None
+    pct = 100.0 * n_gone / n_prev
+    return (
+        "gone_spike",
+        f"{n_gone} of yesterday's {n_prev} live ads vanished ({pct:.0f}%) — "
+        f"an implausibly large overnight change. A partially-failed scrape "
+        f"is the likely cause: the gone list below is probably wrong. Check "
+        f"the per-source counts before trusting it.")
 
 
 def check(source_counts, total, context="daily", geocoded=None):

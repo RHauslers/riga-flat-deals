@@ -483,6 +483,10 @@ class _TempPaths(unittest.TestCase):
                               self.snapshot_json),
             mock.patch.object(config, "CAR_MARKET_STATS_JSON",
                               self.stats_json),
+            # streak state — car-run tests must not touch the real file
+            mock.patch.object(config, "HEALTH_STATE_JSON",
+                              os.path.join(self.tmp.name,
+                                           "health_state.json")),
         ]
         for p in self._patches:
             p.start()
@@ -803,10 +807,10 @@ class TestDigestOutput(unittest.TestCase):
         qualified, assessed = car_value.score_and_rank([evil] + peers)
         html_text = car_digest.build_html(qualified, assessed, {}, {}, {},
                                           "2026-09-26")
-        # The template's own column-sort script is the only <script> allowed;
-        # the listing-controlled title must arrive escaped, not as markup
-        # (an injected tag would make a second occurrence).
-        self.assertEqual(html_text.count("<script>"), 1)
+        # Only the template's own scripts are allowed (column sort +
+        # theme boot/toggle); the listing-controlled title must arrive
+        # escaped, not as markup (an injected tag would add a fourth).
+        self.assertEqual(html_text.count("<script>"), 3)
         self.assertNotIn("<script>x", html_text)
         self.assertNotIn("javascript:", html_text)
 
@@ -1568,6 +1572,8 @@ class TestMainZeroFlats(unittest.TestCase):
              mock.patch.object(main.price_history, "update_price_history",
                                return_value={}), \
              mock.patch.object(main.health, "check"), \
+             mock.patch.object(main.health, "update_streaks",
+                               return_value={}), \
              mock.patch.object(main.cars, "run",
                                return_value="cars ok") as cars_run, \
              mock.patch.object(main.website, "build") as site_build, \
