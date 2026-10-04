@@ -1,0 +1,912 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">  <!-- no favicon file -> no 404 noise -->
+<title>Riga car deals — 2026-10-04</title>
+<style>
+:root{
+  --bg:#f1f5f9; --card:#ffffff; --fg:#0f172a; --muted:#5d6b7d; --faint:#93a1b3;
+  --line:#e2e8f0; --line2:#cbd5e1; --th-bg:#f8fafc; --row-alt:#f8fafc;
+  --hover:#eef4fb; --link:#2563eb; --accent:#1d4ed8;
+  --good:#16a34a; --good-bg:#e8f7ee; --bad:#dc2626; --bad-bg:#fdeaea;
+  --warn:#b45309; --warn-bg:#fdf4e3; --warn-line:#ecd9b0;
+  --info-bg:#f4f8fc; --info-line:#d4e0ec;
+  --auction:#7c3aed; --star:#d4a017; --badge-bg:#eef2f7;
+  --radius:10px; --radius-s:6px;
+  --shadow:0 1px 2px rgba(15,23,42,.06),0 1px 3px rgba(15,23,42,.08);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0d1420; --card:#17202e; --fg:#e2e8f0; --muted:#94a3b8; --faint:#64748b;
+    --line:#2c3a4f; --line2:#3b4c63; --th-bg:#1b2637; --row-alt:#16202f;
+    --hover:#22304a; --link:#6ea8fe; --accent:#93b4fd;
+    --good:#4ade80; --good-bg:#14532d; --bad:#f87171; --bad-bg:#442222;
+    --warn:#fbbf24; --warn-bg:#3a2c12; --warn-line:#57441d;
+    --info-bg:#16233a; --info-line:#2b3f5c;
+    --auction:#a78bfa; --star:#facc15; --badge-bg:#26344a;
+    --shadow:0 1px 2px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  background:var(--bg);color:var(--fg);max-width:1020px;margin:0 auto;
+  padding:0 18px 40px;line-height:1.45;font-size:15px}
+h1,h2{color:var(--accent);font-weight:700;letter-spacing:-.01em}
+h2{font-size:22px;margin:8px 0 4px}
+h3{font-size:16px;color:var(--fg);border-bottom:2px solid var(--line);
+  padding-bottom:6px;margin:26px 0 10px}
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline}
+p{margin:6px 0}
+hr{border:0;border-top:1px solid var(--line);margin:28px 0 14px}
+.note{color:var(--muted);font-size:12.5px}
+table{border-collapse:collapse;width:100%;font-size:13.5px;
+  margin:4px 0 10px}
+th{position:sticky;top:0;z-index:1;background:var(--th-bg);color:var(--muted);
+  font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;
+  text-align:left;padding:7px 10px;border-bottom:2px solid var(--line2);
+  user-select:none;cursor:default;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top;
+  font-variant-numeric:tabular-nums}
+tr:hover>td{background:var(--hover)}
+tr.z>td{background:var(--row-alt)}
+tr.z:hover>td{background:var(--hover)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+th.sort-th{cursor:pointer}
+th.sort-th:hover{background:var(--hover);color:var(--fg)}
+th.sort-th::after{content:"\21C5";font-size:10px;color:var(--faint);margin-left:4px;opacity:0}
+th.sort-th:hover::after{opacity:1}
+th.sort-asc::after{content:"\2191";font-size:10px;color:var(--accent);margin-left:4px;opacity:1}
+th.sort-desc::after{content:"\2193";font-size:10px;color:var(--accent);margin-left:4px;opacity:1}
+.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* Cards & status boxes */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 16px;margin:14px 0;box-shadow:var(--shadow)}
+.card h3{margin-top:0}
+.card table{margin-bottom:0}
+.box,.info{background:var(--info-bg);border:1px solid var(--info-line);
+  border-radius:var(--radius-s);padding:10px 14px;margin:12px 0}
+.warn,.stale-warning{background:var(--bad-bg);border:1px solid var(--bad);
+  border-radius:var(--radius-s);padding:10px 14px;margin:12px 0}
+.amber{background:var(--warn-bg);border:1px solid var(--warn-line);
+  border-radius:var(--radius-s);padding:10px 14px;margin:12px 0}
+.card.amber{background:var(--warn-bg);border-color:var(--warn-line)}
+.card.err{background:var(--bad-bg);border-color:var(--bad)}
+
+/* Form controls (budget/filter inputs) */
+input,select,button{font:inherit;font-size:13px;color:var(--fg);
+  background:var(--card);border:1px solid var(--line2);
+  border-radius:var(--radius-s);padding:5px 8px}
+input:focus,select:focus{outline:2px solid var(--link);outline-offset:0;
+  border-color:var(--link)}
+button{cursor:pointer}
+
+/* KPI stat chips */
+.kpis{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:8px 14px;box-shadow:var(--shadow);min-width:86px}
+.kpi b{display:block;font-size:17px;color:var(--fg);font-variant-numeric:tabular-nums}
+.kpi span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.kpi.warn b{color:var(--warn)} .kpi.bad b{color:var(--bad)} .kpi.good b{color:var(--good)}
+
+/* Badges — rounded pills */
+.badge{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10.5px;
+  font-weight:600;line-height:1.5;white-space:nowrap;vertical-align:1px;
+  background:var(--badge-bg);color:var(--muted)}
+.badge.b-new{background:var(--good-bg);color:var(--good)}
+.badge.b-up{background:var(--bad-bg);color:var(--bad)}
+.badge.b-down{background:var(--good-bg);color:var(--good)}
+.badge.b-end{background:var(--bad-bg);color:var(--bad)}
+.badge.b-ended{background:var(--badge-bg);color:var(--muted)}
+.badge.b-reg{background:var(--warn-bg);color:var(--warn)}
+.badge.b-auction{background:transparent;border:1px solid var(--auction);color:var(--auction)}
+.badge.b-src{border:1px solid var(--line2);color:var(--muted);background:transparent}
+.badge.b-cheap{background:var(--good-bg);color:var(--good)}
+.badge.b-mot{background:var(--warn-bg);color:var(--warn)}
+.delta-up{color:var(--bad)} .delta-down{color:var(--good)}
+
+/* Watchlist star */
+.watch-star{cursor:pointer;border:0;background:none;font-size:15px;color:var(--star);
+  padding:0 2px;opacity:.75}
+.watch-star:hover{opacity:1;transform:scale(1.15)}
+.watch-star.on{opacity:1}
+
+/* Site nav pills (website.py _nav_html) */
+.site-nav{margin:0 0 18px}
+.site-nav a{display:inline-block;padding:7px 16px;margin-right:6px;border-radius:999px;
+  text-decoration:none;font-size:13.5px;font-weight:600;
+  background:var(--card);color:var(--accent);border:1px solid var(--line)}
+.site-nav a:hover{background:var(--hover);text-decoration:none}
+.site-nav a.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.site-nav a.on:hover{filter:brightness(1.08)}
+
+/* Archive coverage strip cells */
+.cov-cell{display:inline-block;width:14px;height:14px;margin-right:3px;
+  border-radius:3px;vertical-align:middle}
+.cov-both{background:var(--good)} .cov-one{background:var(--warn)}
+.cov-none{background:var(--bad)}
+
+/* Details/summary */
+details{border-radius:var(--radius-s)}
+details>summary{cursor:pointer;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"\25B8";display:inline-block;margin-right:6px;
+  color:var(--faint);transition:transform .15s}
+details[open]>summary::before{transform:rotate(90deg)}
+
+/* Flat map (Leaflet) */
+#map-container{margin:20px 0;border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;box-shadow:var(--shadow)}
+#map-container .map-header{padding:10px 14px;background:var(--accent);color:#fff;
+  font-size:13px;font-weight:600;letter-spacing:.02em}
+#map-container #map{width:100%;height:400px}
+.school-label{background:none;border:none;color:var(--bad);font-weight:bold;
+  font-size:12px;text-shadow:0 1px 2px #fff,0 -1px 2px #fff,1px 0 2px #fff,-1px 0 2px #fff}
+
+/* Price-timeline subrows */
+.timeline-row td{border-top:none;background:var(--row-alt);font-size:11.5px;
+  line-height:1.6;color:var(--muted);padding:6px 10px}
+
+/* Accessibility & small screens */
+a:focus-visible,.watch-star:focus-visible,th.sort-th:focus-visible,
+summary:focus-visible{outline:2px solid var(--link);outline-offset:2px;border-radius:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (max-width:720px){
+  body{padding:0 10px 30px;font-size:14px}
+  th,td{padding:6px 7px}
+  .kpi{min-width:70px;padding:6px 10px}
+}
+</style>
+<script>
+// Click-to-sort table headers (same mechanism as the flats digest):
+// first click sorts ascending, second click reverses. Numeric columns use
+// the data-sort attribute on each cell; the Listing column falls back to
+// string comparison of "make model".
+var sortState = {};
+function sortTable(tableId, colIdx) {
+  var table = document.getElementById(tableId);
+  if (!table) return;
+  var ths = table.querySelectorAll('th.sort-th');
+  ths.forEach(function(th) { th.classList.remove('sort-asc','sort-desc'); });
+  var rows = Array.from(table.querySelectorAll('tr')).slice(1);
+  var key = tableId + '_' + colIdx;
+  sortState[key] = !sortState[key];
+  var asc = sortState[key];
+  var clickedTh = table.querySelectorAll('th')[colIdx];
+  if (clickedTh) clickedTh.classList.add(asc ? 'sort-asc' : 'sort-desc');
+  rows.sort(function(a, b) {
+    var va = a.children[colIdx].getAttribute('data-sort');
+    var vb = b.children[colIdx].getAttribute('data-sort');
+    if (va === null || vb === null) return 0;
+    va = va.trim(); vb = vb.trim();
+    var na = parseFloat(va), nb = parseFloat(vb);
+    if (!isNaN(na) && !isNaN(nb)) {
+      return asc ? na - nb : nb - na;
+    }
+    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  rows.forEach(function(r) { table.appendChild(r); });
+}
+</script>
+
+<script id="car-budget-js">
+// Runs after the DOM is ready: the budget input lives in the body
+// element, below this script in the head, so it does not exist at parse
+// time. (No literal '<body>' here — website._inject_nav searches for it.)
+function __carBudgetInit() {
+  var dataEl = document.getElementById('car-market-data');
+  var input = document.getElementById('car-budget-input');
+  var statusEl = document.getElementById('car-budget-status');
+  var defaultView = document.getElementById('car-default-view');
+  var customView = document.getElementById('car-custom-view');
+  if (!dataEl || !input || !defaultView || !customView) return;
+  var payload = JSON.parse(dataEl.textContent);
+  var cfg = payload.config, F = payload.fields, idx = {};
+  F.forEach(function (f, i) { idx[f] = i; });
+  // Dictionary-encoded string columns -> real strings, before any reads.
+  if (payload.dict) {
+    Object.keys(payload.dict).forEach(function (f) {
+      var i = idx[f], dict = payload.dict[f];
+      payload.rows.forEach(function (r) {
+        if (r[i] != null) r[i] = dict[r[i]];
+      });
+    });
+  }
+  var thisYear = new Date().getFullYear();
+  var makeSel = document.getElementById('car-filter-make');
+  var fuelSel = document.getElementById('car-filter-fuel');
+  var gbSel = document.getElementById('car-filter-gearbox');
+  var yearInput = document.getElementById('car-filter-year');
+  var kmInput = document.getElementById('car-filter-km');
+  var modelInput = document.getElementById('car-filter-model');
+  var minInput = document.getElementById('car-filter-min');
+
+  // 'Passat B7' / 'passat-b7' / 'passat b7' must all match: compare on
+  // alphanumeric-only lowercase forms.
+  function norm(s) {
+    return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  function median(arr) {
+    var s = arr.slice().sort(function (a, b) { return a - b; });
+    var n = s.length;
+    if (!n) return 0;
+    return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  }
+
+  // eligible(): the market band [minPrice, compMax] with usable specs
+  function eligible(r) {
+    var p = r[idx.price_eur], y = r[idx.year], m = r[idx.mileage_km];
+    if (p == null || p < cfg.minPrice || p > cfg.compMax) return false;
+    if (y == null || y < cfg.minYear) return false;
+    if (m == null || m < 0 || m > cfg.maxMileage) return false;
+    if (!r[idx.make] || !r[idx.model]) return false;
+    if (cfg.fuels.indexOf(r[idx.fuel]) < 0) return false;
+    if (r[idx.fuel] !== 'electric' && !(r[idx.engine_l] > 0)) return false;
+    return true;
+  }
+
+  var market = payload.rows.filter(eligible);
+  var groups = {};
+  market.forEach(function (r) {
+    var k = r[idx.make] + '|' + r[idx.model] + '|' + r[idx.fuel];
+    (groups[k] = groups[k] || []).push(r);
+  });
+
+  // Fill the make dropdown from today's data.
+  if (makeSel) {
+    var seen = {};
+    market.forEach(function (r) { if (r[idx.make]) seen[r[idx.make]] = 1; });
+    Object.keys(seen).sort().forEach(function (m) {
+      var o = document.createElement('option');
+      o.value = m;
+      o.textContent = m.charAt(0).toUpperCase() + m.slice(1);
+      makeSel.appendChild(o);
+    });
+  }
+
+  // Filters narrow which listings may become candidates; the comparable
+  // pools still cover the whole market (same rule as the budget itself).
+  function readFilters() {
+    return {
+      make: makeSel && makeSel.value ? makeSel.value : '',
+      model: modelInput && modelInput.value ? modelInput.value : '',
+      fuel: fuelSel && fuelSel.value ? fuelSel.value : '',
+      gearbox: gbSel && gbSel.value ? gbSel.value : '',
+      minYear: yearInput ? (parseInt(yearInput.value, 10) || 0) : 0,
+      maxKm: kmInput ? (parseInt(kmInput.value, 10) || 0) : 0,
+      minPrice: minInput ? (parseInt(minInput.value, 10) || 0) : 0
+    };
+  }
+
+  function anyFilterSet(f) {
+    return !!(f.make || f.model || f.fuel || f.gearbox || f.minYear ||
+              f.maxKm || f.minPrice);
+  }
+
+  function passesFilters(r, f) {
+    if (f.make && r[idx.make] !== f.make) return false;
+    if (f.model && norm(r[idx.model]).indexOf(norm(f.model)) < 0)
+      return false;
+    if (f.minPrice && (r[idx.price_eur] == null ||
+                       r[idx.price_eur] < f.minPrice)) return false;
+    if (f.fuel && r[idx.fuel] !== f.fuel) return false;
+    if (f.gearbox && r[idx.gearbox] !== f.gearbox) return false;
+    if (f.minYear && (r[idx.year] == null || r[idx.year] < f.minYear)) return false;
+    if (f.maxKm && (r[idx.mileage_km] == null || r[idx.mileage_km] > f.maxKm)) return false;
+    return true;
+  }
+
+  function comparable(a, b) {
+    if (a[idx.source] === b[idx.source] && a[idx.id] === b[idx.id]) return false;
+    if (Math.abs(a[idx.year] - b[idx.year]) > cfg.yearTol) return false;
+    if (Math.abs(a[idx.mileage_km] - b[idx.mileage_km]) > cfg.mileageTol) return false;
+    if (a[idx.gearbox] && b[idx.gearbox] && a[idx.gearbox] !== b[idx.gearbox]) return false;
+    if (a[idx.body] && b[idx.body] && a[idx.body] !== b[idx.body]) return false;
+    var ea = a[idx.engine_l], eb = b[idx.engine_l];
+    if (ea == null || eb == null) {
+      return a[idx.fuel] === 'electric' && b[idx.fuel] === 'electric';
+    }
+    return Math.abs(ea - eb) <= cfg.engineTol;
+  }
+
+  function compute(maxPrice, filters) {
+    filters = filters || {};
+    var out = [];
+    market.forEach(function (r) {
+      var price = r[idx.price_eur];
+      if (price > maxPrice) return;  // candidate gate (custom budget)
+      if (!passesFilters(r, filters)) return;  // make/fuel/gearbox/year/km
+      var group = groups[r[idx.make] + '|' + r[idx.model] + '|' + r[idx.fuel]] || [];
+      var peers = group.filter(function (p) { return comparable(r, p); });
+      var item = { r: r, comps: peers.length, score: null, good: false };
+      if (peers.length >= cfg.minComps) {
+        var med = median(peers.map(function (p) { return p[idx.price_eur]; }));
+        var savings = med - price;
+        var discount = 100 * savings / med;
+        var medY = median(peers.map(function (p) { return p[idx.year]; }));
+        var medM = median(peers.map(function (p) { return p[idx.mileage_km]; }));
+        var mAdj = Math.max(-cfg.mileagePoints, Math.min(cfg.mileagePoints,
+          cfg.mileagePoints * (medM - r[idx.mileage_km]) / cfg.mileageTol));
+        var yAdj = Math.max(-cfg.yearPoints * cfg.yearTol, Math.min(cfg.yearPoints * cfg.yearTol,
+          cfg.yearPoints * (r[idx.year] - medY)));
+        item.median = med;
+        item.savings = savings;
+        item.discount = discount;
+        item.score = Math.max(0, Math.min(cfg.scoreMax,
+          Math.round(cfg.scoreCenter + cfg.discountMult * discount + mAdj + yAdj)));
+        item.poolYear = Math.round(medY);
+        item.poolMileage = Math.round(medM);
+        item.good = discount >= cfg.goodDiscount && savings >= cfg.goodSavings;
+      }
+      out.push(item);
+    });
+    // All matching candidates are returned (not only qualifying ones) —
+    // a filtered view that shows "0 qualifying" without the rest of the
+    // market is misleading: e.g. every Passat at market price.
+    return out.sort(function (a, b) {
+      return ((b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score)) ||
+             ((b.savings || 0) - (a.savings || 0)) ||
+             (a.r[idx.price_eur] - b.r[idx.price_eur]);
+    });
+  }
+
+  function fmtEur(v) {
+    return v == null ? '—' : '€' + Math.round(v).toLocaleString('en-US');
+  }
+
+  // Tiny price-trail sparkline (same shape as the Python one).
+  function sparkEl(hist) {
+    if (typeof document.createElementNS === 'undefined') return null;
+    var pts = [];
+    (hist || []).forEach(function (h) {
+      var v = Number(h[1]);
+      if (!isNaN(v)) pts.push(v);
+    });
+    if (pts.length < 2) return null;
+    var w = 64, h = 16;
+    var lo = Math.min.apply(null, pts), hi = Math.max.apply(null, pts);
+    var span = (hi - lo) || 1;
+    var coords = pts.map(function (v, i) {
+      return (i * (w - 4) / (pts.length - 1) + 2).toFixed(1) + ',' +
+             (h - 3 - (v - lo) / span * (h - 6)).toFixed(1);
+    }).join(' ');
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', w); svg.setAttribute('height', h);
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    svg.style.verticalAlign = '-3px'; svg.style.marginLeft = '4px';
+    var pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    pl.setAttribute('points', coords); pl.setAttribute('fill', 'none');
+    pl.setAttribute('stroke', pts[pts.length - 1] < pts[0] ? 'var(--bad)'
+      : (pts[pts.length - 1] > pts[0] ? 'var(--good)' : 'var(--muted)'));
+    pl.setAttribute('stroke-width', '1.5');
+    svg.appendChild(pl);
+    return svg;
+  }
+
+  // 'seen N d' + '€5,500 → €4,900' line (matches _history_html in Python).
+  function appendHistory(td, r) {
+    var bits = [];
+    var first = r[idx._first_seen];
+    if (first) {
+      var t = Date.parse(String(first) + 'T00:00:00Z');
+      if (!isNaN(t)) {
+        var days = Math.max(0, Math.round((Date.now() - t) / 86400000));
+        bits.push(days > 0 ? 'seen ' + days + ' d' : 'seen today');
+      }
+    }
+    var hist = r[idx._price_hist] || [];
+    if (hist.length >= 2) {
+      var tail = hist.slice(-4).map(function (h) { return fmtEur(h[1]); });
+      bits.push((hist.length > 4 ? '… ' : '') + tail.join(' → '));
+    }
+    if (!bits.length) return;
+    td.appendChild(document.createElement('br'));
+    var s = document.createElement('span');
+    s.style.color = 'var(--muted)'; s.style.fontSize = '12px';
+    s.textContent = bits.join(' · ');
+    td.appendChild(s);
+    var spark = sparkEl(hist);
+    if (spark) td.appendChild(spark);
+  }
+
+  function cell(text, sortVal, alignRight) {
+    var td = document.createElement('td');
+    td.style.padding = '6px';
+    if (alignRight) td.style.textAlign = 'right';
+    if (sortVal !== undefined && sortVal !== null) {
+      td.setAttribute('data-sort', sortVal);
+    }
+    td.textContent = text;
+    return td;
+  }
+
+  function describeFilters(f) {
+    var parts = [];
+    if (f.make) parts.push('make=' + f.make);
+    if (f.model) parts.push('model ~' + f.model);
+    if (f.fuel) parts.push('fuel=' + f.fuel);
+    if (f.gearbox) parts.push('gearbox=' + f.gearbox);
+    if (f.minYear) parts.push('year ≥' + f.minYear);
+    if (f.maxKm) parts.push('km ≤' + f.maxKm.toLocaleString('en-US'));
+    if (f.minPrice) parts.push('min €' + f.minPrice.toLocaleString('en-US'));
+    return parts.join(', ');
+  }
+
+  function render(items, qualified, maxPrice, defaultCeiling, filters) {
+    customView.innerHTML = '';
+    var fdesc = filters ? describeFilters(filters) : '';
+    var h2 = document.createElement('h2');
+    h2.textContent = (defaultCeiling
+      ? 'Within the default €' + maxPrice.toLocaleString('en-US') + ' ceiling'
+      : 'Within your €' + maxPrice.toLocaleString('en-US') + ' budget') +
+      (fdesc ? ' · ' + fdesc : '') +
+      ' — ' + qualified.length + ' qualifying deal(s)' +
+      (items.length > qualified.length
+        ? ' of ' + items.length + ' matching' : '');
+    customView.appendChild(h2);
+    var note = document.createElement('p');
+    note.className = 'note';
+    note.textContent = 'Every matching listing from the market snapshot (' +
+      market.length + ' eligible), scored against its comparable pool — ' +
+      'green score = qualifying deal, “—” = too few comps to appraise. ' +
+      'Badges and cross-source links appear in the default view only.';
+    customView.appendChild(note);
+    if (!items.length) {
+      var p = document.createElement('p');
+      p.textContent = 'No matching listing within this budget today.';
+      customView.appendChild(p);
+      return;
+    }
+    var table = document.createElement('table');
+    table.id = 'car-custom-table';
+    var headers = ['Listing', 'Asking', 'Median ask', 'Comps', 'Discount €', 'Discount %', 'Score'];
+    var hr = document.createElement('tr');
+    hr.style.background = 'var(--line)';
+    headers.forEach(function (name, col) {
+      var th = document.createElement('th');
+      th.className = 'sort-th';
+      th.style.padding = '6px';
+      if (col === 0) th.style.textAlign = 'left';
+      th.textContent = name;
+      th.onclick = (function (c) {
+        return function () { sortTable('car-custom-table', c); };
+      })(col);
+      hr.appendChild(th);
+    });
+    table.appendChild(hr);
+    items.forEach(function (item) {
+      var r = item.r;
+      var tr = document.createElement('tr');
+      var td = document.createElement('td');
+      td.style.padding = '6px';
+      td.setAttribute('data-sort', r[idx.make] + ' ' + r[idx.model]);
+      var star = document.createElement('button');
+      star.type = 'button';
+      star.className = 'watch-star';
+      star.setAttribute('data-key', r[idx.source] + ':' + r[idx.id]);
+      star.setAttribute('data-label',
+        (String(r[idx.make] || '') + ' ' + String(r[idx.model] || ''))
+          .replace(/-/g, ' ').trim() || 'car');
+      star.setAttribute('data-price', r[idx.price_eur]);
+      star.setAttribute('data-url', r[idx.url] || '');
+      star.title = 'Watch this listing';
+      star.textContent = '☆';
+      td.appendChild(star);
+      td.appendChild(document.createTextNode(' '));
+      td.appendChild(document.createTextNode(r[idx.make] + ' ' + r[idx.model]));
+      td.appendChild(document.createElement('br'));
+      var spec = document.createElement('span');
+      spec.style.color = 'var(--muted)';
+      spec.style.fontSize = '12px';
+      var parts = [r[idx.year], r[idx.fuel],
+        r[idx.engine_l] != null ? r[idx.engine_l] + 'L' : '?L',
+        r[idx.mileage_km] != null ? Math.round(r[idx.mileage_km] / 1000) + 'k km' : '? km'];
+      if (r[idx.gearbox]) parts.push(r[idx.gearbox]);
+      if (r[idx.body]) parts.push(r[idx.body]);
+      spec.textContent = parts.join(' · ');
+      td.appendChild(spec);
+      td.appendChild(document.createElement('br'));
+      if (r[idx.url]) {
+        var a = document.createElement('a');
+        a.href = r[idx.url];
+        a.textContent = r[idx.source] || 'ad';
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        td.appendChild(a);
+      } else {
+        td.appendChild(document.createTextNode(r[idx.source] || ''));
+      }
+      var cautions = [];
+      if (r[idx.mileage_km] != null && r[idx.mileage_km] >= cfg.highMileageWarn) {
+        cautions.push('High mileage — budget for repairs');
+      }
+      if (r[idx.year] != null && r[idx.year] <= thisYear - cfg.ageWarnYears) {
+        cautions.push('Older car — inspect carefully');
+      }
+      if (cautions.length) {
+        td.appendChild(document.createElement('br'));
+        var c = document.createElement('span');
+        c.style.color = 'var(--bad)';
+        c.style.fontSize = '12px';
+        c.textContent = cautions.join('; ');
+        td.appendChild(c);
+      }
+      appendHistory(td, r);
+      tr.appendChild(td);
+      tr.appendChild(cell(fmtEur(r[idx.price_eur]), r[idx.price_eur], true));
+      var medTd = cell(fmtEur(item.median), item.median, true);
+      if (item.poolYear != null) {
+        medTd.appendChild(document.createElement('br'));
+        var pn = document.createElement('span');
+        pn.style.color = 'var(--muted)';
+        pn.style.fontSize = '11px';
+        pn.textContent = 'pool ~' + item.poolYear + ' · ~' +
+          Math.round(item.poolMileage / 1000) + 'k km';
+        medTd.appendChild(pn);
+      }
+      tr.appendChild(medTd);
+      var compsTd = cell(String(item.comps), item.comps, false);
+      if (item.comps < cfg.thinPool) {
+        compsTd.title = 'Only ' + item.comps + ' comparable ads — ' +
+          'the median is less reliable';
+        compsTd.style.color = 'var(--warn)';
+        compsTd.appendChild(document.createTextNode('~'));
+      }
+      tr.appendChild(compsTd);
+      tr.appendChild(cell(fmtEur(item.savings), item.savings, true));
+      tr.appendChild(cell(item.discount != null
+        ? item.discount.toFixed(1) + '%' : '—', item.discount, true));
+      var scTd = cell(item.score != null ? String(item.score) : '—',
+        item.score, false);
+      scTd.style.fontWeight = 'bold';
+      if (item.good) scTd.style.color = 'var(--good)';
+      tr.appendChild(scTd);
+      table.appendChild(tr);
+    });
+    customView.appendChild(table);
+    if (typeof window !== 'undefined' && window.__carWatchRefresh) {
+      window.__carWatchRefresh();
+    }
+  }
+
+  function showDefault() {
+    customView.style.display = 'none';
+    customView.innerHTML = '';
+    defaultView.style.display = '';
+    if (statusEl) statusEl.textContent = '';
+  }
+
+  var timer = null;
+  function apply() {
+    var raw = String(input.value || '').trim();
+    var maxPrice = parseInt(raw, 10);
+    var filters = readFilters();
+    var filtered = anyFilterSet(filters);
+    if ((!raw || isNaN(maxPrice)) && !filtered) { showDefault(); return; }
+    var defaultCeiling = isNaN(maxPrice);  // filters set, no budget typed
+    if (defaultCeiling) maxPrice = cfg.defaultMax;
+    maxPrice = Math.max(cfg.minPrice, Math.min(cfg.compMax, maxPrice));
+    var t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    var items = compute(maxPrice, filters);
+    var qualified = items.filter(function (x) { return x.good; });
+    var ms = Math.round(((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0));
+    render(items, qualified, maxPrice, defaultCeiling, filters);
+    defaultView.style.display = 'none';
+    customView.style.display = '';
+    if (statusEl) {
+      var fdesc = describeFilters(filters);
+      statusEl.textContent = qualified.length + ' deal(s) of ' +
+        items.length + ' matching' + (fdesc ? ' · ' + fdesc : '') +
+        ' · recomputed in ' + ms + ' ms';
+    }
+  }
+
+  input.addEventListener('input', function () {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(apply, 150);
+  });
+  function scheduleApply() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(apply, 150);
+  }
+  [makeSel, fuelSel, gbSel].forEach(function (el) {
+    if (el) el.addEventListener('change', scheduleApply);
+  });
+  [yearInput, kmInput, modelInput, minInput].forEach(function (el) {
+    if (el) el.addEventListener('input', scheduleApply);
+  });
+  var resetBtn = document.getElementById('car-budget-reset');
+  if (resetBtn) resetBtn.addEventListener('click', function () {
+    input.value = '';
+    [makeSel, fuelSel, gbSel, yearInput, kmInput, modelInput, minInput]
+      .forEach(function (el) {
+        if (el) el.value = '';
+      });
+    showDefault();
+  });
+  var okBtn = document.getElementById('car-budget-ok');
+  if (okBtn) okBtn.addEventListener('click', function () {
+    if (timer) clearTimeout(timer);
+    apply();
+  });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      if (timer) clearTimeout(timer);
+      apply();
+    }
+  });
+  var qs = (typeof location !== 'undefined' && location.search)
+    ? location.search : '';
+  var params = new URLSearchParams(qs);
+  var urlMax = params.get('max');
+  if (urlMax && !isNaN(parseInt(urlMax, 10))) input.value = urlMax;
+  function urlSet(name, el) {
+    var v = params.get(name);
+    if (v && el) { el.value = v; return true; }
+    return false;
+  }
+  var urlActive = !!urlMax;
+  urlActive = urlSet('make', makeSel) || urlActive;
+  urlActive = urlSet('model', modelInput) || urlActive;
+  urlActive = urlSet('min', minInput) || urlActive;
+  urlActive = urlSet('fuel', fuelSel) || urlActive;
+  urlActive = urlSet('gearbox', gbSel) || urlActive;
+  urlActive = urlSet('year', yearInput) || urlActive;
+  urlActive = urlSet('km', kmInput) || urlActive;
+  if (urlActive) apply();
+  if (typeof window !== 'undefined') {
+    window.__carBudget = { compute: compute, apply: apply, market: market,
+                           idx: idx, cfg: cfg, readFilters: readFilters };
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', __carBudgetInit);
+} else {
+  __carBudgetInit();
+}
+</script>
+<script id="car-watch-js">
+function __carWatchInit() {
+  var dataEl = document.getElementById('car-market-data');
+  var box = document.getElementById('car-watch-box');
+  var listEl = document.getElementById('car-watch-list');
+  var countEl = document.getElementById('car-watch-count');
+  if (!dataEl || !box || !listEl) return;
+  if (typeof localStorage === 'undefined') return;
+  var payload = JSON.parse(dataEl.textContent);
+  var F = payload.fields, idx = {};
+  F.forEach(function (f, i) { idx[f] = i; });
+  if (payload.dict) {
+    Object.keys(payload.dict).forEach(function (f) {
+      var i = idx[f], dict = payload.dict[f];
+      payload.rows.forEach(function (r) {
+        if (r[i] != null) r[i] = dict[r[i]];
+      });
+    });
+  }
+  var byKey = {};
+  payload.rows.forEach(function (r) {
+    if (r[idx.source] != null && r[idx.id] != null)
+      byKey[r[idx.source] + ':' + r[idx.id]] = r;
+  });
+  var KEY = 'watch_cars_v1';
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function save(w) {
+    try { localStorage.setItem(KEY, JSON.stringify(w)); } catch (e) {}
+  }
+  function fmtEur(v) {
+    return v == null ? '—' : '€' + Math.round(Number(v)).toLocaleString('en-US');
+  }
+
+  function refreshStars() {
+    if (!document.querySelectorAll) return;
+    var w = load();
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.watch-star'), function (s) {
+        s.textContent = w[s.getAttribute('data-key')] ? '★' : '☆';
+      });
+  }
+
+  function toggle(btn) {
+    var key = btn.getAttribute('data-key');
+    if (!key) return;
+    var w = load();
+    if (w[key]) {
+      delete w[key];
+    } else {
+      w[key] = {
+        added: new Date().toISOString().slice(0, 10),
+        label: btn.getAttribute('data-label') || key,
+        price: parseFloat(btn.getAttribute('data-price')),
+        url: btn.getAttribute('data-url') || ''
+      };
+    }
+    save(w);
+    refreshStars();
+    renderBox();
+  }
+
+  function remove(key) {
+    var w = load();
+    delete w[key];
+    save(w);
+    refreshStars();
+    renderBox();
+  }
+
+  function renderBox() {
+    var w = load();
+    var keys = Object.keys(w).sort(function (a, b) {
+      return String(w[b].added || '').localeCompare(String(w[a].added || ''));
+    });
+    if (countEl) countEl.textContent = '(' + keys.length + ')';
+    listEl.innerHTML = '';
+    if (!keys.length) {
+      var p = document.createElement('p');
+      p.className = 'note';
+      p.textContent = 'Nothing starred yet — click ☆ on a listing to pin it here.';
+      listEl.appendChild(p);
+      return;
+    }
+    var table = document.createElement('table');
+    keys.forEach(function (key) {
+      var w0 = w[key];
+      var cur = byKey[key];
+      var tr = document.createElement('tr');
+      var td = document.createElement('td');
+      td.style.padding = '6px';
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'watch-remove';
+      rm.setAttribute('data-key', key);
+      rm.title = 'Stop watching';
+      rm.textContent = '✕';
+      rm.style.cssText = 'border:0;background:none;color:var(--bad);cursor:pointer;margin-right:6px';
+      td.appendChild(rm);
+      var label = w0.label || key;
+      var url = (cur && cur[idx.url]) ? cur[idx.url] : (w0.url || '');
+      if (url) {
+        var a = document.createElement('a');
+        a.href = url;
+        a.textContent = label;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        td.appendChild(a);
+      } else {
+        td.appendChild(document.createTextNode(label));
+      }
+      var meta = document.createElement('span');
+      meta.style.fontSize = '12px';
+      var delta = null;
+      if (cur) {
+        meta.style.color = 'var(--muted)';
+        meta.textContent = ' — ' + fmtEur(cur[idx.price_eur]) +
+          ' · still listed today';
+        var p0 = Number(w0.price), p1 = Number(cur[idx.price_eur]);
+        if (isFinite(p0) && isFinite(p1) && Math.abs(p1 - p0) >= 1) {
+          delta = document.createElement('span');
+          delta.style.color = p1 < p0 ? 'var(--good)' : 'var(--bad)';
+          delta.style.fontWeight = 'bold';
+          delta.style.fontSize = '12px';
+          delta.textContent = ' ' + (p1 < p0 ? '▼' : '▲') + ' ' +
+            fmtEur(Math.abs(p1 - p0)) + ' since starred';
+        }
+      } else {
+        meta.style.color = 'var(--bad)';
+        meta.textContent = ' — last seen ' + fmtEur(w0.price) +
+          ' · NO LONGER LISTED (sold or expired)';
+      }
+      td.appendChild(meta);
+      if (delta) td.appendChild(delta);
+      var since = document.createElement('span');
+      since.style.color = 'var(--faint)';
+      since.style.fontSize = '11px';
+      since.textContent = ' · watching since ' + (w0.added || '?');
+      td.appendChild(since);
+      tr.appendChild(td);
+      table.appendChild(tr);
+    });
+    listEl.appendChild(table);
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.getAttribute || !t.classList) return;
+    if (t.classList.contains('watch-star')) { toggle(t); }
+    else if (t.classList.contains('watch-remove')) {
+      remove(t.getAttribute('data-key'));
+    }
+  });
+  refreshStars();
+  renderBox();
+  if (typeof window !== 'undefined') {
+    window.__carWatch = { toggle: toggle, renderBox: renderBox, load: load };
+    window.__carWatchRefresh = refreshStars;
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', __carWatchInit);
+} else {
+  __carWatchInit();
+}
+</script>
+</head><body>
+<style>.site-nav{margin:0 0 18px}.site-nav a{display:inline-block;padding:7px 16px;margin-right:6px;border-radius:999px;text-decoration:none;font-size:13.5px;font-weight:600;background:var(--card,#fff);color:var(--accent,#1d4ed8);border:1px solid var(--line,#e2e8f0)}.site-nav a:hover{background:var(--hover,#eef4fb);text-decoration:none}.site-nav a.on{background:var(--accent,#1d4ed8);color:#fff;border-color:var(--accent,#1d4ed8)}</style><nav class="site-nav" aria-label="Sections"><a href="../index.html">Flats</a><a href="../cars.html" class='on' aria-current="page">Cars</a><a href="../market.html">Market</a><a href="../archive.html">Archive</a></nav>
+
+<h1>Riga car deals — 2026-10-04 09:38 Riga time</h1>
+<p class="note">Coverage: ss.com: 4166 scraped, 1238 eligible; pp.lv: 237 scraped, 151 eligible. ss.com: the newest
+2 pages per make, then a bounded deep
+scan of up to 200 model pages (newest
+2 pages each, models chosen by
+observed ad volume — no model is favoured); pp.lv: newest
+12 pages. This is <b>not</b> an exhaustive scan
+of either site.</p>
+<div class='kpis'><div class='kpi'><b>29</b><span>qualifying</span></div><div class='kpi good'><b>9</b><span>new</span></div><div class='kpi warn'><b>20</b><span>gone</span></div></div>
+<div class='box' id='car-budget-box'><b>Your budget:</b> <input type='number' id='car-budget-input' min='1000' max='1000000' step='100' placeholder='e.g. 3500' style='width:110px'> <button type='button' id='car-budget-ok' style='background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600'>OK</button> <button type='button' id='car-budget-reset'>Reset</button> <span class='note' id='car-budget-status'></span><div style='margin-top:8px;font-size:14px'><b>Filters:</b> <select id='car-filter-make' style='padding:5px;border:1px solid var(--line2);border-radius:4px'><option value=''>Any make</option></select> <input type='text' id='car-filter-model' placeholder='model' style='padding:5px;border:1px solid var(--line2);border-radius:4px;width:95px'> <select id='car-filter-fuel' style='padding:5px;border:1px solid var(--line2);border-radius:4px'><option value=''>Any fuel</option><option value='petrol'>petrol</option><option value='diesel'>diesel</option><option value='hybrid'>hybrid</option><option value='electric'>electric</option><option value='lpg'>lpg</option></select> <select id='car-filter-gearbox' style='padding:5px;border:1px solid var(--line2);border-radius:4px'><option value=''>Any gearbox</option><option value='manual'>manual</option><option value='automatic'>automatic</option></select> <input type='number' id='car-filter-year' placeholder='min year' min='2005' style='padding:5px;border:1px solid var(--line2);border-radius:4px;width:85px'> <input type='number' id='car-filter-km' placeholder='max km' min='0' step='10000' style='padding:5px;border:1px solid var(--line2);border-radius:4px;width:105px'> <input type='number' id='car-filter-min' placeholder='min €' min='1000' step='500' style='padding:5px;border:1px solid var(--line2);border-radius:4px;width:80px'></div><p class='note' style='margin:6px 0 0'>Enter a maximum price (from €1,000 up — the whole plausible market is embedded) and/or pick filters, then press <b>OK</b> (or Enter) to re-rank today's market snapshot — computed instantly in your browser from the data on this page, no rescraping (results also update as you type). Filters alone use the default €5,000 ceiling; they narrow <i>candidates</i> only — comparable pools always cover the whole market. <b>Reset</b> clears everything and returns to the default daily view. Badges and cross-source links appear in the default view only. <i>seen N d</i> = days since our scan first saw the ad (≈ days listed); €… → €… is the ask-price trail we have recorded. Shareable: append <b>?max=3500&amp;fuel=diesel&amp;km=200000</b> or <b>?model=passat</b> to this page's URL.</p></div><details class='box' id='car-watch-box'><summary style='cursor:pointer'><b>★ Watchlist</b> <span class='note' id='car-watch-count'></span></summary><div id='car-watch-list' style='margin-top:6px'></div><p class='note' style='margin:6px 0 0'>Click ☆ on any deal to pin it here — stars are saved in this browser only (localStorage), never sent anywhere. A watched car missing from today's scan shows <b>no longer listed</b> — sold or the ad expired (the link may still open briefly). Price moves since you starred it show as ▼/▲.</p></details>
+
+<p class='note'>Dropped as ineligible: mileage too high ×66, missing engine ×18, missing mileage ×136, missing price ×274, price out of range ×2171, unknown fuel ×46, year out of range ×303</p>
+<div class="box">
+<b>Budget context (provisional):</b> on a ~€1,200/month income the
+provisional purchase ceiling is €5,000
+plus a <b>separate</b> €1,500 reserve
+intended for the pre-purchase inspection, initial repairs and
+registration. Ongoing fuel, taxes, insurance and maintenance are
+<b>additional</b> recurring expenses on top of that reserve. This ceiling
+is a working assumption — not a guarantee of affordability and not
+financing advice.
+</div>
+<div class="box">
+<b>Eligibility:</b> every seller ad asking
+€1,000 or more
+with year ≥2005 and mileage
+≤400,000 km, identified fuel (and engine where
+applicable), is embedded and comparable; candidates are capped at the provisional
+€5,000 ceiling in the default view —
+raise it with the budget box.
+Ads without reliable specs are excluded or left unrated.
+</div>
+<div class="box">
+<b>How a "top deal" is decided:</b> a listing qualifies only when its asking
+price is at least 15.0% and
+€500 below the median of at least
+4 distinct comparable <i>current asking
+prices</i>. Comparables must match on make/model (incl. generation), fuel,
+year ±2, mileage
+±60,000 km, engine
+±0.15L, and gearbox/body whenever both
+sides state them. Score is 0–100: 50 at the median, +1 point per 1%
+cheaper, up to +10 points for mileage
+below the pool's median (scaled across the
+±60,000 km window) and
++3 points per year newer than the pool's
+median — so a cheap-but-worn car ranks below a cheap-and-fresh one. Missing
+gearbox/body reduce confidence in the match. Asking prices are not final
+selling prices, and mechanical/service condition cannot be verified from a
+listing.
+</div>
+<div id='car-default-view'><h2>All qualifying deals (29)</h2><p class='note' style='margin-top:0'>Today: 9 new · 20 still active.</p><p class='note'>Click a column header to sort; click again to reverse. Ranking below is the default (score, then savings). A Comps value with <b style='color:var(--warn)'>~</b> means fewer than 8 comparable ads — the median for that row is less reliable.</p><div class='card'><div class='scroll-x'><table id='car-deals'><tr><th class='sort-th' style='text-align:left;padding:6px' onclick="sortTable('car-deals', 0)">Listing</th><th class='sort-th' style='padding:6px' onclick="sortTable('car-deals', 1)">Asking</th><th class='sort-th' style='padding:6px' onclick="sortTable('car-deals', 2)">Median ask</th><th class='sort-th' style='padding:6px' onclick="sortTable('car-deals', 3)">Comps</th><th class='sort-th' style='padding:6px' onclick="sortTable('car-deals', 4)">Discount €</th><th class='sort-th' style='padding:6px' onclick="sortTable('car-deals', 5)">Discount %</th><th class='sort-th' style='padding:6px' onclick="sortTable('car-deals', 6)">Score</th></tr><tr><td style='padding:6px' data-sort='volkswagen amarok'><button type='button' class='watch-star' data-key='ss.com:58134825' data-label='Volkswagen Amarok' data-price='4750' data-url='https://www.ss.com/msg/lv/transport/cars/volkswagen/amarok/cejhnd.html' title='Watch this listing'>☆</button> Pārdod Volkswagen Amorok 2014. gada braucamā tehnsikā stāvoklī, ekonomisks, ar t<br><span style='color:var(--muted);font-size:12px'>volkswagen amarok — 2014 · diesel · 2.0L · 332k km</span><br><span class='badge b-new'>NEW</span> <a href="https://www.ss.com/msg/lv/transport/cars/volkswagen/amarok/cejhnd.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs</span><br><span style='color:var(--muted);font-size:12px'>seen today</span></td><td style='padding:6px;text-align:right' data-sort='4750'><b>€4,750</b></td><td style='padding:6px;text-align:right' data-sort='12000'>€12,000<br><span style='color:var(--muted);font-size:11px'>pool ~2014 · ~344k km</span></td><td style='padding:6px;text-align:center' data-sort='9'>9</td><td style='padding:6px;text-align:right' data-sort='7250'>€7,250</td><td style='padding:6px;text-align:right' data-sort='60.4'>60.4%</td><td style='padding:6px;text-align:center' data-sort='100'><b>100</b></td></tr><tr><td style='padding:6px' data-sort='volkswagen t5'><button type='button' class='watch-star' data-key='ss.com:57854033' data-label='Volkswagen T5' data-price='4200' data-url='https://www.ss.com/msg/lv/transport/cars/volkswagen/t5/bjnome.html' title='Watch this listing'>☆</button> VW Transporter T5 2.0Tdi 84Kw
+Tehniskā apskate līdz 12.07.2027g. 
+Sēdvietu ska<br><span style='color:var(--muted);font-size:12px'>volkswagen t5 — 2012 · diesel · 2.0L · 379k km</span><br><span class='badge b-new'>NEW</span> <a href="https://www.ss.com/msg/lv/transport/cars/volkswagen/t5/bjnome.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs</span><br><span style='color:var(--muted);font-size:12px'>seen today</span></td><td style='padding:6px;text-align:right' data-sort='4200'><b>€4,200</b></td><td style='padding:6px;text-align:right' data-sort='8700'>€8,700<br><span style='color:var(--muted);font-size:11px'>pool ~2012 · ~364k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='4500'>€4,500</td><td style='padding:6px;text-align:right' data-sort='51.7'>51.7%</td><td style='padding:6px;text-align:center' data-sort='100'><b>100</b></td></tr><tr><td style='padding:6px' data-sort='toyota rav-4'><button type='button' class='watch-star' data-key='ss.com:57605198' data-label='Toyota Rav 4' data-price='3000' data-url='https://www.ss.com/msg/lv/transport/cars/toyota/rav-4/cckjnj.html' title='Watch this listing'>☆</button> Jauna tehniskā apskate , nākošā 10.06.2027. 
+Ir uzstādīta autonomā sildīšana ar<br><span style='color:var(--muted);font-size:12px'>toyota rav-4 — 2010 · diesel · 2.2L · 246k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/toyota/rav-4/cckjnj.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 6 d</span></td><td style='padding:6px;text-align:right' data-sort='3000'><b>€3,000</b></td><td style='padding:6px;text-align:right' data-sort='7170'>€7,170<br><span style='color:var(--muted);font-size:11px'>pool ~2010 · ~234k km</span></td><td style='padding:6px;text-align:center' data-sort='6'><span style='color:var(--warn)' title='Only 6 comparable ads — the median is less reliable'>6~</span></td><td style='padding:6px;text-align:right' data-sort='4170'>€4,170</td><td style='padding:6px;text-align:right' data-sort='58.2'>58.2%</td><td style='padding:6px;text-align:center' data-sort='100'><b>100</b></td></tr><tr><td style='padding:6px' data-sort='toyota rav-4'><button type='button' class='watch-star' data-key='pp.lv:3546005' data-label='Toyota Rav 4' data-price='3000' data-url='https://pp.lv/lv/transports-un-tehnika/vieglie-auto/toyota/rav-4/!3546005' title='Watch this listing'>☆</button> Toyota RAV 4<br><span style='color:var(--muted);font-size:12px'>toyota rav-4 — 2010 · diesel · 2.2L · 245k km · manual · suv</span><br><span class='badge b-new'>NEW</span> <a href="https://pp.lv/lv/transports-un-tehnika/vieglie-auto/toyota/rav-4/!3546005" target="_blank" rel="noopener noreferrer">pp.lv</a><br><span style='color:var(--bad);font-size:12px'>Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen today</span></td><td style='padding:6px;text-align:right' data-sort='3000'><b>€3,000</b></td><td style='padding:6px;text-align:right' data-sort='7170'>€7,170<br><span style='color:var(--muted);font-size:11px'>pool ~2010 · ~234k km</span></td><td style='padding:6px;text-align:center' data-sort='6'><span style='color:var(--warn)' title='Only 6 comparable ads — the median is less reliable'>6~</span></td><td style='padding:6px;text-align:right' data-sort='4170'>€4,170</td><td style='padding:6px;text-align:right' data-sort='58.2'>58.2%</td><td style='padding:6px;text-align:center' data-sort='100'><b>100</b></td></tr><tr><td style='padding:6px' data-sort='honda cr-v'><button type='button' class='watch-star' data-key='pp.lv:3613544' data-label='Honda Cr V' data-price='1899' data-url='https://pp.lv/lv/transports-un-tehnika/vieglie-auto/honda/cr-v/!3613544' title='Watch this listing'>☆</button> Honda CR-V<br><span style='color:var(--muted);font-size:12px'>honda cr-v — 2006 · petrol · 2.0L · 193k km · automatic · wagon</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://pp.lv/lv/transports-un-tehnika/vieglie-auto/honda/cr-v/!3613544" target="_blank" rel="noopener noreferrer">pp.lv</a><br><span style='color:var(--bad);font-size:12px'>Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 4 d</span></td><td style='padding:6px;text-align:right' data-sort='1899'><b>€1,899</b></td><td style='padding:6px;text-align:right' data-sort='5000'>€5,000<br><span style='color:var(--muted);font-size:11px'>pool ~2007 · ~222k km</span></td><td style='padding:6px;text-align:center' data-sort='5'><span style='color:var(--warn)' title='Only 5 comparable ads — the median is less reliable'>5~</span></td><td style='padding:6px;text-align:right' data-sort='3101'>€3,101</td><td style='padding:6px;text-align:right' data-sort='62'>62.0%</td><td style='padding:6px;text-align:center' data-sort='100'><b>100</b></td></tr><tr><td style='padding:6px' data-sort='toyota avensis'><button type='button' class='watch-star' data-key='ss.com:58113291' data-label='Toyota Avensis' data-price='2500' data-url='https://www.ss.com/msg/lv/transport/cars/toyota/avensis/dikfo.html' title='Watch this listing'>☆</button> Jauna skate, bez rūsas un virsbūves defektiem, mehāniskā kārba. Viss kam jāstrād<br><span style='color:var(--muted);font-size:12px'>toyota avensis — 2011 · diesel · 2.2L · 300k km · manual</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/toyota/avensis/dikfo.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 8 d</span></td><td style='padding:6px;text-align:right' data-sort='2500'><b>€2,500</b></td><td style='padding:6px;text-align:right' data-sort='4900'>€4,900<br><span style='color:var(--muted);font-size:11px'>pool ~2010 · ~318k km</span></td><td style='padding:6px;text-align:center' data-sort='7'><span style='color:var(--warn)' title='Only 7 comparable ads — the median is less reliable'>7~</span></td><td style='padding:6px;text-align:right' data-sort='2400'>€2,400</td><td style='padding:6px;text-align:right' data-sort='49'>49.0%</td><td style='padding:6px;text-align:center' data-sort='100'><b>100</b></td></tr><tr><td style='padding:6px' data-sort='toyota avensis'><button type='button' class='watch-star' data-key='ss.com:58114653' data-label='Toyota Avensis' data-price='1790' data-url='https://www.ss.com/msg/lv/transport/cars/toyota/avensis/gcejk.html' title='Watch this listing'>☆</button> Pārdodu Toyotu 2.0 dīzelis mehānika.<br><span style='color:var(--muted);font-size:12px'>toyota avensis — 2011 · diesel · 2.0L · 346k km · manual</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/toyota/avensis/gcejk.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 8 d</span></td><td style='padding:6px;text-align:right' data-sort='1790'><b>€1,790</b></td><td style='padding:6px;text-align:right' data-sort='3590'>€3,590<br><span style='color:var(--muted);font-size:11px'>pool ~2010 · ~350k km</span></td><td style='padding:6px;text-align:center' data-sort='5'><span style='color:var(--warn)' title='Only 5 comparable ads — the median is less reliable'>5~</span></td><td style='padding:6px;text-align:right' data-sort='1800'>€1,800</td><td style='padding:6px;text-align:right' data-sort='50.1'>50.1%</td><td style='padding:6px;text-align:center' data-sort='100'><b>100</b></td></tr><tr><td style='padding:6px' data-sort='skoda octavia'><button type='button' class='watch-star' data-key='ss.com:57959201' data-label='Skoda Octavia' data-price='3990' data-url='https://www.ss.com/msg/lv/transport/cars/skoda/octavia/cfbchm.html' title='Watch this listing'>☆</button> 2, 0d dīzelis 150Zs, Dsg automāts, 288tūkst. pierādāms nobraukums. Labā tehniskā<br><span style='color:var(--muted);font-size:12px'>skoda octavia — 2014 · diesel · 2.0L · 288k km · automatic</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/skoda/octavia/cfbchm.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--muted);font-size:12px'>seen 1 d</span></td><td style='padding:6px;text-align:right' data-sort='3990'><b>€3,990</b></td><td style='padding:6px;text-align:right' data-sort='7495'>€7,495<br><span style='color:var(--muted);font-size:11px'>pool ~2016 · ~325k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='3505'>€3,505</td><td style='padding:6px;text-align:right' data-sort='46.8'>46.8%</td><td style='padding:6px;text-align:center' data-sort='98'><b>98</b></td></tr><tr><td style='padding:6px' data-sort='bmw 530'><button type='button' class='watch-star' data-key='ss.com:58054089' data-label='Bmw 530' data-price='4350' data-url='https://www.ss.com/msg/lv/transport/cars/bmw/530/bemnxj.html' title='Watch this listing'>☆</button> Lizings visiem. BMW E61 530xD Facelift, 173 kW, automāts
+facelift modelis ar ja<br><span style='color:var(--muted);font-size:12px'>bmw 530 — 2009 · diesel · 3.0L · 292k km · automatic</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/bmw/530/bemnxj.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 4 d</span></td><td style='padding:6px;text-align:right' data-sort='4350'><b>€4,350</b></td><td style='padding:6px;text-align:right' data-sort='8599.5'>€8,600<br><span style='color:var(--muted);font-size:11px'>pool ~2010 · ~288k km</span></td><td style='padding:6px;text-align:center' data-sort='18'>18</td><td style='padding:6px;text-align:right' data-sort='4249.5'>€4,250</td><td style='padding:6px;text-align:right' data-sort='49.4'>49.4%</td><td style='padding:6px;text-align:center' data-sort='96'><b>96</b></td></tr><tr><td style='padding:6px' data-sort='bmw 530'><button type='button' class='watch-star' data-key='ss.com:57902748' data-label='Bmw 530' data-price='3500' data-url='https://www.ss.com/msg/lv/transport/cars/bmw/530/gxhdj.html' title='Watch this listing'>☆</button> Продается BMW 530d 173kW полный привод. Есть небольшие визуальные дефекты по куз<br><span style='color:var(--muted);font-size:12px'>bmw 530 — 2008 · diesel · 3.0L · 355k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/bmw/530/gxhdj.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 1 d</span></td><td style='padding:6px;text-align:right' data-sort='3500'><b>€3,500</b></td><td style='padding:6px;text-align:right' data-sort='7200'>€7,200<br><span style='color:var(--muted);font-size:11px'>pool ~2008 · ~332k km</span></td><td style='padding:6px;text-align:center' data-sort='6'><span style='color:var(--warn)' title='Only 6 comparable ads — the median is less reliable'>6~</span></td><td style='padding:6px;text-align:right' data-sort='3700'>€3,700</td><td style='padding:6px;text-align:right' data-sort='51.4'>51.4%</td><td style='padding:6px;text-align:center' data-sort='96'><b>96</b></td></tr><tr><td style='padding:6px' data-sort='honda cr-v'><button type='button' class='watch-star' data-key='ss.com:58122169' data-label='Honda Cr V' data-price='2200' data-url='https://www.ss.com/msg/lv/transport/cars/honda/cr-v/ccpnbb.html' title='Watch this listing'>☆</button> Sakarā ar jauna auto iegādi, pārdodu savu Honda Cr-V. 
+Ļoti praktisks, ietilpīgs<br><span style='color:var(--muted);font-size:12px'>honda cr-v — 2006 · diesel · 2.2L · 292k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/honda/cr-v/ccpnbb.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 1 d</span></td><td style='padding:6px;text-align:right' data-sort='2200'><b>€2,200</b></td><td style='padding:6px;text-align:right' data-sort='3800'>€3,800<br><span style='color:var(--muted);font-size:11px'>pool ~2007 · ~316k km</span></td><td style='padding:6px;text-align:center' data-sort='5'><span style='color:var(--warn)' title='Only 5 comparable ads — the median is less reliable'>5~</span></td><td style='padding:6px;text-align:right' data-sort='1600'>€1,600</td><td style='padding:6px;text-align:right' data-sort='42.1'>42.1%</td><td style='padding:6px;text-align:center' data-sort='93'><b>93</b></td></tr><tr><td style='padding:6px' data-sort='volkswagen caravelle'><button type='button' class='watch-star' data-key='ss.com:57728990' data-label='Volkswagen Caravelle' data-price='3800' data-url='https://www.ss.com/msg/lv/transport/cars/volkswagen/caravelle/gjjkn.html' title='Watch this listing'>☆</button> Pārdodu VW Caravelle, 2006. gada 2.5l dīzelis, 6 pakāpju ātrumkārba. 8+1 sēdviet<br><span style='color:var(--muted);font-size:12px'>volkswagen caravelle — 2006 · diesel · 2.5L · 361k km</span><br><span class='badge b-new'>NEW</span> <a href="https://www.ss.com/msg/lv/transport/cars/volkswagen/caravelle/gjjkn.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen today</span></td><td style='padding:6px;text-align:right' data-sort='3800'><b>€3,800</b></td><td style='padding:6px;text-align:right' data-sort='6245'>€6,245<br><span style='color:var(--muted);font-size:11px'>pool ~2005 · ~344k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='2445'>€2,445</td><td style='padding:6px;text-align:right' data-sort='39.2'>39.2%</td><td style='padding:6px;text-align:center' data-sort='89'><b>89</b></td></tr><tr><td style='padding:6px' data-sort='peugeot 4007'><button type='button' class='watch-star' data-key='ss.com:56047104' data-label='Peugeot 4007' data-price='3000' data-url='https://www.ss.com/msg/lv/transport/cars/peugeot/4007/bpfxbf.html' title='Watch this listing'>☆</button> Продаю Peugeot 4007. 2.2 hdi , 115 кВт .2007 г. , 
+ автомобиль в отличном техни<br><span style='color:var(--muted);font-size:12px'>peugeot 4007 — 2007 · diesel · 2.2L · 280k km</span><br><span class='badge b-new'>NEW</span> <a href="https://www.ss.com/msg/lv/transport/cars/peugeot/4007/bpfxbf.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen today</span></td><td style='padding:6px;text-align:right' data-sort='3000'><b>€3,000</b></td><td style='padding:6px;text-align:right' data-sort='4890'>€4,890<br><span style='color:var(--muted);font-size:11px'>pool ~2008 · ~279k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='1890'>€1,890</td><td style='padding:6px;text-align:right' data-sort='38.7'>38.7%</td><td style='padding:6px;text-align:center' data-sort='85'><b>85</b></td></tr><tr><td style='padding:6px' data-sort='nissan qashqai'><button type='button' class='watch-star' data-key='pp.lv:3613162' data-label='Nissan Qashqai' data-price='4499' data-url='https://pp.lv/lv/transports-un-tehnika/vieglie-auto/nissan/qashqai/!3613162' title='Watch this listing'>☆</button> Nissan Qashqai<br><span style='color:var(--muted);font-size:12px'>nissan qashqai — 2016 · petrol · 1.2L · 186k km · automatic · wagon</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://pp.lv/lv/transports-un-tehnika/vieglie-auto/nissan/qashqai/!3613162" target="_blank" rel="noopener noreferrer">pp.lv</a><br><span style='color:var(--muted);font-size:12px'>seen 4 d</span></td><td style='padding:6px;text-align:right' data-sort='4499'><b>€4,499</b></td><td style='padding:6px;text-align:right' data-sort='7690'>€7,690<br><span style='color:var(--muted);font-size:11px'>pool ~2017 · ~155k km</span></td><td style='padding:6px;text-align:center' data-sort='5'><span style='color:var(--warn)' title='Only 5 comparable ads — the median is less reliable'>5~</span></td><td style='padding:6px;text-align:right' data-sort='3191'>€3,191</td><td style='padding:6px;text-align:right' data-sort='41.5'>41.5%</td><td style='padding:6px;text-align:center' data-sort='83'><b>83</b></td></tr><tr><td style='padding:6px' data-sort='toyota avensis'><button type='button' class='watch-star' data-key='ss.com:58104682' data-label='Toyota Avensis' data-price='1480' data-url='https://www.ss.com/msg/lv/transport/cars/toyota/avensis/bibohd.html' title='Watch this listing'>☆</button> Pardodu Tayota Avensis 2008 gads 2.0d auto laba stavokli gan tehneski R17 diski<br><span style='color:var(--muted);font-size:12px'>toyota avensis — 2008 · diesel · 2.0L · 377k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/toyota/avensis/bibohd.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 8 d</span></td><td style='padding:6px;text-align:right' data-sort='1480'><b>€1,480</b></td><td style='padding:6px;text-align:right' data-sort='2225'>€2,225<br><span style='color:var(--muted);font-size:11px'>pool ~2008 · ~362k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='745'>€745</td><td style='padding:6px;text-align:right' data-sort='33.5'>33.5%</td><td style='padding:6px;text-align:center' data-sort='81'><b>81</b></td></tr><tr><td style='padding:6px' data-sort='volkswagen passat-cc'><button type='button' class='watch-star' data-key='ss.com:57871816' data-label='Volkswagen Passat Cc' data-price='2990' data-url='https://www.ss.com/msg/lv/transport/cars/volkswagen/passat-cc/bhhdki.html' title='Watch this listing'>☆</button> 2.0D. Automāts. Svaiga TA līdz 02.2027.
+
+Dzinējs strādā lieliski, darbojas klu<br><span style='color:var(--muted);font-size:12px'>volkswagen passat-cc — 2011 · diesel · 2.0L · 365k km · automatic</span><br><span class='badge b-new'>NEW</span> <a href="https://www.ss.com/msg/lv/transport/cars/volkswagen/passat-cc/bhhdki.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen today</span></td><td style='padding:6px;text-align:right' data-sort='2990'><b>€2,990</b></td><td style='padding:6px;text-align:right' data-sort='4150'>€4,150<br><span style='color:var(--muted);font-size:11px'>pool ~2009 · ~341k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='1160'>€1,160</td><td style='padding:6px;text-align:right' data-sort='28'>28.0%</td><td style='padding:6px;text-align:center' data-sort='80'><b>80</b></td></tr><tr><td style='padding:6px' data-sort='toyota avensis'><button type='button' class='watch-star' data-key='pp.lv:3612630' data-label='Toyota Avensis' data-price='1299' data-url='https://pp.lv/lv/transports-un-tehnika/vieglie-auto/toyota/avensis/!3612630' title='Watch this listing'>☆</button> Toyota Avensis<br><span style='color:var(--muted);font-size:12px'>toyota avensis — 2006 · diesel · 2.2L · 319k km · manual · sedan</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://pp.lv/lv/transports-un-tehnika/vieglie-auto/toyota/avensis/!3612630" target="_blank" rel="noopener noreferrer">pp.lv</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 8 d</span></td><td style='padding:6px;text-align:right' data-sort='1299'><b>€1,299</b></td><td style='padding:6px;text-align:right' data-sort='1900'>€1,900<br><span style='color:var(--muted);font-size:11px'>pool ~2006 · ~310k km</span></td><td style='padding:6px;text-align:center' data-sort='5'><span style='color:var(--warn)' title='Only 5 comparable ads — the median is less reliable'>5~</span></td><td style='padding:6px;text-align:right' data-sort='601'>€601</td><td style='padding:6px;text-align:right' data-sort='31.6'>31.6%</td><td style='padding:6px;text-align:center' data-sort='80'><b>80</b></td></tr><tr><td style='padding:6px' data-sort='toyota avensis'><button type='button' class='watch-star' data-key='ss.com:58137410' data-label='Toyota Avensis' data-price='1840' data-url='https://www.ss.com/msg/lv/transport/cars/toyota/avensis/cfgkcf.html' title='Watch this listing'>☆</button> Pārdod Toyota Avensis liftback 2.0d D-4D ar 93 kW dzinēju lieliskā stāvoklī. Nob<br><span style='color:var(--muted);font-size:12px'>toyota avensis — 2008 · diesel · 2.0L · 254k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/toyota/avensis/cfgkcf.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 1 d</span></td><td style='padding:6px;text-align:right' data-sort='1840'><b>€1,840</b></td><td style='padding:6px;text-align:right' data-sort='2400'>€2,400<br><span style='color:var(--muted);font-size:11px'>pool ~2008 · ~290k km</span></td><td style='padding:6px;text-align:center' data-sort='6'><span style='color:var(--warn)' title='Only 6 comparable ads — the median is less reliable'>6~</span></td><td style='padding:6px;text-align:right' data-sort='560'>€560</td><td style='padding:6px;text-align:right' data-sort='23.3'>23.3%</td><td style='padding:6px;text-align:center' data-sort='79'><b>79</b></td></tr><tr><td style='padding:6px' data-sort='honda civic'><button type='button' class='watch-star' data-key='ss.com:58115062' data-label='Honda Civic' data-price='1650' data-url='https://www.ss.com/msg/lv/transport/cars/honda/civic/iboje.html' title='Watch this listing'>☆</button> Pardodas ekonomisks dizelis, ar nelielu degvielas paterinu, 6 atrumi, Nesen izie<br><span style='color:var(--muted);font-size:12px'>honda civic — 2008 · diesel · 2.2L · 259k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/honda/civic/iboje.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 4 d</span></td><td style='padding:6px;text-align:right' data-sort='1650'><b>€1,650</b></td><td style='padding:6px;text-align:right' data-sort='2175'>€2,175<br><span style='color:var(--muted);font-size:11px'>pool ~2007 · ~268k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='525'>€525</td><td style='padding:6px;text-align:right' data-sort='24.1'>24.1%</td><td style='padding:6px;text-align:center' data-sort='79'><b>79</b></td></tr><tr><td style='padding:6px' data-sort='volkswagen caravelle'><button type='button' class='watch-star' data-key='ss.com:58053703' data-label='Volkswagen Caravelle' data-price='4300' data-url='https://www.ss.com/msg/lv/transport/cars/volkswagen/caravelle/fpdxx.html' title='Watch this listing'>☆</button> TA līdz 17.08.2027 . Daudz labu ekstru. Astoņas vietas. Kruīza kontrole, borta d<br><span style='color:var(--muted);font-size:12px'>volkswagen caravelle — 2006 · diesel · 2.5L · 389k km</span><br><span class='badge b-new'>NEW</span> <a href="https://www.ss.com/msg/lv/transport/cars/volkswagen/caravelle/fpdxx.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen today</span></td><td style='padding:6px;text-align:right' data-sort='4300'><b>€4,300</b></td><td style='padding:6px;text-align:right' data-sort='6245'>€6,245<br><span style='color:var(--muted);font-size:11px'>pool ~2005 · ~344k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='1945'>€1,945</td><td style='padding:6px;text-align:right' data-sort='31.1'>31.1%</td><td style='padding:6px;text-align:center' data-sort='77'><b>77</b></td></tr><tr><td style='padding:6px' data-sort='bmw 530'><button type='button' class='watch-star' data-key='ss.com:58100817' data-label='Bmw 530' data-price='2800' data-url='https://www.ss.com/msg/lv/transport/cars/bmw/530/cdmhxk.html' title='Watch this listing'>☆</button> BMW 530 Jaudīgs, Ekonomisks UN Labi Nokomplektēts. 
+
+Pārdodu BMW 530 ar vieglu<br><span style='color:var(--muted);font-size:12px'>bmw 530 — 2005 · diesel · 3.0L · 364k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/bmw/530/cdmhxk.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 8 d</span></td><td style='padding:6px;text-align:right' data-sort='2800'><b>€2,800</b></td><td style='padding:6px;text-align:right' data-sort='3875'>€3,875<br><span style='color:var(--muted);font-size:11px'>pool ~2005 · ~357k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='1075'>€1,075</td><td style='padding:6px;text-align:right' data-sort='27.7'>27.7%</td><td style='padding:6px;text-align:center' data-sort='77'><b>77</b></td></tr><tr><td style='padding:6px' data-sort='honda cr-v'><button type='button' class='watch-star' data-key='ss.com:58002234' data-label='Honda Cr V' data-price='2650' data-url='https://www.ss.com/msg/lv/transport/cars/honda/cr-v/cfdfnj.html' title='Watch this listing'>☆</button> Ziema nav aiz kalniem, labs pilnpiedziņas 4x4 auto. Kas palīdzēs Tev tik tur, ku<br><span style='color:var(--muted);font-size:12px'>honda cr-v — 2006 · diesel · 2.2L · 324k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/honda/cr-v/cfdfnj.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 1 d</span></td><td style='padding:6px;text-align:right' data-sort='2650'><b>€2,650</b></td><td style='padding:6px;text-align:right' data-sort='3800'>€3,800<br><span style='color:var(--muted);font-size:11px'>pool ~2007 · ~312k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='1150'>€1,150</td><td style='padding:6px;text-align:right' data-sort='30.3'>30.3%</td><td style='padding:6px;text-align:center' data-sort='75'><b>75</b></td></tr><tr><td style='padding:6px' data-sort='bmw 530'><button type='button' class='watch-star' data-key='ss.com:58134813' data-label='Bmw 530' data-price='2999' data-url='https://www.ss.com/msg/lv/transport/cars/bmw/530/bdlxfi.html' title='Watch this listing'>☆</button> Продаётся мой любимый автомобиль, но пришло время с ним прощаться и покупать бех<br><span style='color:var(--muted);font-size:12px'>bmw 530 — 2005 · diesel · 3.0L · 362k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/bmw/530/bdlxfi.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 1 d</span></td><td style='padding:6px;text-align:right' data-sort='2999'><b>€2,999</b></td><td style='padding:6px;text-align:right' data-sort='3875'>€3,875<br><span style='color:var(--muted);font-size:11px'>pool ~2005 · ~358k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='876'>€876</td><td style='padding:6px;text-align:right' data-sort='22.6'>22.6%</td><td style='padding:6px;text-align:center' data-sort='72'><b>72</b></td></tr><tr><td style='padding:6px' data-sort='volkswagen passat-cc'><button type='button' class='watch-star' data-key='ss.com:57570106' data-label='Volkswagen Passat Cc' data-price='3500' data-url='https://www.ss.com/msg/lv/transport/cars/volkswagen/passat-cc/cexjfk.html' title='Watch this listing'>☆</button> Pārdodu VW Passat 2010. gada, 2.0 Tdi, automāts. 
+369 780 km. Februārī izieta t<br><span style='color:var(--muted);font-size:12px'>volkswagen passat-cc — 2010 · diesel · 2.0L · 370k km · automatic</span><br><span class='badge b-new'>NEW</span> <a href="https://www.ss.com/msg/lv/transport/cars/volkswagen/passat-cc/cexjfk.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen today</span></td><td style='padding:6px;text-align:right' data-sort='3500'><b>€3,500</b></td><td style='padding:6px;text-align:right' data-sort='4150'>€4,150<br><span style='color:var(--muted);font-size:11px'>pool ~2009 · ~352k km</span></td><td style='padding:6px;text-align:center' data-sort='6'><span style='color:var(--warn)' title='Only 6 comparable ads — the median is less reliable'>6~</span></td><td style='padding:6px;text-align:right' data-sort='650'>€650</td><td style='padding:6px;text-align:right' data-sort='15.7'>15.7%</td><td style='padding:6px;text-align:center' data-sort='66'><b>66</b></td></tr><tr><td style='padding:6px' data-sort='chevrolet captiva'><button type='button' class='watch-star' data-key='ss.com:57957702' data-label='Chevrolet Captiva' data-price='4800' data-url='https://www.ss.com/msg/lv/transport/cars/chevrolet/captiva/cbekjh.html' title='Watch this listing'>☆</button> Продаю машину в хорошем техническом состоянии. Машина ухоженная, своевременно об<br><span style='color:var(--muted);font-size:12px'>chevrolet captiva — 2012 · diesel · 2.2L · 244k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/chevrolet/captiva/cbekjh.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--muted);font-size:12px'>seen 1 d</span></td><td style='padding:6px;text-align:right' data-sort='4800'><b>€4,800</b></td><td style='padding:6px;text-align:right' data-sort='5690'>€5,690<br><span style='color:var(--muted);font-size:11px'>pool ~2012 · ~240k km</span></td><td style='padding:6px;text-align:center' data-sort='5'><span style='color:var(--warn)' title='Only 5 comparable ads — the median is less reliable'>5~</span></td><td style='padding:6px;text-align:right' data-sort='890'>€890</td><td style='padding:6px;text-align:right' data-sort='15.6'>15.6%</td><td style='padding:6px;text-align:center' data-sort='65'><b>65</b></td></tr><tr><td style='padding:6px' data-sort='honda cr-v'><button type='button' class='watch-star' data-key='ss.com:58010763' data-label='Honda Cr V' data-price='4100' data-url='https://www.ss.com/msg/lv/transport/cars/honda/cr-v/cdhkcb.html' title='Watch this listing'>☆</button> Pārdošanā Honda Cr-V 2.0, benzīns. 110kW, pilnpiedziņa, gaiši pelēka (tehniskajā<br><span style='color:var(--muted);font-size:12px'>honda cr-v — 2007 · petrol · 2.0L · 222k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/honda/cr-v/cdhkcb.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 4 d</span></td><td style='padding:6px;text-align:right' data-sort='4100'><b>€4,100</b></td><td style='padding:6px;text-align:right' data-sort='4950'>€4,950<br><span style='color:var(--muted);font-size:11px'>pool ~2007 · ~210k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='850'>€850</td><td style='padding:6px;text-align:right' data-sort='17.2'>17.2%</td><td style='padding:6px;text-align:center' data-sort='65'><b>65</b></td></tr><tr><td style='padding:6px' data-sort='volkswagen passat-cc'><button type='button' class='watch-star' data-key='ss.com:58135656' data-label='Volkswagen Passat Cc' data-price='3500' data-url='https://www.ss.com/msg/lv/transport/cars/volkswagen/passat-cc/cdhgnp.html' title='Watch this listing'>☆</button> Pārdodu izskatīgu VW Passat CC 2.0tdi ar automātisko kārbu. 
+Jauna tehniskā aps<br><span style='color:var(--muted);font-size:12px'>volkswagen passat-cc — 2008 · diesel · 2.0L · 360k km · automatic</span><br><span class='badge b-new'>NEW</span> <a href="https://www.ss.com/msg/lv/transport/cars/volkswagen/passat-cc/cdhgnp.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen today</span></td><td style='padding:6px;text-align:right' data-sort='3500'><b>€3,500</b></td><td style='padding:6px;text-align:right' data-sort='4350'>€4,350<br><span style='color:var(--muted);font-size:11px'>pool ~2009 · ~343k km</span></td><td style='padding:6px;text-align:center' data-sort='5'><span style='color:var(--warn)' title='Only 5 comparable ads — the median is less reliable'>5~</span></td><td style='padding:6px;text-align:right' data-sort='850'>€850</td><td style='padding:6px;text-align:right' data-sort='19.5'>19.5%</td><td style='padding:6px;text-align:center' data-sort='64'><b>64</b></td></tr><tr><td style='padding:6px' data-sort='chevrolet captiva'><button type='button' class='watch-star' data-key='ss.com:58093423' data-label='Chevrolet Captiva' data-price='4800' data-url='https://www.ss.com/msg/lv/transport/cars/chevrolet/captiva/cembhk.html' title='Watch this listing'>☆</button> Tikko no Itālijas. Bez defektiem bez rūsas.<br><span style='color:var(--muted);font-size:12px'>chevrolet captiva — 2011 · diesel · 2.2L · 240k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/chevrolet/captiva/cembhk.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 4 d</span></td><td style='padding:6px;text-align:right' data-sort='4800'><b>€4,800</b></td><td style='padding:6px;text-align:right' data-sort='5690'>€5,690<br><span style='color:var(--muted);font-size:11px'>pool ~2012 · ~244k km</span></td><td style='padding:6px;text-align:center' data-sort='5'><span style='color:var(--warn)' title='Only 5 comparable ads — the median is less reliable'>5~</span></td><td style='padding:6px;text-align:right' data-sort='890'>€890</td><td style='padding:6px;text-align:right' data-sort='15.6'>15.6%</td><td style='padding:6px;text-align:center' data-sort='63'><b>63</b></td></tr><tr><td style='padding:6px' data-sort='bmw 530'><button type='button' class='watch-star' data-key='ss.com:58139441' data-label='Bmw 530' data-price='3150' data-url='https://www.ss.com/msg/lv/transport/cars/bmw/530/bhledj.html' title='Watch this listing'>☆</button> Melns uz melna. Jaudīgs un ekonomisks auto. Kopts auto. Labs stāvoklis. Ritošā i<br><span style='color:var(--muted);font-size:12px'>bmw 530 — 2005 · diesel · 3.0L · 380k km</span><br><span class='badge b-ended'>STILL ACTIVE</span> <a href="https://www.ss.com/msg/lv/transport/cars/bmw/530/bhledj.html" target="_blank" rel="noopener noreferrer">ss.com</a><br><span style='color:var(--bad);font-size:12px'>High mileage — budget for repairs; Older car — inspect carefully</span><br><span style='color:var(--muted);font-size:12px'>seen 1 d</span></td><td style='padding:6px;text-align:right' data-sort='3150'><b>€3,150</b></td><td style='padding:6px;text-align:right' data-sort='3799.5'>€3,800<br><span style='color:var(--muted);font-size:11px'>pool ~2005 · ~357k km</span></td><td style='padding:6px;text-align:center' data-sort='4'><span style='color:var(--warn)' title='Only 4 comparable ads — the median is less reliable'>4~</span></td><td style='padding:6px;text-align:right' data-sort='649.5'>€650</td><td style='padding:6px;text-align:right' data-sort='17.1'>17.1%</td><td style='padding:6px;text-align:center' data-sort='63'><b>63</b></td></tr></table></div></div></div><div id='car-custom-view' style='display:none'></div>
+
+<div class='box' style='background:var(--warn-bg);border-color:var(--warn-line)'><b>Gone since yesterday (20)</b> — ads that were live yesterday but are no longer listed (usually sold or withdrawn). 'Tracked' is how long our scan had seen the ad.<div class='scroll-x'><table><tr><th style='text-align:left;padding:6px'>Car</th><th style='text-align:right;padding:6px'>Last ask</th><th style='text-align:right;padding:6px'>Tracked</th><th style='padding:6px'>Source</th><th style='padding:6px'>Link</th></tr><tr><td style='padding:6px'>toyota avensis 2009</td><td style='padding:6px;text-align:right;font-weight:bold'>€3,550</td><td style='padding:6px;text-align:right;color:var(--muted)'>8 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/toyota/avensis/gmgnd.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr class='z'><td style='padding:6px'>toyota avensis 2008</td><td style='padding:6px;text-align:right;font-weight:bold'>€1,490</td><td style='padding:6px;text-align:right;color:var(--muted)'>8 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/toyota/avensis/bkgich.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr><td style='padding:6px'>toyota rav-4 2021</td><td style='padding:6px;text-align:right;font-weight:bold'>€27,700</td><td style='padding:6px;text-align:right;color:var(--muted)'>4 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/toyota/rav-4/cghchn.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr class='z'><td style='padding:6px'>nissan qashqai 2024</td><td style='padding:6px;text-align:right;font-weight:bold'>€23,500</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/nissan/qashqai/cxhgoo.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr><td style='padding:6px'>bmw x5 2005</td><td style='padding:6px;text-align:right;font-weight:bold'>€3,300</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/gckfc.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr class='z'><td style='padding:6px'>bmw x5 2017</td><td style='padding:6px;text-align:right;font-weight:bold'>€21,000</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/bhknpe.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr><td style='padding:6px'>bmw x5 2017</td><td style='padding:6px;text-align:right;font-weight:bold'>€16,500</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/ceehll.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr class='z'><td style='padding:6px'>bmw x5 2014</td><td style='padding:6px;text-align:right;font-weight:bold'>€20,900</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/bfblno.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr><td style='padding:6px'>bmw x5 2005</td><td style='padding:6px;text-align:right;font-weight:bold'>€7,200</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/bjgogh.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr class='z'><td style='padding:6px'>bmw x5 2007</td><td style='padding:6px;text-align:right;font-weight:bold'>€9,500</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/adegi.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr><td style='padding:6px'>bmw x5 2010</td><td style='padding:6px;text-align:right;font-weight:bold'>€9,500</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/bfxopo.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr class='z'><td style='padding:6px'>bmw x5 2011</td><td style='padding:6px;text-align:right;font-weight:bold'>€8,590</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/cedklf.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr><td style='padding:6px'>bmw x5 2016</td><td style='padding:6px;text-align:right;font-weight:bold'>€19,590</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/cfhbbi.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr class='z'><td style='padding:6px'>bmw x5 2021</td><td style='padding:6px;text-align:right;font-weight:bold'>€49,999</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/abixi.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr><td style='padding:6px'>bmw x5 2020</td><td style='padding:6px;text-align:right;font-weight:bold'>€38,500</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/cgplbi.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr class='z'><td style='padding:6px'>bmw x5 2008</td><td style='padding:6px;text-align:right;font-weight:bold'>€8,500</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/ccgmei.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr><td style='padding:6px'>bmw x5 2007</td><td style='padding:6px;text-align:right;font-weight:bold'>€7,490</td><td style='padding:6px;text-align:right;color:var(--muted)'>4 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/ecpon.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr class='z'><td style='padding:6px'>bmw x5 2014</td><td style='padding:6px;text-align:right;font-weight:bold'>€17,500</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/bjiclp.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr><td style='padding:6px'>bmw x5 2014</td><td style='padding:6px;text-align:right;font-weight:bold'>€18,995</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/binlfl.html" target="_blank" rel="noopener noreferrer">view</a></td></tr><tr class='z'><td style='padding:6px'>bmw x5 2012</td><td style='padding:6px;text-align:right;font-weight:bold'>€10,990</td><td style='padding:6px;text-align:right;color:var(--muted)'>1 d</td><td style='padding:6px;font-size:12px;color:var(--faint)'>ss.com</td><td style='padding:6px'><a href="https://www.ss.com/msg/lv/transport/cars/bmw/x5/celmlj.html" target="_blank" rel="noopener noreferrer">view</a></td></tr></table></div></div>
+<div class="box">
+<b>Before buying:</b> check mileage and history in the CSDD register
+(e.csdd.lv), get an independent mechanical inspection, and verify all
+documentation (registration, service records, outstanding finance).
+</div>
+<hr><p class="note">Generated by Flat_Searcher car digest.</p>
+</body></html>
