@@ -270,6 +270,11 @@ MOTIVATED_MIN_DROP_EUR_FLAT = 4000   # real € cut needed to count at all
 MOTIVATED_MIN_DROP_EUR_CAR = 400
 MOTIVATED_STALE_DAYS_FLAT = 45       # days-on-market before "stale"
 MOTIVATED_STALE_DAYS_CAR = 30
+# "Stale & stubborn" card — ads sitting far past MOTIVATED_STALE_DAYS with
+# NO recorded cut (the opposite of a motivated seller; watch-list for the
+# cuts that usually come eventually).
+STALE_MIN_DAYS_FLAT = 75
+STALE_TOP_N = 8
 MOTIVATED_MIN_RELISTINGS = 3         # previous_listings = serial relister
 MOTIVATED_MIN_TRAIL_DROPS = 2        # own trail: drops counted separately
 MOTIVATED_CUTS_TOP_N = 8             # rows in the cuts section

@@ -63,11 +63,13 @@ def classify(scored_by_type, seen_deals, last_digest):
             key = utils.listing_key(listing)
             today_price = utils.to_float(listing.get("price_eur"))
             is_daily = listing.get("price_unit") == "day"
+            # Daily rentals get SHORT_TERM instead of whichever badge the
+            # branch below picked — one decision, not four.
+            _b = (lambda name: "SHORT_TERM" if is_daily else name)
 
             if key not in seen_deals:
                 # brand new
-                badge = "SHORT_TERM" if is_daily else "NEW"
-                main_list.append((listing, score, method, badge, None))
+                main_list.append((listing, score, method, _b("NEW"), None))
                 continue
 
             prev = seen_deals[key] or {}
@@ -78,8 +80,8 @@ def classify(scored_by_type, seen_deals, last_digest):
                 # price dropped meaningfully since last shown
                 detail = (f"was {int(prev_price)} EUR "
                           f"(\u2193{drop_pct:.0f}%)")
-                badge = "SHORT_TERM" if is_daily else "PRICE_DROP"
-                main_list.append((listing, score, method, badge, detail))
+                main_list.append((listing, score, method,
+                                  _b("PRICE_DROP"), detail))
                 continue
 
             if key in yest_keys:
@@ -87,15 +89,15 @@ def classify(scored_by_type, seen_deals, last_digest):
                 # (unless too stale)
                 days = utils.days_since(prev.get("last_shown_date"), today)
                 if days is not None and days > config.STILL_ACTIVE_MAX_DAYS:
-                    badge = "SHORT_TERM" if is_daily else "REAPPEARED"
-                    main_list.append((listing, score, method, badge, None))
+                    main_list.append((listing, score, method,
+                                      _b("REAPPEARED"), None))
                 else:
                     still_list.append((listing, score, method))
                 continue
 
             # seen before but not in yesterday's top N -> reappeared
-            badge = "SHORT_TERM" if is_daily else "REAPPEARED"
-            main_list.append((listing, score, method, badge, None))
+            main_list.append((listing, score, method,
+                              _b("REAPPEARED"), None))
 
         main_deals[dt] = main_list
         still_active[dt] = still_list
@@ -140,21 +142,18 @@ def comparison_header(scored_by_type, last_digest):
 
         if today_best is not None and yest_best is not None:
             if today_best > yest_best:
-                lines.append(
-                    f"&bull; <strong>{dt.upper()}</strong>: today's best deal "
-                    f"(score {today_best:+.2f}) <strong>beats</strong> "
-                    f"yesterday's best ({yest_best:+.2f}). {new_count} new deal(s).")
+                verdict = ("<strong>beats</strong> yesterday's best "
+                           f"({yest_best:+.2f})")
                 any_change = True
             elif today_best < yest_best:
-                lines.append(
-                    f"&bull; <strong>{dt.upper()}</strong>: today's best deal "
-                    f"(score {today_best:+.2f}) falls short of yesterday's "
-                    f"({yest_best:+.2f}). {new_count} new deal(s).")
+                verdict = (f"falls short of yesterday's "
+                           f"({yest_best:+.2f})")
             else:
-                lines.append(
-                    f"&bull; <strong>{dt.upper()}</strong>: today's best deal "
-                    f"(score {today_best:+.2f}) ties yesterday's best. "
-                    f"{new_count} new deal(s).")
+                verdict = "ties yesterday's best"
+            lines.append(
+                f"&bull; <strong>{dt.upper()}</strong>: today's best deal "
+                f"(score {today_best:+.2f}) {verdict}. "
+                f"{new_count} new deal(s).")
         elif today_best is not None:
             lines.append(
                 f"&bull; <strong>{dt.upper()}</strong>: today's best deal "

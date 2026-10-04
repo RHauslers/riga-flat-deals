@@ -305,10 +305,15 @@ def _run_body(today, _t0):
     # — built before this section — see the annotation too.
     _flat_stats = flat_market.compute_district_stats(
         all_listings, price_data, today)
+    _rent_stats = flat_market.compute_district_stats(
+        all_listings, price_data, today, deal_type="rent")
     _district_ppu = {s["district"]: s.get("median_ppu")
                      for s in _flat_stats if s.get("median_ppu")}
+    _district_rent = {s["district"]: s.get("median_price")
+                      for s in _rent_stats if s.get("median_price")}
     for _l in all_listings:
         _l["_district_median_ppu"] = _district_ppu.get(_l.get("district"))
+        _l["_district_rent_median"] = _district_rent.get(_l.get("district"))
 
     # Step 7: classify into main (badges) + still_active; build comparison header
     main_deals, still_active = classify.classify(all_scored, seen_deals, last_digest)
@@ -404,18 +409,23 @@ def _run_body(today, _t0):
     _city_median_ask = utils.median(
         [utils.to_float(l.get("price_eur")) for l in all_listings
          if l.get("deal_type") == "sale" and l.get("price_eur")])
-    _rent_stats = flat_market.compute_district_stats(
-        all_listings, price_data, today, deal_type="rent")
     flat_market.save_stats(_flat_stats, today, len(all_listings),
                            city_ppu=_city_median_ppu,
                            city_price=_city_median_ask,
                            rent_stats=_rent_stats)
     _market_pulse = None
     if _city_median_ppu:
+        _riga_hist = flat_market.load_history().get("Riga", [])
+        # save_stats already appended today's point — [-2] is yesterday's.
+        _ads_prev = (_riga_hist[-2][3]
+                     if len(_riga_hist) > 1 and len(_riga_hist[-2]) > 3
+                     else None)
         _market_pulse = {
             "ppu": _city_median_ppu,
-            "delta": utils.delta_7d(
-                flat_market.load_history().get("Riga", [])),
+            "delta": utils.delta_7d(_riga_hist),
+            "ads": len(all_listings),
+            "ads_delta": (len(all_listings) - _ads_prev
+                          if _ads_prev is not None else None),
         }
 
     # Step 7 cont: "Disappeared — likely sold/removed": yesterday's live-ad ids

@@ -115,13 +115,17 @@ def _source_link(listing, extra=""):
     src = _t(listing.get("source", ""))
     also = listing.get("also_on") or []
     also_html = ""
-    if also:
-        names = ", ".join(
-            (o.get("source") if isinstance(o, dict) else str(o)) or "?"
-            for o in also)
-        also_html = (f" <span class='badge b-src' "
-                     f"title='Same flat also listed on {_t(names)}'>"
-                     f"also on {_t(names)}</span>")
+    for o in also:
+        name = (o.get("source") if isinstance(o, dict) else str(o)) or "?"
+        o_url = safe_url(o.get("url")) if isinstance(o, dict) else ""
+        tip = _t(f"Same flat also listed on {name}")
+        if o_url:
+            also_html += (f" <a href='{_t(o_url)}' class='badge b-src' "
+                          f"rel='noopener noreferrer' title='{tip}'>"
+                          f"also on {_t(name)}</a>")
+        else:
+            also_html += (f" <span class='badge b-src' title='{tip}'>"
+                          f"also on {_t(name)}</span>")
     ch = listing.get("also_cheaper")
     if ch and ch.get("price") and listing.get("price_eur"):
         diff = listing["price_eur"] - ch["price"]
@@ -224,6 +228,26 @@ def _vs_district_chip(listing):
     return ""
 
 
+def _yield_chip(listing):
+    """'yield ~X%' chip — gross rental yield estimate when the district
+    has a rent median (annotated as _district_rent_median, EUR/month)
+    and this is a sale listing with a price. Rough ballpark, not an
+    appraisal."""
+    if listing.get("deal_type") != "sale":
+        return ""
+    rent_mo = utils.to_float(listing.get("_district_rent_median"))
+    price = utils.to_float(listing.get("price_eur"))
+    if not rent_mo or not price or price <= 0:
+        return ""
+    y = rent_mo * 12 / price * 100
+    if y < 3.0 or y > 20:  # outside this band the rent comp is suspect
+        return ""
+    return (f" <span class='badge b-cheap' "
+            f"title='Rough gross yield: {_t(str(listing.get('district') or ''))} "
+            f"median rent {_fmt_price(rent_mo)}/mo x12 ÷ this ask — "
+            f"before costs/vacancy'>~{y:.1f}% yield</span>")
+
+
 def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0):
     """Shared row builder for the deal tables — main and still-active
     rows are identical except the Status cell (main only)."""
@@ -254,9 +278,15 @@ def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0):
     dist_sort = listing.get("_school_km") if listing.get("_school_km") is not None else 9999
 
     map_link = _map_link(listing)
+    # Row anchor + '#' permalink — deep-linkable listing rows for sharing.
+    key = utils.listing_key(listing)
+    row_id = f' id="r-{_t(key)}"' if key else ""
+    anchor = (f" <a href='#r-{_t(key)}' title='Link to this row' "
+              f"style='font-size:11px;color:var(--faint)'>#</a>"
+              if key else "")
 
     return (
-        f"<tr{zebra}>"
+        f"<tr{zebra}{row_id}>"
         f"<td>{_t(listing.get('district',''))}</td>"
         f"<td style='text-align:right;font-size:12px' data-sort='{dist_sort}'>{dist_str}</td>"
         f"<td style='text-align:right' data-sort='{listing.get('rooms',0) or 0}'>{_t(listing.get('rooms',''))}</td>"
@@ -268,7 +298,7 @@ def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0):
         f"{status_cell}"
         f"<td style='text-align:right;font-size:12px;color:var(--muted)' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
-        f"<td>{_watch_star(listing)}{_source_link(listing, _motivated_chips(listing, price_data) + _relisted_chip(listing) + _vs_district_chip(listing) + map_link)}</td>"
+        f"<td>{_watch_star(listing)}{_source_link(listing, _motivated_chips(listing, price_data) + _relisted_chip(listing) + _vs_district_chip(listing) + _yield_chip(listing) + map_link + anchor)}</td>"
         "</tr>"
         f"{timeline_row}"
     )
@@ -386,6 +416,87 @@ def _table_header(sortable_id="", has_status=True):
     )
 
 
+def _hero_card_html(items, price_data=None):
+    """Compact 'deal of the day' card for the #1 ranked sale listing."""
+    if not items:
+        return ""
+    listing, score, method, badge, detail = items[0]
+    key = utils.listing_key(listing)
+    bits = []
+    for k, fmt in (("rooms", "{} rm"), ("area_m2", "{} m²")):
+        v = listing.get(k)
+        if v:
+            bits.append(_t(fmt.format(v)))
+    dist = _fmt_distance(listing)
+    if dist:
+        bits.append(_t(dist))
+    chips = (_motivated_chips(listing, price_data) +
+             _relisted_chip(listing) + _vs_district_chip(listing) +
+             _yield_chip(listing))
+    score_str = f"{score:+.2f}" if score is not None else "-"
+    return (
+        "<div class='card' style='border-left:4px solid var(--accent)'>"
+        "<h3 style='margin:0 0 6px 0'>Deal of the day</h3>"
+        f"<p style='margin:0;font-size:15px'>"
+        f"<a href='{_t(listing.get('url',''))}' target='_blank' rel='noopener'>"
+        f"{_t(listing.get('district',''))} — {_fmt_price(listing.get('price_eur'))}</a> "
+        f"<span class='note'>{' · '.join(bits)}</span> "
+        f"<b style='color:var(--accent)'>{score_str}</b>{chips}</p>"
+        f"<p class='note' style='margin:4px 0 0'>{_t(listing.get('street','') or '')}"
+        f"{' — ' + _t(detail) if detail else ''}"
+        + (f" · <a href='#r-{_t(key)}'>jump to row</a>" if key else "")
+        + "</p>"
+        "</div>")
+
+
+_HIST_BUCKET_EUR = 5000
+
+
+def _histogram_card_html(all_listings):
+    """Ask-price histogram over today's sale listings — a one-glance
+    'where the market sits' snapshot behind the budget tool."""
+    prices = sorted(p for p in
+                    (utils.to_float(l.get("price_eur"))
+                     for l in (all_listings or [])
+                     if l.get("deal_type") == "sale")
+                    if p and p > 0)
+    if len(prices) < 10:
+        return ""
+    hi = int(prices[-1] // _HIST_BUCKET_EUR) + 1
+    lo = int(prices[0] // _HIST_BUCKET_EUR)
+    buckets = [0] * (hi - lo)
+    for p in prices:
+        buckets[int(p // _HIST_BUCKET_EUR) - lo] += 1
+    peak = max(buckets)
+    w, h, bh = 640, 90, 60
+    bw = w / len(buckets)
+    bars = []
+    for i, n in enumerate(buckets):
+        if not n:
+            continue
+        bh_i = max(2, int(n / peak * bh))
+        bars.append(f"<rect x='{i*bw:.1f}' y='{bh-bh_i}' width='{bw-1:.1f}' "
+                    f"height='{bh_i}' style='fill:var(--accent)' "
+                    f"opacity='0.75'>"
+                    f"<title>€{int((lo+i)*_HIST_BUCKET_EUR):,}–"
+                    f"€{int((lo+i+1)*_HIST_BUCKET_EUR):,}: {n} ads</title>"
+                    f"</rect>")
+    svg = (f"<svg viewBox='0 0 {w} {h}' style='width:100%;max-width:640px;"
+           f"height:auto;display:block' preserveAspectRatio='none'>"
+           f"{''.join(bars)}"
+           f"<text x='0' y='{h-2}' font-size='9' style='fill:var(--faint)'>"
+           f"€{lo*_HIST_BUCKET_EUR:,}</text>"
+           f"<text x='{w}' y='{h-2}' font-size='9' text-anchor='end' "
+           f"style='fill:var(--faint)'>€{hi*_HIST_BUCKET_EUR:,}</text></svg>")
+    return ("<div class='card'>"
+            "<h3 style='margin:0 0 4px 0'>Ask-price spread — today "
+            f"({len(prices)} sale ads)</h3>"
+            "<p class='note' style='margin:0 0 6px 0'>Today's sale asking "
+            f"prices in {_fmt_price(_HIST_BUCKET_EUR)} buckets — hover a bar "
+            "for its range. The budget tool below slices this same pool.</p>"
+            f"{svg}</div>")
+
+
 def _main_section_html(title, items, subtitle, price_data=None, table_id=""):
     if not items:
         return (f"<div class='card'><h3>{title}</h3>"
@@ -474,7 +585,7 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
             f"<td style='text-align:right;font-weight:bold'>{price_str}</td>"
             f"<td style='text-align:right'>{ppu_str}</td>"
             f"<td style='text-align:right'>{deal_type}</td>"
-            f"<td>{_source_link(listing, _relisted_chip(listing) + _vs_district_chip(listing) + map_link)}</td>"
+            f"<td>{_source_link(listing, _relisted_chip(listing) + _vs_district_chip(listing) + _yield_chip(listing) + map_link)}</td>"
             '</tr>'
         )
 
@@ -565,7 +676,7 @@ def build_near_school_html(all_listings):
             f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(l.get('price_eur'), l.get('price_unit'))}</td>"
             f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(l.get('price_per_m2'))}</td>"
             f"<td style='text-align:right;font-size:16px;font-weight:bold;color:var(--accent)' data-sort='{score_val}'>{score_str}</td>"
-            f"<td>{_watch_star(l)}{_source_link(l, _relisted_chip(l) + _vs_district_chip(l) + map_link)}</td>"
+            f"<td>{_watch_star(l)}{_source_link(l, _relisted_chip(l) + _vs_district_chip(l) + _yield_chip(l) + map_link)}</td>"
             '</tr>'
         )
 
@@ -640,12 +751,18 @@ def build_gone_html(gone, price_data=None, today=None):
             src += " <span style='color:var(--auction)'>· auction</span>"
         # "cut before gone" — the ask dropped before the ad vanished:
         # usually means it sold fast once the price hit the right level.
+        # Show the observed trail itself so a steady slide is visible.
         cut_tag = ""
         _tp = [utils.to_float(o.get("price") or o.get("p"))
                for o in (entry.get("our_tracking") or [])]
         _tp = [p for p in _tp if p]
         if len(_tp) >= 2 and _tp[-1] < _tp[0]:
-            cut_tag = (f"<br><span style='font-size:11px;color:var(--good)'>"
+            _trail = " → ".join(_fmt_price(p) for p in _tp[-4:])
+            if len(_tp) > 4:
+                _trail = "… " + _trail
+            cut_tag = (f"<br><span style='font-size:11px;color:var(--faint)'>"
+                       f"{_trail}</span>"
+                       f"<br><span style='font-size:11px;color:var(--good)'>"
                        f"−{_fmt_price(_tp[0] - _tp[-1])} before gone</span>")
         rows.append(
             f'<tr{zebra}>'
@@ -946,8 +1063,9 @@ def _watch_star(listing):
 # build the full HTML digest
 # ---------------------------------------------------------------------------
 # Fields embedded per listing so the browser can filter for a custom budget.
-# NOTE: fields are appended at the END only — rows are positional and
-# r[4] (price_eur) etc. are hardcoded in the budget JS + tests.
+# NOTE: the budget JS resolves fields by name (idx.<field>) so order is
+# free, but keep appending at the END — a mid-tuple insert silently
+# corrupts any consumer that still hardcodes a position.
 _FLAT_FIELDS = ("district", "rooms", "area_m2", "floor", "price_eur",
                 "price_per_m2", "school_km", "score", "source", "url", "id",
                 "street",
@@ -961,7 +1079,9 @@ _FLAT_FIELDS = ("district", "rooms", "area_m2", "floor", "price_eur",
                 "deal_type",
                 # coordinates + our own trail, for the map link and the
                 # 'seen N d' line in the custom view (car-view parity).
-                "lat", "lon", "_first_seen", "_price_hist")
+                "lat", "lon", "_first_seen", "_price_hist",
+                # district rent median (EUR/mo) for the ~X% yield chip
+                "_district_rent_median")
 
 # Dictionary-encoded like the car embed (see car_digest._MARKET_DICT_FIELDS)
 _FLAT_DICT_FIELDS = ("district", "source", "deal_type", "_first_seen")
@@ -1014,6 +1134,7 @@ def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
             listing.get("deal_type"),
             listing.get("lat"), listing.get("lon"),
             entry.get("first_seen"), hist or None,
+            listing.get("_district_rent_median"),
         ]
 
     rows = []
@@ -1032,21 +1153,9 @@ def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
             continue
         extra.append(_row(listing, None))
         embedded.add(key)
-    dict_idx = {f: _FLAT_FIELDS.index(f) for f in _FLAT_DICT_FIELDS}
-    dicts = {f: [] for f in _FLAT_DICT_FIELDS}
-    dict_map = {f: {} for f in _FLAT_DICT_FIELDS}
-    for row in rows + extra:
-        for f, i in dict_idx.items():
-            v = row[i]
-            if v is None:
-                continue
-            d = dict_map[f].get(v)
-            if d is None:
-                d = len(dicts[f])
-                dict_map[f][v] = d
-                dicts[f].append(v)
-            row[i] = d
-    prices = [r[4] for r in rows + extra if r[4]]   # 4 = price_eur field
+    dicts = utils.dict_encode(rows + extra, _FLAT_FIELDS, _FLAT_DICT_FIELDS)
+    _P = _FLAT_FIELDS.index("price_eur")
+    prices = [r[_P] for r in rows + extra if r[_P]]
     payload = {
         "config": {"minPrice": config.MIN_SALE_PRICE_EUR,
                    # no fixed ceiling — the real data max is the bound
@@ -1062,322 +1171,12 @@ def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
             + text + "</script>")
 
 
-# In-browser budget filter for the flats digest: shows ALL scored listings
-# within a custom budget (the daily tables cap at TOP_N_PER_TYPE), ranked
-# by deal score. Filtering only — the regression score does not depend on
-# the buyer's budget. Reuses the page's sortTable().
-FLAT_BUDGET_JS = """
-// Runs after the DOM is ready: the budget input lives in the body
-// element, below this script in the head, so it does not exist at parse
-// time. (No literal '<body>' here — website._inject_nav searches for it.)
-function __flatBudgetInit() {
-  var dataEl = document.getElementById('flat-listings-data');
-  var input = document.getElementById('flat-budget-input');
-  var statusEl = document.getElementById('flat-budget-status');
-  var customView = document.getElementById('flat-custom-view');
-  if (!dataEl || !input || !customView) return;
-  var payload = JSON.parse(dataEl.textContent);
-  var cfg = payload.config, F = payload.fields, idx = {};
-  F.forEach(function (f, i) { idx[f] = i; });
-  // Dictionary-encoded string columns -> real strings, before any reads.
-  if (payload.dict) {
-    Object.keys(payload.dict).forEach(function (f) {
-      var i = idx[f], dict = payload.dict[f];
-      (payload.rows || []).concat(payload.extra || []).forEach(function (r) {
-        if (r[i] != null) r[i] = dict[r[i]];
-      });
-    });
-  }
-  // Budget search covers the WHOLE embedded market: scored rows plus the
-  // unscored extras (near-school/overflow listings) — every flat kept by
-  // today's sanity floor, regardless of price.
-  var rows = payload.rows.concat(payload.extra || []);
-  var districtSel = document.getElementById('flat-filter-district');
-  var roomsSel = document.getElementById('flat-filter-rooms');
-  var dtypeSel = document.getElementById('flat-filter-dtype');
+# In-browser budget filter for the flats digest: shows ALL scored
+# listings within a custom budget. The ~340-line JS literal lives in
+# web_style.py (home of the shared page JS: SORT_JS/watch_js).
+FLAT_BUDGET_JS = web_style.FLAT_BUDGET_JS
 
-  // Fill the district dropdown from today's data.
-  if (districtSel) {
-    var seen = {};
-    rows.forEach(function (r) { if (r[idx.district]) seen[r[idx.district]] = 1; });
-    Object.keys(seen).sort().forEach(function (d) {
-      var o = document.createElement('option');
-      o.value = d; o.textContent = d;
-      districtSel.appendChild(o);
-    });
-  }
 
-  function readFilters() {
-    return {
-      district: districtSel && districtSel.value ? districtSel.value : '',
-      rooms: roomsSel && roomsSel.value ? roomsSel.value : '',
-      dtype: dtypeSel ? dtypeSel.value : 'sale'
-    };
-  }
-  function anyFilterSet(f) { return !!(f.district || f.rooms); }
-  function passesFilters(r, f) {
-    if (f.district && r[idx.district] !== f.district) return false;
-    if (f.rooms === '5') {
-      if (!(r[idx.rooms] >= 5)) return false;   // '5+' means five or more
-    } else if (f.rooms && String(r[idx.rooms]) !== f.rooms) return false;
-    // deal_type is always scoped (default sale) — rent flats are priced
-    // monthly and would read as absurd bargains in the sale view. A null
-    // field means the pipeline didn't tag it -> treat as sale (the
-    // historical assumption before rent was scraped).
-    if (f.dtype && (r[idx.deal_type] || 'sale') !== f.dtype) return false;
-    return true;
-  }
-
-  function fmtEur(v) {
-    return v == null ? '—' : '€' + Math.round(v).toLocaleString('en-US');
-  }
-
-  function cell(text, sortVal, alignRight) {
-    var td = document.createElement('td');
-    td.style.padding = '5px';
-    if (alignRight) td.style.textAlign = 'right';
-    if (sortVal !== undefined && sortVal !== null) {
-      td.setAttribute('data-sort', sortVal);
-    }
-    td.textContent = text;
-    return td;
-  }
-
-  function render(matches, maxPrice) {
-    customView.innerHTML = '';
-    var h3 = document.createElement('h3');
-    h3.textContent = 'Within your €' + maxPrice.toLocaleString('en-US') +
-                     ' budget — ' + matches.length + ' listing(s), ranked by deal score';
-    customView.appendChild(h3);
-    var note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = 'All of today\\'s scored listings within this budget ' +
-      '(the daily sections below show the newest/top-N view). ' +
-      'Click column headers to sort.';
-    customView.appendChild(note);
-    if (!matches.length) {
-      var p = document.createElement('p');
-      p.textContent = 'No listings within this budget today.';
-      customView.appendChild(p);
-      return;
-    }
-    var table = document.createElement('table');
-    table.id = 'flat-custom';
-    var headers = ['District', 'Street', 'Distance', 'Rooms', 'm²', 'Floor',
-                   'Price', 'EUR/m²', 'Score', 'Source'];
-    var hr = document.createElement('tr');
-    headers.forEach(function (name, col) {
-      var th = document.createElement('th');
-      th.className = 'sort-th';
-      if (col >= 2 && col <= 8) th.style.textAlign = 'right';
-      th.textContent = name;
-      th.onclick = (function (c) {
-        return function () { sortTable('flat-custom', c); };
-      })(col);
-      hr.appendChild(th);
-    });
-    table.appendChild(hr);
-    matches.forEach(function (r) {
-      var tr = document.createElement('tr');
-      tr.appendChild(cell(r[idx.district] || '?', r[idx.district]));
-      tr.appendChild(cell(r[idx.street] || '—', r[idx.street]));
-      var km = r[idx.school_km];
-      tr.appendChild(cell(km != null ? km.toFixed(1) + ' km' : '—',
-        km != null ? km : 9999, true));
-      tr.appendChild(cell(String(r[idx.rooms] == null ? '—' : r[idx.rooms]), r[idx.rooms], true));
-      tr.appendChild(cell(String(r[idx.area_m2] == null ? '—' : r[idx.area_m2]), r[idx.area_m2], true));
-      tr.appendChild(cell(String(r[idx.floor] == null ? '—' : r[idx.floor]), r[idx.floor], true));
-      tr.appendChild(cell(fmtEur(r[idx.price_eur]), r[idx.price_eur], true));
-      tr.appendChild(cell(r[idx.price_per_m2] != null
-        ? Math.round(r[idx.price_per_m2]).toLocaleString('en-US') : '—',
-        r[idx.price_per_m2], true));
-      var score = r[idx.score];
-      tr.appendChild(cell(score != null ? (+score).toFixed(2) : '—', score, true));
-      var srcTd = cell(r[idx.source] || '', r[idx.source]);
-      var star = document.createElement('button');
-      star.type = 'button';
-      star.className = 'watch-star';
-      star.setAttribute('data-key', r[idx.source] + ':' + r[idx.id]);
-      star.setAttribute('data-label',
-        ((r[idx.street] || r[idx.district] || '?') + ' · ' +
-         (r[idx.rooms] || '?') + ' r · ' +
-         (r[idx.area_m2] || '?') + ' m²'));
-      star.setAttribute('data-price', r[idx.price_eur]);
-      star.setAttribute('data-url', r[idx.url] || '');
-      star.title = 'Watch this listing';
-      star.textContent = '☆';
-      srcTd.textContent = '';
-      srcTd.appendChild(star);
-      if (r[idx.url]) {
-        var a = document.createElement('a');
-        a.href = r[idx.url];
-        a.textContent = r[idx.source] || 'link';
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        srcTd.appendChild(a);
-      }
-      // Signal chips — same motivated/relisted/district badges the
-      // daily tables show (fields appended at _FLAT_FIELDS tail).
-      var chips = [
-        [idx._drop_eur, 'b-cheap', function(v){return '−€'+Math.round(v).toLocaleString('en-US');}],
-        [idx._mot, 'b-mot', function(){return 'MOTIVATED';}],
-        [idx._at_low, 'b-low', function(){return 'LOWEST SEEN';}],
-        [idx._relisted_price, 'b-relist', function(v){
-          return 'RELISTED' + (v ? ' · was €'+Math.round(v).toLocaleString('en-US') : '');}],
-        [idx._vs_district_pct, 'b-cheap', function(v){
-          return v <= -10 ? v+'% vs district' : null;}],
-        [idx._vs_district_pct, 'b-mot', function(v){
-          return v >= 20 ? '+'+v+'% vs district' : null;}]
-      ];
-      chips.forEach(function(c){
-        var i = c[0]; if (i == null) return;
-        var v = r[i]; if (v == null || v === 0) return;
-        var txt = c[2](v); if (!txt) return;
-        var s = document.createElement('span');
-        s.className = 'badge ' + c[1];
-        s.textContent = txt;
-        srcTd.appendChild(document.createTextNode(' '));
-        srcTd.appendChild(s);
-      });
-      if (r[idx.deal_type] === 'rent') {
-        var rt = document.createElement('span');
-        rt.className = 'badge b-reg';
-        rt.textContent = 'rent';
-        srcTd.appendChild(document.createTextNode(' '));
-        srcTd.appendChild(rt);
-      }
-      if (r[idx.lat] != null && r[idx.lon] != null &&
-          typeof showOnMap === 'function') {
-        var ml = document.createElement('a');
-        ml.href = '#';
-        ml.textContent = 'map';
-        ml.style.cssText = 'font-size:11px;color:var(--link)';
-        ml.setAttribute('data-key', r[idx.source] + ':' + r[idx.id]);
-        ml.onclick = function () {
-          showOnMap(this.getAttribute('data-key'));
-          return false;
-        };
-        srcTd.appendChild(document.createTextNode(' '));
-        srcTd.appendChild(ml);
-      }
-      // 'seen N d' + own trail — the same line the car custom view prints.
-      var hbits = [];
-      var fs = r[idx._first_seen];
-      if (fs) {
-        var ft = Date.parse(String(fs) + 'T00:00:00Z');
-        if (!isNaN(ft)) {
-          var fdd = Math.max(0, Math.round((Date.now() - ft) / 86400000));
-          hbits.push(fdd > 0 ? 'seen ' + fdd + ' d' : 'seen today');
-        }
-      }
-      var hist = r[idx._price_hist] || [];
-      if (hist.length >= 2) {
-        var htail = hist.slice(-4).map(function (h) { return fmtEur(h[1]); });
-        hbits.push((hist.length > 4 ? '… ' : '') + htail.join(' → '));
-      }
-      if (hbits.length) {
-        srcTd.appendChild(document.createElement('br'));
-        var hsp = document.createElement('span');
-        hsp.style.color = 'var(--muted)';
-        hsp.style.fontSize = '12px';
-        hsp.textContent = hbits.join(' · ');
-        srcTd.appendChild(hsp);
-      }
-      tr.appendChild(srcTd);
-      table.appendChild(tr);
-    });
-    customView.appendChild(table);
-    if (typeof window !== 'undefined' && window.__flatWatchRefresh) {
-      window.__flatWatchRefresh();
-    }
-  }
-
-  function hide() {
-    customView.style.display = 'none';
-    customView.innerHTML = '';
-    if (statusEl) statusEl.textContent = '';
-  }
-
-  var timer = null;
-  function apply() {
-    var raw = String(input.value || '').trim();
-    var maxPrice = parseInt(raw, 10);
-    var filters = readFilters();
-    var filtered = anyFilterSet(filters);
-    if ((!raw || isNaN(maxPrice)) && !filtered) { hide(); return; }
-    if (isNaN(maxPrice)) maxPrice = cfg.maxPrice;  // filters alone
-    maxPrice = Math.max(cfg.minPrice, Math.min(cfg.maxPrice, maxPrice));
-    var matches = rows.filter(function (r) {
-      return r[idx.price_eur] != null && r[idx.price_eur] <= maxPrice &&
-             passesFilters(r, filters);
-    });
-    matches.sort(function (a, b) {
-      var sa = a[idx.score], sb = b[idx.score];
-      if (sa == null && sb == null) return 0;
-      if (sa == null) return 1;
-      if (sb == null) return -1;
-      return sb - sa;
-    });
-    render(matches, maxPrice);
-    customView.style.display = '';
-    if (statusEl) {
-      statusEl.textContent = matches.length + ' of ' + rows.length +
-        ' listings within €' + maxPrice.toLocaleString('en-US');
-    }
-  }
-
-  input.addEventListener('input', function () {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(apply, 150);
-  });
-  [districtSel, roomsSel, dtypeSel].forEach(function (el) {
-    if (el) el.addEventListener('change', function () {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(apply, 150);
-    });
-  });
-  var resetBtn = document.getElementById('flat-budget-reset');
-  if (resetBtn) resetBtn.addEventListener('click', function () {
-    input.value = '';
-    [districtSel, roomsSel].forEach(function (el) {
-      if (el) el.value = '';
-    });
-    if (dtypeSel) dtypeSel.value = 'sale';
-    hide();
-  });
-  var okBtn = document.getElementById('flat-budget-ok');
-  if (okBtn) okBtn.addEventListener('click', function () {
-    if (timer) clearTimeout(timer);
-    apply();
-  });
-  input.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') {
-      if (timer) clearTimeout(timer);
-      apply();
-    }
-  });
-  var qs = (typeof location !== 'undefined' && location.search)
-    ? location.search : '';
-  var params = new URLSearchParams(qs);
-  var urlMax = params.get('max');
-  if (urlMax && !isNaN(parseInt(urlMax, 10))) input.value = urlMax;
-  var urlActive = !!urlMax;
-  ['district', 'rooms', 'dtype'].forEach(function (name) {
-    var el = document.getElementById('flat-filter-' + name);
-    var v = params.get(name);
-    if (v && el) { el.value = v; urlActive = true; }
-  });
-  if (urlActive) apply();
-  if (typeof window !== 'undefined') {
-    window.__flatBudget = { apply: apply };
-  }
-}
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', __flatBudgetInit);
-} else {
-  __flatBudgetInit();
-}
-"""
 
 
 # Watchlist: ☆/★ buttons on listing rows persist picks in localStorage
@@ -1388,6 +1187,68 @@ FLAT_WATCH_JS = web_style.watch_js("flat", "flat-listings-data",
                                     "watch_flats_v1")
 
 
+def build_stale_html(all_listings, price_data, top_n=None):
+    """'Stale & stubborn' card — sale ads older than STALE_MIN_DAYS_FLAT
+    with no recorded price cut. These are the complement of the
+    price-cuts card: sellers who haven't moved yet, i.e. the pool future
+    cuts (and negotiable asks) come from."""
+    if not all_listings or not price_data:
+        return ""
+    top_n = top_n or config.STALE_TOP_N
+    rows_src = []
+    for l in utils.unique_by_key(all_listings):
+        if l.get("deal_type") != "sale":
+            continue
+        key = utils.listing_key(l)
+        entry = price_data.get(key) or {}
+        info = utils.flat_motivated(entry)
+        if info and info.get("drop_eur"):
+            continue  # already cut — the cuts card owns it
+        cenu = entry.get("cenumednieks") or {}
+        days = cenu.get("days_on_market")
+        if days is None and entry.get("first_seen"):
+            days = utils.days_since(entry["first_seen"])
+        if not days or days < config.STALE_MIN_DAYS_FLAT:
+            continue
+        rows_src.append((l, int(days)))
+    if not rows_src:
+        return ""
+    rows_src.sort(key=lambda x: -x[1])
+    rows = []
+    for idx, (l, days) in enumerate(rows_src[:top_n]):
+        zebra = ' class="z"' if idx % 2 else ''
+        url = utils.safe_url(l.get('url', ''))
+        title = _t(l.get('street') or l.get('title') or l.get('district') or '?')
+        title_cell = f"<a href='{url}'>{title}</a>" if url else title
+        rows.append(
+            f"<tr{zebra}>"
+            f"<td>{_t(l.get('district',''))}</td>"
+            f"<td>{title_cell}</td>"
+            f"<td style='text-align:right' data-sort='{l.get('price_eur') or 0}'>"
+            f"{_fmt_price(l.get('price_eur'))}</td>"
+            f"<td style='text-align:right' data-sort='{days}'>"
+            f"{days} d</td>"
+            f"<td>{_source_link(l)}{_map_link(l)}</td>"
+            "</tr>")
+    return (
+        "<div class='card'>"
+        "<h3 style='color:var(--warn);border:none;margin:0 0 4px 0'>"
+        "Stale &amp; stubborn</h3>"
+        "<p style='color:var(--muted);font-size:12px;margin:0 0 8px 0'>"
+        "Sale ads older than "
+        f"{config.STALE_MIN_DAYS_FLAT} days that have never cut their "
+        "ask — sellers holding out. Watch these: when the cut finally "
+        "comes it tends to be real.</p>"
+        "<div class='scroll-x'><table id='tbl_stale' data-sortable='1'>"
+        "<thead><tr>"
+        "<th class='sort-th'>District</th><th class='sort-th'>Listing</th>"
+        "<th class='sort-th'>Ask</th><th class='sort-th'>On market</th>"
+        "<th>Source</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows) +
+        "</tbody></table></div></div>")
+
+
 def build_price_cuts_html(all_listings, price_data, top_n=None):
     """'Biggest price cuts' card — flats whose asking price dropped the most
     since they were first listed (CenuMednieks history or our own trail).
@@ -1395,13 +1256,9 @@ def build_price_cuts_html(all_listings, price_data, top_n=None):
     if not all_listings or not price_data:
         return ""
     top_n = top_n or config.MOTIVATED_CUTS_TOP_N
-    seen_keys = set()
     cuts = []
-    for l in all_listings:
+    for l in utils.unique_by_key(all_listings):
         key = utils.listing_key(l)
-        if key in seen_keys:
-            continue
-        seen_keys.add(key)
         info = utils.flat_motivated(price_data.get(key))
         if info and info.get("drop_eur", 0) >= config.MOTIVATED_MIN_DROP_EUR_FLAT:
             cuts.append((l, info))
@@ -1419,13 +1276,17 @@ def build_price_cuts_html(all_listings, price_data, top_n=None):
         title = _t(l.get('street') or l.get('title') or l.get('district') or '?')
         title_cell = f"<a href='{url}'>{title}</a>" if url else title
         map_link = _map_link(l)
+        _ent = price_data.get(utils.listing_key(l)) or {}
+        trail_pts = [(o.get("date"), o.get("price") or o.get("p"))
+                     for o in (_ent.get("our_tracking") or [])]
+        spark = utils.sparkline_svg(trail_pts, title="asking-price trail")
         rows.append(
             f"<tr{zebra}>"
             f"<td>{_t(l.get('district',''))}</td>"
             f"<td>{title_cell}</td>"
             f"<td style='text-align:right' data-sort='{info['drop_eur']:.0f}'>"
             f"<span style='color:var(--muted)'>{_fmt_price(info['was'])}</span>"
-            f" → <b>{_fmt_price(info['now'])}</b></td>"
+            f" → <b>{_fmt_price(info['now'])}</b>{spark}</td>"
             f"<td style='text-align:right;color:var(--good);font-weight:bold' "
             f"data-sort='{info['drop_pct']:.1f}'>−{_fmt_price(info['drop_eur'])} "
             f"(−{info['drop_pct']:.0f}%)</td>"
@@ -1482,13 +1343,16 @@ def build_html(main_deals, still_active, comparison_html, status_note,
         if sa:
             sections.append(sa)
 
-    body_sections = "".join(sections)
+    hero_html = _hero_card_html(main_deals.get("sale", []), price_data)
+    body_sections = (hero_html + _histogram_card_html(all_listings)
+                     + "".join(sections))
 
     # Custom-budget tool: embed all scored listings, filter in the browser.
     flat_market_html = (_flat_market_data_html(all_scored, all_listings,
                                                price_data)
                         if all_scored else "")
     price_cuts_html = build_price_cuts_html(all_listings, price_data)
+    stale_html = build_stale_html(all_listings, price_data)
     flat_budget_script = (f'<script id="flat-budget-js">{FLAT_BUDGET_JS}</script>'
                           if all_scored else "")
     flat_watch_script = (f'<script id="flat-watch-js">{FLAT_WATCH_JS}</script>'
@@ -1498,6 +1362,10 @@ def build_html(main_deals, still_active, comparison_html, status_note,
         flat_budget_html = (
             "<div class='info'>"
             "<b>Your budget:</b> "
+            f"<input type='number' id='flat-budget-min' min='0' "
+            "step='1000' "
+            f"placeholder='min €{config.MIN_SALE_PRICE_EUR:,}' "
+            "style='width:90px'> &ndash; "
             f"<input type='number' id='flat-budget-input' min='{config.MIN_SALE_PRICE_EUR}' "
             "step='1000' "
             "placeholder='e.g. 60000' style='width:110px'> "
@@ -1527,7 +1395,8 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             "Filters alone list all of today's scored flats in that "
             "district/room class. <b>Reset</b> "
             "returns to the default daily view. Shareable: append "
-            "<b>?max=60000</b> or <b>?district=Zolitude&amp;rooms=2</b> "
+            "<b>?min=40000&amp;max=60000</b> or "
+            "<b>?district=Zolitude&amp;rooms=2</b> "
             "to this page's URL.</p>"
             "</div>"
             "<details class='info' id='flat-watch-box'>"
@@ -1583,15 +1452,29 @@ def build_html(main_deals, still_active, comparison_html, status_note,
         _dt = f" · Δ7d {_d:+.1f}%" if _d is not None else ""
         kpis.append(web_style.kpi(
             "Riga median", f"€{int(round(market_pulse['ppu'])):,}/m²{_dt}"))
+        _ads = market_pulse.get("ads")
+        if _ads is not None:
+            _ad = market_pulse.get("ads_delta")
+            _adt = f" ({_ad:+d} vs yest)" if _ad is not None else ""
+            kpis.append(web_style.kpi("live ads", f"{_ads}{_adt}"))
     n_mot = 0
+    new_by_district = {}
     if price_data and all_listings:
         for _l in all_listings:
-            _info = utils.flat_motivated(
-                price_data.get(utils.listing_key(_l)))
-            if utils.flat_is_motivated(_info):
+            _e_ = price_data.get(utils.listing_key(_l)) or {}
+            if utils.flat_is_motivated(utils.flat_motivated(_e_)):
                 n_mot += 1
+            if _e_.get("first_seen") == today:
+                _d_ = str(_l.get("district") or "?")
+                new_by_district[_d_] = new_by_district.get(_d_, 0) + 1
     if n_mot:
         kpis.append(web_style.kpi("motivated", n_mot, "good"))
+    if new_by_district:
+        _tip = " · ".join(f"{_t(d)} {n}"
+                          for d, n in sorted(new_by_district.items(),
+                                             key=lambda kv: -kv[1]))
+        kpis.append(web_style.kpi(
+            "new today", sum(new_by_district.values()), "good", _tip))
     kpi_html = f"<div class='kpis'>{''.join(kpis)}</div>"
 
     _STYLE = web_style.style_block()
@@ -1628,13 +1511,15 @@ Rentals are scraped too — pick "For rent" in the budget tool below.</p>
 <p class="secnav">Jump to:
 <a href="#sec-deals">Deals</a><a href="#sec-newest">Newest</a><a
 href="#sec-school">Near school</a><a href="#sec-auctions">Auctions</a><a
-href="#sec-cuts">Price cuts</a><a href="#sec-gone">Gone</a><a
+href="#sec-cuts">Price cuts</a><a href="#sec-stale">Stale</a><a
+href="#sec-gone">Gone</a><a
 href="#sec-map">Map</a></p>
 <div id="sec-deals">{body_sections}</div>
 <div id="sec-newest">{newest_html}</div>
 <div id="sec-school">{near_school_html}</div>
 <div id="sec-auctions">{auctions_html}</div>
 <div id="sec-cuts">{price_cuts_html}</div>
+<div id="sec-stale">{stale_html}</div>
 <div id="sec-gone">{gone_html}</div>
 <div id="sec-map">{map_html}</div>
 <hr><p class="note">Generated by Flat_Searcher. Higher deal score = cheaper than

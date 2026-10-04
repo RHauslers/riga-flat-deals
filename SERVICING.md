@@ -1,10 +1,109 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-04 20:24
+Last updated: 2026-10-04 23:38
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
+
+- 2026-10-04 23:38 — /improve 20 second pass (chained after /addnewf
+  20; fresh cold read of different surface). One real bug fixed mid-
+  review, one near-rollback self-inflicted and recovered:
+  (1) BUG: build_price_cuts_html sparkline read the gather loop's
+    stale `key` — every row rendered the LAST listing's trail; key now
+    computed inside the render loop (fixed during review);
+  (2) flat_market + car_market emitted `min_url` into href without
+    safe_url — the only unfiltered external links; now https-checked;
+  (3) flat district Δ7d was colored red for a FALLING median (car
+    table already green) — normalized to buyer POV (fall = green);
+  (4,5,6) dead `os`/`datetime` imports out of geocode; four
+    `_write_json` pass-throughs (price_history, history, cars,
+    geocode) + flat_market._delta_7d deleted — callers use utils
+    directly (compact_state.py updated to match);
+  (7,8,9) scoring.py: Counter/geocode imports hoisted; a price-less
+    listing scored z=+pred/std = fake top deal -> guarded to 0;
+    room-count bucket keys coerced via to_int on BOTH write and
+    lookup (history used int keys, lookup used raw "2" -> miss);
+  (10,14) classify.py: _status_label helper kills the 4x
+    `SHORT_TERM if is_daily else X` pattern + the 3 near-identical
+    beats/falls/ties comparison-header blocks collapsed;
+  (11) FLAT_BUDGET_JS (~370 lines of JS literal) moved out of
+    notifier.py into web_style.py where CAR budget/watch JS already
+    live — notifier.py keeps `FLAT_BUDGET_JS = web_style.FLAT_BUDGET_JS`
+    as the import surface. CAUTION: a first attempt copied the
+    literal's PARSED value and lost `\\' -> '` escapes (broke the JS)
+    plus pre-commit /addnewf-20 edits (?min= floor, ~X% yield chip).
+    Restored verbatim from git + re-applied both; node --check +
+    test_flat_js_min_price_bound verify it;
+  (12,15,16) notifier prologues deduped: r[4] -> _P named index,
+    both cards' seen_keys gather loops -> utils.unique_by_key,
+    both embeds' dict-encode blocks -> utils.dict_encode;
+  (13) cars._new_seen_entry() — the seen-entry default literal was
+    duplicated between _read_seen and the setdefault write path;
+  (17) market district sort key was the HTML-ESCAPED name — diacritic
+    districts sorted wrong; key now the raw lowercase name;
+  (18) get_price_timeline sorted twice; dedupe now folds into one
+    sort + dict comprehension;
+  (19) 10 regression tests (TestImprove20SecondPass): sparkline key
+    leak, car gone-spike, hero card, histogram, stale card,
+    dict_encode round-trip, unique_by_key, price-less scoring guard,
+    str-rooms bucket, min_url safe_url;
+  (20) audit_data checks the car-market-data embed too (was
+    flat-listings-data only).
+  Tests: 231 -> 241 (+10). All green; audit_data 0 warnings; node
+  --check on the moved budget JS. Not committed.
+
+- 2026-10-04 23:19 — /addnewf 20. Two proposed items turned out to
+  already exist and were swapped: auction urgency badges (ENDS TODAY /
+  REG IN Nd already implemented) -> row anchors; sortable custom-view
+  tables (already sort-th wired) -> car gone-table cut trail. Items 16+18
+  (also_on links + shape normalization) merged into one change.
+  (1) Car gone-spike guardrail — health.gone_spike_issue now feeds
+    cars' source_errors (was flat-only; a partial car scrape could
+    mass-mark "sold");
+  (2,3) Rent-yield: _district_rent_median annotated on sale listings
+    from flat_market rent stats -> "~X% yield" chip (3-20% sanity band)
+    in deal rows + the budget JS + a Yield column on the market page
+    district table;
+  (4) Car "Today:" line now appends "N gone since yesterday · N
+    relisted" (computed before, never shown);
+  (5) utils.sparkline_svg trail on both price-cuts cards;
+  (6) "Stale & stubborn" card: oldest live flats with NO observed cut
+    (build_stale_html, MOTIVATED_STALE_* config) — watch-for-cuts list;
+  (7) Deep-linkable rows: id="r-<listing_key>" + '#' permalink on deal
+    rows, tr:target highlight in BASE_CSS (hero card links to it);
+  (8) flat_market/car_market _fmt_eur/_median/_fmt_num pass-throughs
+    deleted — callers use utils directly;
+  (9) Flat budget tool gained a min-price input + ?min= URL param
+    (status/header show the €lo–€hi range; reset clears both). Car side
+    already had car-filter-min + ?min=;
+  (10) Flat gone table shows the observed ask trail "€X → €Y" before
+    the "−€Z before gone" tag;
+  (11) "Deal of the day" hero card (_hero_card_html) — #1 sale deal
+    pinned above the tables;
+  (12) Market page gains a text row-filter input (web_style
+    .ROW_FILTER_HTML — hides non-header <tr>s not matching);
+  (13) "new today" KPI chip with per-district tooltip
+    (first_seen == today over all_listings); kpi() takes title=;
+  (14) Ask-price histogram card (_histogram_card_html) — 5k-EUR buckets
+    over today's sale pool, SVG bars via style='fill:var(--accent)'
+    (var() works in style, NOT in fill attributes);
+  (15) audit_data cross-check: flat_active.date vs newest flat digest
+    and car snapshot date vs newest car digest — a mismatch flags a
+    partial run (replaced a risky id()-keyed memo-map proposal);
+  (16,18) utils.dedupe also_on now emits the car dict shape
+    {source,url,price_eur} (was bare strings); _source_link renders
+    each alternate as a linked badge;
+  (17) car gone table gets the flat's "€X → €Y · −€Z before gone" tag
+    from seen-entry prices;
+  (19) "live ads N (±Δ vs yest)" KPI — market_pulse carries ads +
+    ads_delta from the Riga series' previous point;
+  (20) README: RELISTED-on-cars, LOW KM/FIRST BID/yield chips, market
+    pulse KPIs, browser tools (?min=&max=, watchlist, #r- anchors),
+    stale card, back-to-top documented.
+  Tests: 230 -> 231 (+test_flat_js_min_price_bound). All green;
+  node --check clean on the instantiated budget/watch JS; audit_data
+  0 warnings.
 
 - 2026-10-04 20:24 — /improve 20 (cold read first; changelog sanity
   filter dropped 2 candidates — helper_scripts/scrub_email_text.py +

@@ -179,25 +179,13 @@ def _market_data_html(market):
     scoring config, so the page can re-rank for any budget in the browser.
     URLs are allow-listed here — the same rule _link() applies to rows."""
     url_i = _MARKET_FIELDS.index("url")
-    dict_idx = {f: _MARKET_FIELDS.index(f) for f in _MARKET_DICT_FIELDS}
-    dicts = {f: [] for f in _MARKET_DICT_FIELDS}
-    dict_map = {f: {} for f in _MARKET_DICT_FIELDS}
     rows = []
     for l in market or []:
         row = [l.get(f) for f in _MARKET_FIELDS]
         if not _safe_url(row[url_i]):
             row[url_i] = ""
-        for f, i in dict_idx.items():
-            v = row[i]
-            if v is None:
-                continue
-            idx = dict_map[f].get(v)
-            if idx is None:
-                idx = len(dicts[f])
-                dict_map[f][v] = idx
-                dicts[f].append(v)
-            row[i] = idx
         rows.append(row)
+    dicts = utils.dict_encode(rows, _MARKET_FIELDS, _MARKET_DICT_FIELDS)
     cfg = {
         "minPrice": config.CAR_MIN_PRICE_EUR,
         "compMax": config.CAR_COMPARABLE_MAX_PRICE_EUR,
@@ -892,6 +880,15 @@ def build_cuts_html(assessed, run_date=None, top_n=None):
         title_cell = f"<a href='{url}'>{title}</a>" if url else title
         days = f"{info['days']}d" if info.get("days") else "?"
         src = _e(l.get('source', ''))
+        # trail sparkline — prepend the relisted ad's last ask like
+        # car_motivated does, so a repost-at-a-cut shows the full arc.
+        trail_pts = []
+        _rl = l.get("_relisted") or {}
+        if _rl.get("p") is not None and _rl.get("gone"):
+            trail_pts.append((_rl["gone"], _rl["p"]))
+        trail_pts += [tuple(p) for p in (l.get("_price_hist") or [])
+                      if isinstance(p, (list, tuple)) and len(p) == 2]
+        spark = utils.sparkline_svg(trail_pts, title="asking-price trail")
         rows.append(
             f"<tr>"
             f"<td data-sort='{_e(title)}'>{title_cell}<br>"
@@ -900,7 +897,7 @@ def build_cuts_html(assessed, run_date=None, top_n=None):
             f"<td data-sort='{info['drop_eur']:.0f}' "
             f"style='text-align:right'>"
             f"<span style='color:var(--muted)'>{_fmt_eur(info['was'])}</span>"
-            f" → <b>{_fmt_eur(info['now'])}</b></td>"
+            f" → <b>{_fmt_eur(info['now'])}</b>{spark}</td>"
             f"<td data-sort='{info['drop_pct']:.1f}' "
             f"style='text-align:right;color:var(--good);font-weight:bold'>"
             f"−{_fmt_eur(info['drop_eur'])} (−{info['drop_pct']:.0f}%)</td>"
@@ -990,11 +987,26 @@ def _gone_html(gone, seen, run_date):
         label = " ".join(x for x in
                          (_e(r.get("mk")), _e(r.get("mo")),
                           _e(r.get("y"))) if x)
+        # Same "cut before gone" tag as the flat gone table — a price
+        # that slid before vanishing usually means it sold once it hit
+        # the right level.
+        cut_tag = ""
+        _tp = [utils.to_float(p[1])
+               for p in (entry.get("prices") or []) if len(p) >= 2]
+        _tp = [p for p in _tp if p]
+        if len(_tp) >= 2 and _tp[-1] < _tp[0]:
+            _trail = " → ".join(_fmt_eur(p) for p in _tp[-4:])
+            if len(_tp) > 4:
+                _trail = "… " + _trail
+            cut_tag = (f"<br><span style='font-size:11px;color:var(--faint)'>"
+                       f"{_trail}</span>"
+                       f"<br><span style='font-size:11px;color:var(--good)'>"
+                       f"−{_fmt_eur(_tp[0] - _tp[-1])} before gone</span>")
         rows.append(
             f"<tr{zebra}>"
             f"<td style='padding:6px'>{label or '—'}</td>"
             f"<td style='padding:6px;text-align:right;font-weight:bold'>"
-            f"{_fmt_eur(r.get('p'))}</td>"
+            f"{_fmt_eur(r.get('p'))}{cut_tag}</td>"
             f"<td style='padding:6px;text-align:right;color:var(--muted)'>"
             f"{tracked}</td>"
             f"<td style='padding:6px;font-size:12px;color:var(--faint)'>"
@@ -1069,6 +1081,13 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             f"{badge_counts[b]} {b.lower()}"
             for b in ("NEW", "PRICE DROP", "REAPPEARED", "STILL ACTIVE")
             if badge_counts.get(b))
+        # vs-yesterday sweep: how many vanished / came back under new ids
+        _gone_n = len(gone or [])
+        _relist_n = sum(1 for l in assessed if l.get("_relisted"))
+        tail = [b for b in (f"{_gone_n} gone since yesterday" if _gone_n else "",
+                            f"{_relist_n} relisted" if _relist_n else "")
+                if b]
+        badge_bits = " · ".join(b for b in (badge_bits, *tail) if b)
         badge_line = (f"<p class='note' style='margin-top:0'>Today: "
                       f"{badge_bits}.</p>" if badge_bits else "")
         top_html = (

@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
 import cars
+import utils
 
 FILES = (
     (config.CAR_SEEN_JSON, "car_seen"),
@@ -41,11 +42,12 @@ def main():
             cars._write_seen(cars._read_seen(path), path)
         else:
             snap = cars.load_snapshot(path)
-            cars._write_json(path, {
+            utils.write_json(path, {
                 "v": 2, "date": snap.get("date"),
                 "fields": list(config.CAR_SNAPSHOT_FIELDS),
                 "rows": [[l.get(f) for f in config.CAR_SNAPSHOT_FIELDS]
-                         for l in snap.get("listings") or []]})
+                         for l in snap.get("listings") or []]},
+                indent=None)
         after = os.path.getsize(path)
         print(f"[compact] {label}: {before:,} -> {after:,} bytes "
               f"({100 * after / before:.0f}% of v1; backup {bak})")

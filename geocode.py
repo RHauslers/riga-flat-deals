@@ -13,10 +13,9 @@ Results are cached in data/geocode_cache.json so we only geocode each
 address once (streets don't move).
 """
 import math
-import os
 import re
 import time
-from datetime import date, datetime
+from datetime import date
 
 import requests
 
@@ -83,16 +82,12 @@ def proximity_score(listing):
     return max(-1.5, 2.0 - d)
 
 
-def _write_json(path, data):
-    utils.write_json(path, data, indent=None)  # compact — committed daily
-
-
 def load_cache():
     return utils.read_json(_cache_path(), {})
 
 
 def save_cache(data):
-    _write_json(_cache_path(), data)
+    utils.write_json(_cache_path(), data, indent=None)  # compact — committed daily
 
 
 # ---------------------------------------------------------------------------

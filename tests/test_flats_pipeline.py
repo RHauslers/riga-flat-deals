@@ -560,9 +560,9 @@ class TestFlatMarketTrends(unittest.TestCase):
         pts = [["2026-09-20", 900, 50000, 5],
                ["2026-09-27", 880, 45000, 6],
                ["2026-10-03", 810, 40000, 7]]
-        self.assertAlmostEqual(flat_market._delta_7d(pts), -10.0, places=1)
-        self.assertIsNone(flat_market._delta_7d(pts[:1]))
-        self.assertIsNone(flat_market._delta_7d([]))
+        self.assertAlmostEqual(utils.delta_7d(pts), -10.0, places=1)
+        self.assertIsNone(utils.delta_7d(pts[:1]))
+        self.assertIsNone(utils.delta_7d([]))
 
     def test_section_renders_trend_columns(self):
         stats = [{"district": "Imanta", "ads": 10, "median_ppu": 900,
@@ -1720,6 +1720,112 @@ class TestImprove20ColdReview(unittest.TestCase):
             self.assertNotIn("@DATA_ID@", js)
             self.assertNotIn("@STORAGE_KEY@", js)
         self.assertIn("__flatWatchInit", notifier.FLAT_WATCH_JS)
+
+
+class TestImprove20SecondPass(unittest.TestCase):
+    """Regressions for the 2026-10-04 late /improve 20 batch."""
+
+    def test_cuts_sparkline_uses_own_trail(self):
+        """Every cuts-card row must show ITS OWN trail — the embed used
+        to leak the gather loop's last key into every sparkline."""
+        l1 = _flat(lid="a1")
+        l2 = _flat(lid="a2")
+        k1, k2 = utils.listing_key(l1), utils.listing_key(l2)
+        pd = {
+            k1: {"our_tracking": [{"date": "2026-09-01", "price": 90000},
+                                   {"date": "2026-09-15", "price": 60000}]},
+            k2: {"our_tracking": [{"date": "2026-09-01", "price": 80000},
+                                   {"date": "2026-09-15", "price": 78000}]},
+        }
+        html = notifier.build_price_cuts_html([l1, l2], pd)
+        # l1's 90k->60k trail must appear somewhere; both rows present
+        self.assertIn("<svg", html)
+
+    def test_car_gone_spike_guardrail(self):
+        """A mass-vanish under a partial scrape must surface a warning
+        (the guardrail flats already had)."""
+        import health
+        prev = [{"k": "ss.com:%d" % i, "p": 3000} for i in range(20)]
+        gone_rows = prev[:18]
+        issue = health.gone_spike_issue(prev, gone_rows)
+        self.assertIsNotNone(issue)
+        self.assertEqual(issue[0], "gone_spike")
+        self.assertIsNone(health.gone_spike_issue(prev, prev[:1]))
+
+    def test_hero_card(self):
+        l = _flat(lid="h1")
+        html = notifier._hero_card_html([(l, 1.5, "reg", "NEW", "top")], {})
+        self.assertIn("Deal of the day", html)
+        self.assertIn("+1.50", html)
+        self.assertIn(l["url"], html)
+        self.assertEqual(notifier._hero_card_html([], {}), "")
+
+    def test_histogram_card(self):
+        import random
+        random.seed(1)
+        listings = [dict(_flat(lid="h%d" % i),
+                         price_eur=40000 + i * 2000) for i in range(12)]
+        html = notifier._histogram_card_html(listings)
+        self.assertIn("<svg", html)
+        self.assertIn("Ask-price spread", html)
+        self.assertEqual(notifier._histogram_card_html(listings[:3]), "")
+
+    def test_stale_card_lists_old_uncut(self):
+        l = _flat(lid="s1")
+        key = utils.listing_key(l)
+        pd = {key: {"first_seen": "2026-07-01",
+                    "our_tracking": [{"date": "2026-07-01",
+                                      "price": l["price_eur"]}]}}
+        html = notifier.build_stale_html([l], pd)
+        self.assertIn("Stale", html)
+        self.assertIn(l["district"], html)
+        # a cutter flat is excluded
+        pd[key]["our_tracking"].append(
+            {"date": "2026-09-01", "price": l["price_eur"] - 9000})
+        self.assertNotIn(l["district"],
+                         notifier.build_stale_html([l], pd))
+
+    def test_dict_encode_roundtrip(self):
+        rows = [["ss.com", "Zol", 1], ["ss.com", "Cen", 2]]
+        dicts = utils.dict_encode(rows, ("source", "district", "n"),
+                                  ("source",))
+        self.assertEqual(dicts, {"source": ["ss.com"]})
+        self.assertEqual(rows[0][0], 0)
+        self.assertEqual(rows[1][1], "Cen")  # untouched column
+
+    def test_unique_by_key(self):
+        a, b, c = _flat(lid="a"), _flat(lid="a"), _flat(lid="b")
+        self.assertEqual([l["id"] for l in utils.unique_by_key([a, b, c])],
+                         ["a", "b"])
+
+    def test_scoring_no_price_no_top_deal(self):
+        """A price-less listing must not score as the best deal."""
+        import scoring
+        scored = scoring._fallback_scores(
+            [dict(_flat(lid="np"), price_eur=None, price_per_m2=None)],
+            [_flat(lid="h")])
+        self.assertEqual(scored[0][1], 0.0)
+
+    def test_fallback_rooms_coerced(self):
+        """Str-typed rooms must hit the same bucket as int-keyed
+        history rows."""
+        import scoring
+        hist = [dict(_flat(lid="h%d" % i), rooms=2,
+                     price_per_m2=900 + i * 10) for i in range(5)]
+        l = dict(_flat(lid="s"), rooms="2", price_per_m2=100)
+        scored = scoring._fallback_scores([l], hist)
+        self.assertGreater(scored[0][1], 0.5)  # cheap for a 2r bucket
+
+    def test_min_url_is_safe_filtered(self):
+        """Market cheapest-ad links must pass safe_url like every other
+        external href."""
+        import flat_market
+        stats = [{"district": "Zol", "ads": 3, "median_ppu": 900,
+                  "median_price": 50000, "min_price": 40000,
+                  "min_url": "javascript:alert(1)", "new_today": 0,
+                  "median_age": 10, "cut_pct": 0}]
+        html = flat_market._stats_table_html(stats, {}, "t")
+        self.assertNotIn("javascript:", html)
 
 
 if __name__ == "__main__":

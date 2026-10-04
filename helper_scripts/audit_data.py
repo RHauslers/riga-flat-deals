@@ -234,17 +234,21 @@ def main():
               f"car={car[-1] if car else '-'}")
         _stale_flag((flat[-1][7:17] if flat else None), "newest flat digest")
         _stale_flag((car[-1][5:15] if car else None), "newest car digest")
-        # the live flat digest must still carry the listings embed —
-        # the budget tool breaks silently without it (archives are the
-        # ones supposed to lose it)
-        if flat:
+        # the live digests must still carry their market embeds — the
+        # browser budget/watch tools break silently without them
+        # (archives are the ones supposed to lose the embed)
+        for fname, embed_id in ((flat[-1] if flat else None,
+                                 'id="flat-listings-data"'),
+                                (car[-1] if car else None,
+                                 'id="car-market-data"')):
+            if not fname:
+                continue
             try:
-                with open(os.path.join(dd, flat[-1]),
+                with open(os.path.join(dd, fname),
                           encoding="utf-8") as fh:
-                    if 'id="flat-listings-data"' not in fh.read():
-                        _warn(f"{flat[-1]} is missing the "
-                              f"flat-listings-data embed — the browser "
-                              f"budget tool will show nothing")
+                    if embed_id not in fh.read():
+                        _warn(f"{fname} is missing the {embed_id} embed "
+                              f"— the browser budget tool shows nothing")
             except OSError:
                 pass
 
@@ -271,6 +275,30 @@ def main():
                       f"{len(used)} used by JS — parity ok")
     except Exception as ex:  # audit must never break the daily run
         print(f"  embed parity check failed to run: {ex}")
+
+    # Cross-file freshness: each side's gone-tracking snapshot is written
+    # in the same run that writes its digest, so their dates should match.
+    # A mismatch means a partial run — state committed but the digest
+    # failed, or the digest rendered while state stayed behind.
+    try:
+        dd = config.DIGEST_DIR
+        files = sorted(os.listdir(dd)) if os.path.isdir(dd) else []
+        pairs = (
+            ("flat", (_load(config.FLAT_ACTIVE_JSON, {}) or {}).get("date"),
+             max((f[7:17] for f in files if f.startswith("digest_")),
+                 default=None)),
+            ("car", (_load(config.CAR_MARKET_SNAPSHOT_JSON, {}) or {})
+             .get("date"),
+             max((f[5:15] for f in files if f.startswith("cars_")),
+                 default=None)),
+        )
+        for name, state_d, digest_d in pairs:
+            if state_d and digest_d and state_d != digest_d:
+                _warn(f"{name} snapshot date {state_d} != newest digest "
+                      f"{digest_d} — yesterday's run finished partway "
+                      f"(gone/relisted detection may be off by a day)")
+    except OSError:
+        pass
 
     print(f"\n=== {len(WARNINGS)} warning(s) ===")
     for w in WARNINGS:

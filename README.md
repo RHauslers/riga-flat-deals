@@ -20,21 +20,32 @@ publishes the result as a static site on GitHub Pages:
   cut and an amber `MOTIVATED` pill when a cut combines with staleness or
   repeated cutting (flats: drop ≥ €4,000 plus ≥45 days on market / ≥3
   relistings / ≥2 observed cuts; cars: drop ≥ €400 plus ≥30 days seen / ≥2
-  cuts). `LOWEST SEEN` marks a flat at its cheapest observed price, and a
-  purple `RELISTED` chip flags a flat withdrawn and reposted within ~30
-  days (matched by street + district + rooms + area). Both digests end
-  with a "Biggest price cuts" card covering the entire scanned pool, not
-  just the top-N deals.
+  cuts). `LOWEST SEEN` marks an ad at its cheapest observed price, and a
+  purple `RELISTED` chip flags an ad withdrawn and reposted under a new id
+  (flats matched by street + district + rooms + area; cars by
+  make+model+year+fuel+mileage — a repost-at-a-cut reads as a real drop).
+  Both digests end with a "Biggest price cuts" card covering the entire
+  scanned pool, plus a "Stale & stubborn" card for old ads that never cut.
 - **Market context** — flat rows show `−X% vs district` when the listing's
-  €/m² undercuts the district median ≥10%; auction rows compare against
-  the city median and flag lots with no bids yet; the market page's flats
-  tab adds per-district median days-on-market and % of ads with a cut.
+  €/m² undercuts the district median ≥10% (or `+N%` when it's ≥20% over)
+  and a `~X% yield` chip from the district's rent median; cars get a
+  `LOW KM` chip below 75% of the pool median. Auction rows compare
+  against the city median and flag lots with no bids yet (`FIRST BID`);
+  the digest KPI row carries a Riga-wide `median €/m² · Δ7d` pulse and
+  new/motivated/gone counts; the market page's flats tab adds per-district
+  median days-on-market, % of ads with a cut and a rent table.
+- **Browser tools** — each digest embeds today's market snapshot so the
+  budget tool re-filters/re-scores instantly in the page (min/max price,
+  district/rooms/type or make/model/fuel/year/km filters, shareable
+  `?min=&max=` URLs); a localStorage watchlist pins rows between visits;
+  every deal row is deep-linkable via `#r-<key>` anchors.
 - **Archive** — the last 30 days of both digests. Archived digest pages have
   the large embedded market JSON stripped (the budget tool is a live-page
   feature); tables and gone sections stay intact. The archive index also
   shows a 14-day coverage strip so missed runs are visible at a glance.
   Hosted digests get previous/next-day links; every page has a dark-mode
-  toggle (OS preference by default, persisted in localStorage).
+  toggle (OS preference by default, persisted in localStorage) and a
+  back-to-top button.
 
 Website only: the pipeline runs once each morning via the scheduled GitHub
 Actions job, and the site holds no credentials.

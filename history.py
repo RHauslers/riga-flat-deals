@@ -23,13 +23,6 @@ def _ensure_dirs():
     os.makedirs(config.DIGEST_DIR, exist_ok=True)
 
 
-def _write_json(path, data):
-    _ensure_dirs()
-    # Compact JSON — these files are committed daily, pretty-printing was
-    # adding ~35% of dead whitespace (same reason car state went v2).
-    utils.write_json(path, data, indent=None)
-
-
 # ---------------------------------------------------------------------------
 # seen_deals.json  (dict: "{source}:{id}" -> metadata)
 # ---------------------------------------------------------------------------
@@ -38,7 +31,9 @@ def load_seen_deals():
 
 
 def save_seen_deals(seen_deals):
-    _write_json(config.SEEN_DEALS_JSON, seen_deals)
+    # Compact JSON — these files are committed daily, pretty-printing was
+    # adding ~35% of dead whitespace (same reason car state went v2).
+    utils.write_json(config.SEEN_DEALS_JSON, seen_deals, indent=None)
 
 
 def update_seen_deals(scored_by_type, seen_deals):
@@ -95,7 +90,7 @@ def save_last_digest(scored_by_type, today):
                 "url": l.get("url", ""),
                 "source": l.get("source", ""),
             })
-    _write_json(config.LAST_DIGEST_JSON, digest)
+    utils.write_json(config.LAST_DIGEST_JSON, digest, indent=None)
 
 
 # ---------------------------------------------------------------------------

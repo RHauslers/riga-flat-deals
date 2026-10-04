@@ -311,6 +311,44 @@ def older_than_days(date_str, days, today=None):
     return True if n is None else n >= days
 
 
+def unique_by_key(listings):
+    """Yield listings deduped on listing_key — first occurrence wins.
+    Used by the pool-scan cards (cuts, stale) so a cross-source survivor
+    can't appear twice."""
+    seen = set()
+    for l in listings or []:
+        k = listing_key(l)
+        if not k or k in seen:
+            continue
+        seen.add(k)
+        yield l
+
+
+def dict_encode(rows, fields, dict_fields):
+    """In-place dictionary-encoding of positional ``rows``.
+
+    For every column in ``dict_fields``, string values are replaced by an
+    index into a per-field dictionary — the embed payloads ship hundreds
+    of rows whose repeated strings (source, district, make...) are ~40%
+    of the JSON. Returns {field: [value, ...]} — the JS side maps the
+    index back on load."""
+    dict_idx = {f: fields.index(f) for f in dict_fields}
+    dicts = {f: [] for f in dict_fields}
+    dict_map = {f: {} for f in dict_fields}
+    for row in rows:
+        for f, i in dict_idx.items():
+            v = row[i]
+            if v is None:
+                continue
+            d = dict_map[f].get(v)
+            if d is None:
+                d = len(dicts[f])
+                dict_map[f][v] = d
+                dicts[f].append(v)
+            row[i] = d
+    return dicts
+
+
 def retry_after_seconds(resp):
     """Parse the Retry-After response header (seconds form), capped at 30 s.
     Shared by the flat and car ss.com fetchers' 429/5xx retry."""
@@ -544,8 +582,14 @@ def dedupe_cross_source(listings):
             cluster.sort(key=lambda x: (_source_rank(x), 0 if x.get("street") else 1))
             survivor = cluster[0]
             others = cluster[1:]
-            survivor["also_on"] = sorted({o.get("source") for o in others
-                                          if o.get("source") != survivor.get("source")})
+            # Same shape as the car dedupe emits: [{source, url,
+            # price_eur}] so the digest can link the alternate ad.
+            survivor["also_on"] = sorted(
+                ({"source": o.get("source"), "url": o.get("url") or "",
+                  "price_eur": o.get("price_eur")}
+                 for o in others
+                 if o.get("source") != survivor.get("source")),
+                key=lambda d: d["source"])
             # the same flat is sometimes cheaper on the OTHER portal —
             # record the lowest alternate price so the digest can say
             # "(€2 000 less on city24.lv)". That's real deal intel.

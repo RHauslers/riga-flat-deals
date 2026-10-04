@@ -1416,6 +1416,77 @@ class TestBudgetTool(unittest.TestCase):
         # filters alone -> apply() must not hide; Centre only -> 1 of 2
         self.assertIn("1 of 2", result["status"])
 
+    @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_flat_js_min_price_bound(self):
+        """A min-price input alone (no max) filters out cheaper rows and
+        is URL-param compatible (?min=)."""
+        cheap = {"source": "ss.com", "id": "f1", "district": "Zolitude",
+                 "rooms": 2, "area_m2": 50, "price_eur": 55000,
+                 "url": "https://www.ss.com/x"}
+        dear = {"source": "ss.com", "id": "f2", "district": "Centre",
+                "rooms": 1, "area_m2": 30, "price_eur": 70000,
+                "url": "https://www.ss.com/y"}
+        html_text = notifier.build_html(
+            {}, {}, "", "note",
+            all_scored={"sale": [(cheap, 1.0, "x"), (dear, 0.5, "x")]})
+        payload = re.search(r'id="flat-listings-data">(.*?)</script>',
+                            html_text, re.S).group(1)
+        js = re.search(r'<script id="flat-budget-js">(.*?)</script>',
+                       html_text, re.S).group(1)
+        driver = (
+            "var fs = require('fs');\n"
+            "function makeEl(extra) {\n"
+            "  return Object.assign({style: {}, children: [], innerHTML: '',\n"
+            "    addEventListener: function(){},\n"
+            "    appendChild: function(c){this.children.push(c);},\n"
+            "    setAttribute: function(){}, textContent: '', value: ''},\n"
+            "    extra || {});\n"
+            "}\n"
+            "var elements = {\n"
+            "  'flat-listings-data': {textContent:\n"
+            "    fs.readFileSync(process.argv[3], 'utf8')},\n"
+            "  'flat-budget-input': makeEl({value: ''}),\n"
+            "  'flat-budget-min': makeEl({value: '60000'}),\n"
+            "  'flat-budget-status': makeEl(), 'flat-custom-view': makeEl(),\n"
+            "  'flat-budget-ok': makeEl(), 'flat-budget-reset': makeEl()};\n"
+            "var parsed = false, readyCbs = [];\n"
+            "global.document = {\n"
+            "  get readyState() { return parsed ? 'complete' : 'loading'; },\n"
+            "  getElementById: function(id) {\n"
+            "    return parsed ? (elements[id] || null) : null; },\n"
+            "  createElement: function(tag) { return makeEl(); },\n"
+            "  createTextNode: function(t) { return {textContent: t}; },\n"
+            "  addEventListener: function(ev, cb) {\n"
+            "    if (ev === 'DOMContentLoaded') readyCbs.push(cb); }};\n"
+            "global.window = {}; global.location = {search: '?min=60000'};\n"
+            "global.URLSearchParams = URLSearchParams;\n"
+            "eval(fs.readFileSync(process.argv[4], 'utf8'));\n"
+            "parsed = true;\n"
+            "readyCbs.forEach(function(cb) { cb(); });\n"
+            "var result = {init: !!global.window.__flatBudget};\n"
+            "if (global.window.__flatBudget) {\n"
+            "  global.window.__flatBudget.apply();\n"
+            "  result.status = elements['flat-budget-status'].textContent;\n"
+            "}\n"
+            "console.log(JSON.stringify(result));\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            drv = os.path.join(tmp, "driver.js")
+            pay = os.path.join(tmp, "payload.txt")
+            jsf = os.path.join(tmp, "budget.js")
+            for path, text in ((drv, driver), (pay, payload), (jsf, js)):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            out = subprocess.run(["node", drv, "--", pay, jsf],
+                                 capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        result = json.loads(out.stdout.strip())
+        self.assertTrue(result["init"])
+        # min €60k -> only the €70k flat survives; status shows the range
+        self.assertIn("1 of 2", result["status"])
+        self.assertIn("60,000", result["status"])
+        self.assertIn("70,000", result["status"])
+
     def test_flat_embed_extra_covers_unscored_page_rows(self):
         """Near-school rows come from all_listings, not all_scored — an
         unscored flat rendered on the page must land in payload.extra so
@@ -1734,8 +1805,9 @@ class TestStateCompaction(_TempPaths):
         self.assertEqual(cars._read_seen(self.seen_json), old)
 
     def test_snapshot_v2_roundtrip_and_v1(self):
+        import utils
         lst = [_car("pp.lv", "c1", 3900)]
-        cars._write_json(self.snapshot_json,
+        utils.write_json(self.snapshot_json,
                          {"v": 2, "date": "2026-10-03",
                           "fields": list(config.CAR_SNAPSHOT_FIELDS),
                           "rows": [[l.get(f) for f in

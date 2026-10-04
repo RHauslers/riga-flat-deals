@@ -169,19 +169,15 @@ def fetch_cenumednieks(ss_id):
 # ---------------------------------------------------------------------------
 # Price history storage (data/price_history.json)
 # ---------------------------------------------------------------------------
-def _write_json(path, data):
-    # Compact JSON — the file is committed daily and pretty-printing was
-    # adding ~35% dead whitespace (same reason car state went v2).
-    utils.write_json(path, data, indent=None)
-
-
 def load_price_history():
     """Load the full price history cache. Returns dict keyed by listing key."""
     return utils.read_json(config.PRICE_HISTORY_JSON, {})
 
 
 def save_price_history(data):
-    _write_json(config.PRICE_HISTORY_JSON, data)
+    # Compact JSON — the file is committed daily and pretty-printing was
+    # adding ~35% dead whitespace (same reason car state went v2).
+    utils.write_json(config.PRICE_HISTORY_JSON, data, indent=None)
 
 
 def _extract_ss_id(listing):
@@ -389,13 +385,11 @@ def get_price_timeline(listing, history=None):
             'source': 'Flat_Searcher',
         })
 
-    # Sort by date, deduplicate by date (keep last price per date)
+    # Sort by date, deduplicate by date (keep last price per date —
+    # dict assignment overwrites the earlier same-date entry, and the
+    # ascending sort makes "last" the freshest).
     timeline.sort(key=lambda x: x['date'])
-    seen_dates = {}
-    for t in timeline:
-        seen_dates[t['date']] = t
-    timeline = list(seen_dates.values())
-    timeline.sort(key=lambda x: x['date'])
+    timeline = list({t['date']: t for t in timeline}.values())
 
     return timeline if timeline else None
 

@@ -15,14 +15,6 @@ import config
 import utils
 
 
-def _fmt_eur(v):
-    return utils.fmt_eur(v)
-
-
-def _median(values):
-    return utils.median(values)
-
-
 def compute_district_stats(listings, price_data=None, today=None,
                            deal_type="sale"):
     """Group in-budget listings of ``deal_type`` by district.
@@ -71,29 +63,28 @@ def compute_district_stats(listings, price_data=None, today=None,
                 n_cuts += 1
         stats.append({
             "district": district, "ads": len(items),
-            "median_ppu": _median([l.get("price_per_m2") for l in items]),
-            "median_price": _median(prices),
+            "median_ppu": utils.median([l.get("price_per_m2") for l in items]),
+            "median_price": utils.median(prices),
             "min_price": cheapest.get("price_eur") if cheapest else None,
             "min_url": (cheapest.get("url") or "") if cheapest else "",
             "new_today": new_today,
-            "median_age": _median(ages),
+            "median_age": utils.median(ages),
             "cut_pct": round(100.0 * n_cuts / len(items)) if items else 0,
         })
     stats.sort(key=lambda s: (-s["ads"], s["median_ppu"] or 0))
     return stats
 
 
-def _delta_7d(points):
-    """% change of median_ppu vs the newest point >= 7 days old.
-    Delegates to the shared utils.delta_7d (value at index 1)."""
-    return utils.delta_7d(points)
-
-
-def _stats_table_html(stats, history, table_id, hist_prefix=""):
+def _stats_table_html(stats, history, table_id, hist_prefix="",
+                      rent_median_by_district=None):
     """Shared per-district stats table (sale and rent differ only in
-    which series prefix their history uses)."""
+    which series prefix their history uses). ``rent_median_by_district``
+    ({district: EUR/mo median}) adds a gross-yield column on the sale
+    table — rent median ×12 ÷ sale median ask."""
     headers = ["District", "Ads", "New", "Median €/m²", "Δ 7d", "Trend",
                "Med. days", "Cuts", "Median ask", "Cheapest"]
+    if rent_median_by_district:
+        headers.append("Yield")
     head = "".join(
         "<th class='sort-th' style='padding:6px;{align}' "
         "onclick=\"sortTable('{tid}', {i})\">{name}</th>".format(
@@ -103,27 +94,39 @@ def _stats_table_html(stats, history, table_id, hist_prefix=""):
     rows = []
     for i, s in enumerate(stats):
         zebra = " class='z'" if i % 2 else ""
-        cheap = (f"<a href='{_e(s['min_url'])}' target='_blank' "
-                 f"rel='noopener noreferrer'>{_fmt_eur(s['min_price'])}"
-                 f"</a>" if s.get("min_url") else _fmt_eur(s["min_price"]))
+        _min_url = utils.safe_url(s.get("min_url"))
+        cheap = (f"<a href='{_e(_min_url)}' target='_blank' "
+                 f"rel='noopener noreferrer'>{utils.fmt_eur(s['min_price'])}"
+                 f"</a>" if _min_url else utils.fmt_eur(s["min_price"]))
         d = _e(str(s["district"]))
+        # Sort key: raw district name — sorting on the escaped form
+        # orders entities before letters (Ā/ģ names landed wrong).
+        d_raw = str(s["district"]).lower()
         dist_l = (f"<a href='index.html?district={_q(str(s['district']))}'>"
                   f"{d}</a>")
         ppu = s["median_ppu"]
         pts = history.get(hist_prefix + str(s["district"]), [])
-        delta = _delta_7d(pts)
+        delta = utils.delta_7d(pts)
         delta_html = "—"
         delta_sort = 0.0
         if delta is not None:
             delta_sort = delta
-            color = "var(--bad)" if delta < 0 else \
-                "var(--good)" if delta > 0 else "var(--muted)"
+            # Buyer's POV, same as the car table: a falling district
+            # median means prices are coming to the buyer = green.
+            color = "var(--good)" if delta < 0 else \
+                "var(--bad)" if delta > 0 else "var(--muted)"
             delta_html = f"<span style='color:{color}'>{delta:+.1f}%</span>"
         spark = utils.sparkline_svg(
             [(p[0], p[1]) for p in pts], title="median €/m²")
+        yield_html, yield_sort = "—", -1.0
+        if rent_median_by_district is not None:
+            rm = rent_median_by_district.get(s["district"])
+            if rm and s.get("median_price"):
+                y = rm * 12 / s["median_price"] * 100
+                yield_sort, yield_html = round(y, 1), f"~{y:.1f}%"
         rows.append(
             f"<tr{zebra}>"
-            f"<td style='padding:6px' data-sort='{d}'>{dist_l}</td>"
+            f"<td style='padding:6px' data-sort='{_e(d_raw)}'>{dist_l}</td>"
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['ads']}'>{s['ads']}</td>"
             f"<td style='padding:6px;text-align:right' "
@@ -145,10 +148,13 @@ def _stats_table_html(stats, history, table_id, hist_prefix=""):
             f"{s.get('cut_pct') or 0}%</td>"
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['median_price'] or 0}'>"
-            f"{_fmt_eur(s['median_price'])}</td>"
+            f"{utils.fmt_eur(s['median_price'])}</td>"
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['min_price'] or 0}'>{cheap}</td>"
-            f"</tr>")
+            + (f"<td style='padding:6px;text-align:right' "
+               f"data-sort='{yield_sort:.1f}'>{yield_html}</td>"
+               if rent_median_by_district else "")
+            + f"</tr>")
     return f"<table id='{table_id}'><tr>{head}</tr>{''.join(rows)}</table>"
 
 
@@ -170,8 +176,14 @@ def flat_section_html(stats, run_date=None, history=None, rent_stats=None):
             "sparkline. <b>Med. days</b> = median ad age (market "
             "temperature); <b>Cuts</b> = share of ads that already cut their "
             "ask — high on both means sellers are waiting and negotiating. "
+            "<b>Yield</b> = rough gross rental yield (district median rent "
+            "×12 ÷ median sale ask — before costs/vacancy). "
             "Clicking a district opens the Flats tab filtered to it.</p>"
-            + _stats_table_html(stats, history, "flat-market"))
+            + _stats_table_html(
+                stats, history, "flat-market",
+                rent_median_by_district={
+                    str(s["district"]): s["median_price"]
+                    for s in (rent_stats or []) if s.get("median_price")}))
     rent_html = ""
     if rent_stats:
         rent_html = (

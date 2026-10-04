@@ -30,18 +30,6 @@ _MTAB_CSS = (
 )
 
 
-def _fmt_eur(v):
-    return utils.fmt_eur(v)
-
-
-def _fmt_num(v):
-    return utils.fmt_num(v)
-
-
-def _median(values):
-    return utils.median(values)
-
-
 def _group_key(listing):
     return (str(listing.get("make") or "").strip().lower(),
             str(listing.get("model") or "").strip().lower())
@@ -81,12 +69,12 @@ def compute_market_stats(listings, qualified=None, today=None):
                      if today else 0)
         stats.append({
             "make": make, "model": model, "ads": len(items),
-            "median_price": _median(prices),
+            "median_price": utils.median(prices),
             "min_price": cheapest.get("price_eur") if cheapest else None,
             "min_url": (cheapest.get("url") or "")
             if cheapest else "",
-            "median_year": _median([l.get("year") for l in items]),
-            "median_km": _median([l.get("mileage_km") for l in items]),
+            "median_year": utils.median([l.get("year") for l in items]),
+            "median_km": utils.median([l.get("mileage_km") for l in items]),
             "deals": deals, "new_today": new_today,
         })
     stats.sort(key=lambda s: (-s["deals"], -s["ads"],
@@ -129,9 +117,10 @@ def build_market_html(stats, run_date, total_ads, history=None,
     rows = []
     for i, s in enumerate(stats):
         zebra = " class='z'" if i % 2 else ""
-        cheap = (f"<a href='{_e(s['min_url'])}' target='_blank' "
-                 f"rel='noopener noreferrer'>{_fmt_eur(s['min_price'])}"
-                 f"</a>" if s.get("min_url") else _fmt_eur(s["min_price"]))
+        _min_url = utils.safe_url(s.get("min_url"))
+        cheap = (f"<a href='{_e(_min_url)}' target='_blank' "
+                 f"rel='noopener noreferrer'>{utils.fmt_eur(s['min_price'])}"
+                 f"</a>" if _min_url else utils.fmt_eur(s["min_price"]))
         deals = (f"<b style='color:var(--good)'>{s['deals']}</b>"
                  if s["deals"] else str(s["deals"]))
         year = s["median_year"]
@@ -163,7 +152,7 @@ def build_market_html(stats, run_date, total_ads, history=None,
             f"{s.get('new_today') or 0}</td>"
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['median_price'] or 0}'>"
-            f"{_fmt_eur(s['median_price'])}</td>"
+            f"{utils.fmt_eur(s['median_price'])}</td>"
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{delta_sort:.2f}'>{delta_html}</td>"
             f"<td style='padding:6px' data-sort='{pct:.1f}'>"
@@ -175,7 +164,7 @@ def build_market_html(stats, run_date, total_ads, history=None,
             f"{int(year) if year else '—'}</td>"
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['median_km'] or 0}'>"
-            f"{_fmt_num(s['median_km'])}</td>"
+            f"{utils.fmt_num(s['median_km'])}</td>"
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['deals']}'>{deals}</td>"
             f"</tr>")
@@ -208,11 +197,12 @@ def build_market_html(stats, run_date, total_ads, history=None,
  onclick="__mktTab('cars')">Cars</button>
 <button type="button" class="mtab" id="mtab-flats"
  onclick="__mktTab('flats')">Flats</button>
+{web_style.ROW_FILTER_HTML}
 </div>
 <div id="mpane-cars">
 <h2>Cars — by make &amp; model</h2>
 <p class="note">Aggregated from today's full eligible pool —
-<b>{_fmt_num(total_ads)}</b> ads across ss.com + pp.lv
+<b>{utils.fmt_num(total_ads)}</b> ads across ss.com + pp.lv
 after cross-source dedupe. Models with fewer than
 {_e(str(config.CAR_MARKET_MIN_LISTINGS))} ads are omitted.
 <b>Deals today</b> = ads currently qualifying on the Cars tab;

@@ -20,8 +20,10 @@ numpy is used for the normal equations. If numpy is unavailable we fall back
 to strategy 1 automatically.
 """
 import statistics
+from collections import Counter
 
 import config
+import geocode
 import utils
 
 try:
@@ -49,8 +51,13 @@ def _fallback_scores(new_listings, history):
 
     scored = []
     for l in new_listings:
-        key = (l.get("deal_type"), l.get("district"), l.get("rooms"))
-        vals = buckets.get(key) or buckets.get((l.get("deal_type"), l.get("district"), None)) or []
+        # History is keyed by to_int(rooms) — the lookup must coerce the
+        # same way or str-typed rooms silently miss their bucket.
+        r_int = utils.to_int(l.get("rooms"))
+        key = (l.get("deal_type"), l.get("district"), r_int)
+        vals = (buckets.get(key)
+                or buckets.get((l.get("deal_type"), l.get("district"), None))
+                or [])
         ppu = l.get("price_per_m2") or 0.0
         if len(vals) >= 3:
             mu = statistics.mean(vals)
@@ -105,7 +112,6 @@ def _fit_encoders(history_rows):
     MAX_CATEGORIES_PER_FIELD (most frequent first), and map everything else to
     a shared "__other__" bucket.
     """
-    from collections import Counter
     counts = {"district": Counter(), "series": Counter(), "source": Counter()}
     for r in history_rows:
         for f in counts:
@@ -174,7 +180,9 @@ def _regression_scores(new_listings, history_rows):
         xb = np.concatenate([[1.0], x])
         pred = float(xb @ coef)
         actual = utils.to_float(l.get("price_eur")) or 0.0
-        z = -(actual - pred) / resid_std  # cheaper than predicted -> higher z
+        # No usable price -> no residual to rank on (a missing price used
+        # to read as -pred/std, i.e. the "cheapest" deal on the page).
+        z = -(actual - pred) / resid_std if actual > 0 else 0.0
         scored.append((l, z, "regression"))
     return scored
 
@@ -197,7 +205,6 @@ def score_and_rank(new_listings, history):
     to the target school (Rīgas Ziemeļvalstu ģimnāzija) — see geocode.py.
     Rent listings are ranked by deal score alone.
     """
-    import geocode as _geo
 
     by_type = {}
     for l in new_listings:
@@ -223,7 +230,7 @@ def score_and_rank(new_listings, history):
         if dt == "sale" and config.PROXIMITY_WEIGHT > 0:
             blended = []
             for listing, score, method in scored:
-                prox = _geo.proximity_score(listing)
+                prox = geocode.proximity_score(listing)
                 blended_score = (
                     (1 - config.PROXIMITY_WEIGHT) * score
                     + config.PROXIMITY_WEIGHT * prox

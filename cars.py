@@ -32,12 +32,6 @@ from scrapers import car_ss, car_pp
 SOURCES = (("ss.com", car_ss), ("pp.lv", car_pp))
 
 
-def _write_json(path, data):
-    """Compact JSON (no indent): car_seen/snapshot are ~1 MB each when
-    pretty-printed and are rewritten every day into git history."""
-    utils.write_json(path, data, indent=None)
-
-
 # ---------------------------------------------------------------------------
 # car_seen.json — v2 compact layout (short keys, dates as day-offsets from
 # _SEEN_EPOCH). Both files are rewritten daily into git history; the v1
@@ -45,6 +39,13 @@ def _write_json(path, data):
 # entries. _read_seen() migrates v1 transparently on load.
 # ---------------------------------------------------------------------------
 _SEEN_EPOCH = date(2026, 1, 1)
+
+
+def _new_seen_entry(today):
+    """Fresh car_seen entry — the shape _read_seen() reconstructs for v2
+    rows. One home so the write path can't drift from the read path."""
+    return {"first_seen": today, "last_seen": today, "last_price": None,
+            "last_shown": None, "first_shown": None, "prices": []}
 
 
 def _seen_day(iso):
@@ -99,7 +100,10 @@ def _write_seen(seen, path=None):
                     for p in (e.get("prices") or [])
                     if isinstance(p, (list, tuple)) and len(p) == 2],
         }
-    _write_json(path or config.CAR_SEEN_JSON, {"v": 2, "entries": entries})
+    # Compact JSON (no indent): car_seen is ~1 MB pretty-printed and is
+    # rewritten daily into git history.
+    utils.write_json(path or config.CAR_SEEN_JSON,
+                     {"v": 2, "entries": entries}, indent=None)
 
 
 def load_snapshot(path=None):
@@ -230,6 +234,13 @@ def run():
     prev_car_rows = gone.car_snapshot_rows(prev_snapshot.get("listings"))
     gone_car_rows = gone.gone_rows(
         prev_car_rows, today_keys, ok_source_names, config.CAR_GONE_MAX_ROWS)
+    # Partial scrape guardrail: an implausible overnight vanish share is
+    # far more likely a clipped page set than a sales wave — warn rather
+    # than trust the gone list (same check flats get in main.py).
+    _spike = health.gone_spike_issue(prev_car_rows, gone_car_rows)
+    if _spike:
+        source_errors[_spike[0]] = _spike[1]
+        print(f"[health] ISSUE gone_spike (cars): {_spike[1]}")
 
     # RELISTED — a car that vanished recently and is back under a new ad
     # id (same make/model/year/fuel + ~same odometer). Reposting is the
@@ -246,14 +257,16 @@ def run():
 
     qualified, assessed = car_value.score_and_rank(deduped)
 
-    _write_json(config.CAR_MARKET_SNAPSHOT_JSON,
-                {"v": 2, "date": today,
-                 "fields": list(config.CAR_SNAPSHOT_FIELDS),
-                 "rows": [[l.get(f) for f in config.CAR_SNAPSHOT_FIELDS]
-                          for l in deduped],
-                 "recent_gone": gone.recent_gone_rows(
-                     prev_snapshot.get("recent_gone"), gone_car_rows,
-                     today, live_rows=gone.car_snapshot_rows(deduped))})
+    utils.write_json(config.CAR_MARKET_SNAPSHOT_JSON,
+                     {"v": 2, "date": today,
+                      "fields": list(config.CAR_SNAPSHOT_FIELDS),
+                      "rows": [[l.get(f) for f in config.CAR_SNAPSHOT_FIELDS]
+                               for l in deduped],
+                      "recent_gone": gone.recent_gone_rows(
+                          prev_snapshot.get("recent_gone"), gone_car_rows,
+                          today,
+                          live_rows=gone.car_snapshot_rows(deduped))},
+                     indent=None)
 
     seen = _read_seen()
     badges = {}
@@ -263,9 +276,7 @@ def run():
 
     for l in deduped:
         key = utils.listing_key(l)
-        entry = seen.setdefault(key, {"first_seen": today, "last_seen": today,
-                                      "last_price": None, "last_shown": None,
-                                      "first_shown": None, "prices": []})
+        entry = seen.setdefault(key, _new_seen_entry(today))
         entry["last_seen"] = today
         entry["last_price"] = l.get("price_eur")
         # Price trail: one [date, price] point per sighting where the ask

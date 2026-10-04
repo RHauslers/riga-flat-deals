@@ -10,6 +10,8 @@ reference var(--token) for colors.
 Rule 1/2: everything hard-coded, constants at the top.
 """
 
+import html
+
 # ── Design tokens ─────────────────────────────────────────────────
 # Light palette (slate + blue accent, Tailwind-inspired).
 L_BG        = "#f1f5f9"   # page background
@@ -141,6 +143,7 @@ td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top;
 tr:hover>td{background:var(--hover)}
 tr.z>td{background:var(--row-alt)}
 tr.z:hover>td{background:var(--hover)}
+tr:target>td{background:var(--warn-bg)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 th.sort-th{cursor:pointer}
 th.sort-th:hover{background:var(--hover);color:var(--fg)}
@@ -338,6 +341,24 @@ if(window.addEventListener){addEventListener('scroll',paint,{passive:true});}
 paint();})();</script>"""
 
 
+# Generic "filter rows by text" widget for multi-table pages (market page).
+# Hides <tr> whose text doesn't contain the query; header rows (with <th>)
+# always stay. The input's id is row-filter; the script is idempotent.
+ROW_FILTER_HTML = """<input type="text" id="row-filter"
+placeholder="filter rows&hellip;" style="width:140px;margin-left:8px"
+title="Show only rows containing this text">
+<script>(function(){
+var q=document.getElementById('row-filter');if(!q)return;
+q.addEventListener('input',function(){
+var needle=q.value.toLowerCase();
+var trs=document.querySelectorAll('table tr');
+for(var i=0;i<trs.length;i++){var tr=trs[i];
+if(tr.querySelector('th'))continue;
+tr.style.display=(!needle||tr.textContent.toLowerCase()
+.indexOf(needle)>=0)?'':'none';}});
+})();</script>"""
+
+
 def style_block(extra=""):
     """`<style>` element holding BASE_CSS (+ optional page CSS)."""
     css = BASE_CSS
@@ -368,10 +389,11 @@ def style_block(extra=""):
     return f"<style>{css}{extra}</style>{THEME_HEAD_JS}"
 
 
-def kpi(label, value, cls=""):
-    """One dashboard stat chip."""
+def kpi(label, value, cls="", title=""):
+    """One dashboard stat chip; `title` adds a hover tooltip."""
     c = f"kpi {cls}".strip()
-    return f"<div class='{c}'><b>{value}</b><span>{label}</span></div>"
+    t = f" title='{html.escape(str(title))}'" if title else ""
+    return f"<div class='{c}'{t}><b>{value}</b><span>{label}</span></div>"
 
 
 def badge(text, cls):
@@ -621,3 +643,349 @@ def watch_js(ns, data_id, storage_key):
             .replace("@NS@", ns)
             .replace("@DATA_ID@", data_id)
             .replace("@STORAGE_KEY@", storage_key))
+
+
+# In-browser budget filter for the flats digest: shows ALL scored listings
+# within a custom budget (the daily tables cap at TOP_N_PER_TYPE), ranked
+# by deal score. Filtering only — the regression score does not depend on
+# the buyer's budget. Reuses the page's sortTable().
+FLAT_BUDGET_JS = """
+// Runs after the DOM is ready: the budget input lives in the body
+// element, below this script in the head, so it does not exist at parse
+// time. (No literal '<body>' here — website._inject_nav searches for it.)
+function __flatBudgetInit() {
+  var dataEl = document.getElementById('flat-listings-data');
+  var input = document.getElementById('flat-budget-input');
+  var minInput = document.getElementById('flat-budget-min');
+  var statusEl = document.getElementById('flat-budget-status');
+  var customView = document.getElementById('flat-custom-view');
+  if (!dataEl || !input || !customView) return;
+  var payload = JSON.parse(dataEl.textContent);
+  var cfg = payload.config, F = payload.fields, idx = {};
+  F.forEach(function (f, i) { idx[f] = i; });
+  // Dictionary-encoded string columns -> real strings, before any reads.
+  if (payload.dict) {
+    Object.keys(payload.dict).forEach(function (f) {
+      var i = idx[f], dict = payload.dict[f];
+      (payload.rows || []).concat(payload.extra || []).forEach(function (r) {
+        if (r[i] != null) r[i] = dict[r[i]];
+      });
+    });
+  }
+  // Budget search covers the WHOLE embedded market: scored rows plus the
+  // unscored extras (near-school/overflow listings) — every flat kept by
+  // today's sanity floor, regardless of price.
+  var rows = payload.rows.concat(payload.extra || []);
+  var districtSel = document.getElementById('flat-filter-district');
+  var roomsSel = document.getElementById('flat-filter-rooms');
+  var dtypeSel = document.getElementById('flat-filter-dtype');
+
+  // Fill the district dropdown from today's data.
+  if (districtSel) {
+    var seen = {};
+    rows.forEach(function (r) { if (r[idx.district]) seen[r[idx.district]] = 1; });
+    Object.keys(seen).sort().forEach(function (d) {
+      var o = document.createElement('option');
+      o.value = d; o.textContent = d;
+      districtSel.appendChild(o);
+    });
+  }
+
+  function readFilters() {
+    return {
+      district: districtSel && districtSel.value ? districtSel.value : '',
+      rooms: roomsSel && roomsSel.value ? roomsSel.value : '',
+      dtype: dtypeSel ? dtypeSel.value : 'sale'
+    };
+  }
+  function anyFilterSet(f) { return !!(f.district || f.rooms); }
+  function passesFilters(r, f) {
+    if (f.district && r[idx.district] !== f.district) return false;
+    if (f.rooms === '5') {
+      if (!(r[idx.rooms] >= 5)) return false;   // '5+' means five or more
+    } else if (f.rooms && String(r[idx.rooms]) !== f.rooms) return false;
+    // deal_type is always scoped (default sale) — rent flats are priced
+    // monthly and would read as absurd bargains in the sale view. A null
+    // field means the pipeline didn't tag it -> treat as sale (the
+    // historical assumption before rent was scraped).
+    if (f.dtype && (r[idx.deal_type] || 'sale') !== f.dtype) return false;
+    return true;
+  }
+
+  function fmtEur(v) {
+    return v == null ? '—' : '€' + Math.round(v).toLocaleString('en-US');
+  }
+
+  function cell(text, sortVal, alignRight) {
+    var td = document.createElement('td');
+    td.style.padding = '5px';
+    if (alignRight) td.style.textAlign = 'right';
+    if (sortVal !== undefined && sortVal !== null) {
+      td.setAttribute('data-sort', sortVal);
+    }
+    td.textContent = text;
+    return td;
+  }
+
+  function render(matches, maxPrice) {
+    customView.innerHTML = '';
+    var h3 = document.createElement('h3');
+    h3.textContent = 'Within your €' + maxPrice.toLocaleString('en-US') +
+                     ' budget — ' + matches.length + ' listing(s), ranked by deal score';
+    customView.appendChild(h3);
+    var note = document.createElement('p');
+    note.className = 'note';
+    note.textContent = 'All of today\\'s scored listings within this budget ' +
+      '(the daily sections below show the newest/top-N view). ' +
+      'Click column headers to sort.';
+    customView.appendChild(note);
+    if (!matches.length) {
+      var p = document.createElement('p');
+      p.textContent = 'No listings within this budget today.';
+      customView.appendChild(p);
+      return;
+    }
+    var table = document.createElement('table');
+    table.id = 'flat-custom';
+    var headers = ['District', 'Street', 'Distance', 'Rooms', 'm²', 'Floor',
+                   'Price', 'EUR/m²', 'Score', 'Source'];
+    var hr = document.createElement('tr');
+    headers.forEach(function (name, col) {
+      var th = document.createElement('th');
+      th.className = 'sort-th';
+      if (col >= 2 && col <= 8) th.style.textAlign = 'right';
+      th.textContent = name;
+      th.onclick = (function (c) {
+        return function () { sortTable('flat-custom', c); };
+      })(col);
+      hr.appendChild(th);
+    });
+    table.appendChild(hr);
+    matches.forEach(function (r) {
+      var tr = document.createElement('tr');
+      tr.appendChild(cell(r[idx.district] || '?', r[idx.district]));
+      tr.appendChild(cell(r[idx.street] || '—', r[idx.street]));
+      var km = r[idx.school_km];
+      tr.appendChild(cell(km != null ? km.toFixed(1) + ' km' : '—',
+        km != null ? km : 9999, true));
+      tr.appendChild(cell(String(r[idx.rooms] == null ? '—' : r[idx.rooms]), r[idx.rooms], true));
+      tr.appendChild(cell(String(r[idx.area_m2] == null ? '—' : r[idx.area_m2]), r[idx.area_m2], true));
+      tr.appendChild(cell(String(r[idx.floor] == null ? '—' : r[idx.floor]), r[idx.floor], true));
+      tr.appendChild(cell(fmtEur(r[idx.price_eur]), r[idx.price_eur], true));
+      tr.appendChild(cell(r[idx.price_per_m2] != null
+        ? Math.round(r[idx.price_per_m2]).toLocaleString('en-US') : '—',
+        r[idx.price_per_m2], true));
+      var score = r[idx.score];
+      tr.appendChild(cell(score != null ? (+score).toFixed(2) : '—', score, true));
+      var srcTd = cell(r[idx.source] || '', r[idx.source]);
+      var star = document.createElement('button');
+      star.type = 'button';
+      star.className = 'watch-star';
+      star.setAttribute('data-key', r[idx.source] + ':' + r[idx.id]);
+      star.setAttribute('data-label',
+        ((r[idx.street] || r[idx.district] || '?') + ' · ' +
+         (r[idx.rooms] || '?') + ' r · ' +
+         (r[idx.area_m2] || '?') + ' m²'));
+      star.setAttribute('data-price', r[idx.price_eur]);
+      star.setAttribute('data-url', r[idx.url] || '');
+      star.title = 'Watch this listing';
+      star.textContent = '☆';
+      srcTd.textContent = '';
+      srcTd.appendChild(star);
+      if (r[idx.url]) {
+        var a = document.createElement('a');
+        a.href = r[idx.url];
+        a.textContent = r[idx.source] || 'link';
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        srcTd.appendChild(a);
+      }
+      // Signal chips — same motivated/relisted/district badges the
+      // daily tables show (fields appended at _FLAT_FIELDS tail).
+      var chips = [
+        [idx._drop_eur, 'b-cheap', function(v){return '−€'+Math.round(v).toLocaleString('en-US');}],
+        [idx._mot, 'b-mot', function(){return 'MOTIVATED';}],
+        [idx._at_low, 'b-low', function(){return 'LOWEST SEEN';}],
+        [idx._relisted_price, 'b-relist', function(v){
+          return 'RELISTED' + (v ? ' · was €'+Math.round(v).toLocaleString('en-US') : '');}],
+        [idx._vs_district_pct, 'b-cheap', function(v){
+          return v <= -10 ? v+'% vs district' : null;}],
+        [idx._vs_district_pct, 'b-mot', function(v){
+          return v >= 20 ? '+'+v+'% vs district' : null;}],
+        // Gross rental yield on sale rows — same ~X% chip the deal
+        // tables show (district rent median x12 ÷ ask).
+        [idx._district_rent_median, 'b-cheap', function(v, row){
+          var p = row[idx.price_eur];
+          if ((row[idx.deal_type] || 'sale') !== 'sale' || !v || !p) {
+            return null;
+          }
+          var y = v * 12 / p * 100;
+          return (y >= 3 && y <= 20)
+            ? '~' + y.toFixed(1) + '% yield' : null;}]
+      ];
+      chips.forEach(function(c){
+        var i = c[0]; if (i == null) return;
+        var v = r[i]; if (v == null || v === 0) return;
+        var txt = c[2](v, r); if (!txt) return;
+        var s = document.createElement('span');
+        s.className = 'badge ' + c[1];
+        s.textContent = txt;
+        srcTd.appendChild(document.createTextNode(' '));
+        srcTd.appendChild(s);
+      });
+      if (r[idx.deal_type] === 'rent') {
+        var rt = document.createElement('span');
+        rt.className = 'badge b-reg';
+        rt.textContent = 'rent';
+        srcTd.appendChild(document.createTextNode(' '));
+        srcTd.appendChild(rt);
+      }
+      if (r[idx.lat] != null && r[idx.lon] != null &&
+          typeof showOnMap === 'function') {
+        var ml = document.createElement('a');
+        ml.href = '#';
+        ml.textContent = 'map';
+        ml.style.cssText = 'font-size:11px;color:var(--link)';
+        ml.setAttribute('data-key', r[idx.source] + ':' + r[idx.id]);
+        ml.onclick = function () {
+          showOnMap(this.getAttribute('data-key'));
+          return false;
+        };
+        srcTd.appendChild(document.createTextNode(' '));
+        srcTd.appendChild(ml);
+      }
+      // 'seen N d' + own trail — the same line the car custom view prints.
+      var hbits = [];
+      var fs = r[idx._first_seen];
+      if (fs) {
+        var ft = Date.parse(String(fs) + 'T00:00:00Z');
+        if (!isNaN(ft)) {
+          var fdd = Math.max(0, Math.round((Date.now() - ft) / 86400000));
+          hbits.push(fdd > 0 ? 'seen ' + fdd + ' d' : 'seen today');
+        }
+      }
+      var hist = r[idx._price_hist] || [];
+      if (hist.length >= 2) {
+        var htail = hist.slice(-4).map(function (h) { return fmtEur(h[1]); });
+        hbits.push((hist.length > 4 ? '… ' : '') + htail.join(' → '));
+      }
+      if (hbits.length) {
+        srcTd.appendChild(document.createElement('br'));
+        var hsp = document.createElement('span');
+        hsp.style.color = 'var(--muted)';
+        hsp.style.fontSize = '12px';
+        hsp.textContent = hbits.join(' · ');
+        srcTd.appendChild(hsp);
+      }
+      tr.appendChild(srcTd);
+      table.appendChild(tr);
+    });
+    customView.appendChild(table);
+    if (typeof window !== 'undefined' && window.__flatWatchRefresh) {
+      window.__flatWatchRefresh();
+    }
+  }
+
+  function hide() {
+    customView.style.display = 'none';
+    customView.innerHTML = '';
+    if (statusEl) statusEl.textContent = '';
+  }
+
+  var timer = null;
+  function apply() {
+    var raw = String(input.value || '').trim();
+    var maxPrice = parseInt(raw, 10);
+    var minRaw = minInput ? String(minInput.value || '').trim() : '';
+    var floor = parseInt(minRaw, 10);
+    var floorSet = !isNaN(floor) && floor > 0;
+    var filters = readFilters();
+    var filtered = anyFilterSet(filters);
+    if ((!raw || isNaN(maxPrice)) && !floorSet && !filtered) {
+      hide(); return;
+    }
+    if (isNaN(maxPrice)) maxPrice = cfg.maxPrice;  // filters alone
+    maxPrice = Math.max(cfg.minPrice, Math.min(cfg.maxPrice, maxPrice));
+    var matches = rows.filter(function (r) {
+      return r[idx.price_eur] != null && r[idx.price_eur] <= maxPrice &&
+             (!floorSet || r[idx.price_eur] >= floor) &&
+             passesFilters(r, filters);
+    });
+    matches.sort(function (a, b) {
+      var sa = a[idx.score], sb = b[idx.score];
+      if (sa == null && sb == null) return 0;
+      if (sa == null) return 1;
+      if (sb == null) return -1;
+      return sb - sa;
+    });
+    render(matches, maxPrice);
+    customView.style.display = '';
+    if (statusEl) {
+      statusEl.textContent = matches.length + ' of ' + rows.length +
+        ' listings within €' +
+        (floorSet ? floor : cfg.minPrice).toLocaleString('en-US') + '–€' +
+        maxPrice.toLocaleString('en-US');
+    }
+  }
+
+  input.addEventListener('input', function () {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(apply, 150);
+  });
+  if (minInput) minInput.addEventListener('input', function () {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(apply, 150);
+  });
+  [districtSel, roomsSel, dtypeSel].forEach(function (el) {
+    if (el) el.addEventListener('change', function () {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(apply, 150);
+    });
+  });
+  var resetBtn = document.getElementById('flat-budget-reset');
+  if (resetBtn) resetBtn.addEventListener('click', function () {
+    input.value = '';
+    if (minInput) minInput.value = '';
+    [districtSel, roomsSel].forEach(function (el) {
+      if (el) el.value = '';
+    });
+    if (dtypeSel) dtypeSel.value = 'sale';
+    hide();
+  });
+  var okBtn = document.getElementById('flat-budget-ok');
+  if (okBtn) okBtn.addEventListener('click', function () {
+    if (timer) clearTimeout(timer);
+    apply();
+  });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      if (timer) clearTimeout(timer);
+      apply();
+    }
+  });
+  var qs = (typeof location !== 'undefined' && location.search)
+    ? location.search : '';
+  var params = new URLSearchParams(qs);
+  var urlMax = params.get('max');
+  if (urlMax && !isNaN(parseInt(urlMax, 10))) input.value = urlMax;
+  var urlMin = params.get('min');
+  if (urlMin && minInput && !isNaN(parseInt(urlMin, 10))) {
+    minInput.value = urlMin;
+  }
+  var urlActive = !!(urlMax || urlMin);
+  ['district', 'rooms', 'dtype'].forEach(function (name) {
+    var el = document.getElementById('flat-filter-' + name);
+    var v = params.get(name);
+    if (v && el) { el.value = v; urlActive = true; }
+  });
+  if (urlActive) apply();
+  if (typeof window !== 'undefined') {
+    window.__flatBudget = { apply: apply };
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', __flatBudgetInit);
+} else {
+  __flatBudgetInit();
+}
+"""
