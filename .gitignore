@@ -20,7 +20,7 @@ Thumbs.db
 # Local run logs (not needed in repo)
 data/*.log
 
-# NOTE: data/ is committed on purpose (history.csv + seen_ids.json + digests
+# NOTE: data/ is committed on purpose (history.csv + seen_deals.json + digests
 # persist across GitHub Actions runs via git push-back).
 data/*.v1.bak
 data/.main.lock

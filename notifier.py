@@ -142,6 +142,17 @@ def _source_link(listing, extra=""):
             f"{extra}{also_html}")
 
 
+def _map_link(listing, color="var(--link)"):
+    """'map' pseudo-link that pans the Leaflet map to this listing's
+    marker — only when the listing has coordinates (markers are built
+    from all_listings, so every geocoded row has one)."""
+    if not (listing.get('lat') and listing.get('lon')):
+        return ""
+    marker_id = utils.listing_key(listing)
+    return (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
+            f"return false\" style=\"font-size:11px;color:{color}\">map</a>")
+
+
 def _motivated_chips(listing, price_data):
     """'−€X' drop chip + amber MOTIVATED pill when the listing's
     price_history shows a real cut plus staleness or repeated cutting
@@ -155,8 +166,7 @@ def _motivated_chips(listing, price_data):
     bits = [f"<span class='badge b-cheap' "
             f"title='Asking price cut since first listing'>"
             f"−{_fmt_price(info['drop_eur'])}</span>"]
-    if utils.is_motivated(info, config.MOTIVATED_STALE_DAYS_FLAT,
-                          config.MOTIVATED_MIN_DROP_EUR_FLAT):
+    if utils.flat_is_motivated(info):
         why = []
         if info.get("days", 0) >= config.MOTIVATED_STALE_DAYS_FLAT:
             why.append(f"{info['days']} days on market")
@@ -200,12 +210,18 @@ def _vs_district_chip(listing):
     if not med or not ppu:
         return ""
     pct = (ppu - med) / med * 100
-    if pct > -10:
-        return ""
-    return (f" <span class='badge b-cheap' "
-            f"title='{_fmt_ppu(ppu)} vs {_t(str(listing.get('district') or ''))} "
-            f"median {_fmt_ppu(med)}'>"
-            f"{pct:.0f}% vs district</span>")
+    if pct <= -10:
+        return (f" <span class='badge b-cheap' "
+                f"title='{_fmt_ppu(ppu)} vs "
+                f"{_t(str(listing.get('district') or ''))} median "
+                f"{_fmt_ppu(med)}'>"
+                f"{pct:.0f}% vs district</span>")
+    if pct >= 20:
+        return (f" <span class='badge b-mot' "
+                f"title='Priced above the {_t(str(listing.get('district') or ''))} "
+                f"median ({_fmt_ppu(med)}) — watch for a cut'>"
+                f"+{pct:.0f}% vs district</span>")
+    return ""
 
 
 def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0):
@@ -237,12 +253,7 @@ def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0):
     dist_str = _fmt_distance(listing)
     dist_sort = listing.get("_school_km") if listing.get("_school_km") is not None else 9999
 
-    # "map" link — only if the listing has coordinates
-    map_link = ""
-    if listing.get('lat') and listing.get('lon'):
-        marker_id = utils.listing_key(listing)
-        map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
-                    f"return false\" style=\"font-size:11px;color:var(--link)\">map</a>")
+    map_link = _map_link(listing)
 
     return (
         f"<tr{zebra}>"
@@ -287,8 +298,6 @@ def _get_listing_age(listing, price_data=None):
     they differ by more than 5x, the original_price is likely from a different
     deal type (e.g. a sale price showing up for a rental) and is ignored.
     """
-    from datetime import date as _date
-
     if price_data is None:
         return '', '', '', ''
 
@@ -296,6 +305,25 @@ def _get_listing_age(listing, price_data=None):
     entry = price_data.get(key, {})
     cenu = entry.get('cenumednieks')
     current_price = listing.get('price_eur')
+
+    def _pack(date_str, days, first_price):
+        """(listed, days, first, change) 4-tuple for one history source.
+        Days: the source's own figure, else derived from the date.
+        Change: % delta first_price -> current ask."""
+        if days is None:
+            try:
+                days = (date.today()
+                        - date.fromisoformat((date_str or '')[:10])).days
+            except ValueError:
+                days = None
+        change_pct = ''
+        if first_price and current_price and first_price > 0:
+            pct = ((current_price - first_price) / first_price) * 100
+            change_pct = f"{pct:+.1f}%"
+        return ((date_str or '')[:10],
+                str(days) if days is not None else '',
+                _fmt_price(first_price) if first_price else '',
+                change_pct)
 
     # Prefer CenuMednieks first_listed_date (true original listing date)
     if cenu and cenu.get('first_listed_date'):
@@ -308,27 +336,7 @@ def _get_listing_age(listing, price_data=None):
             ratio = max(first_price, current_price) / min(first_price, current_price)
             if ratio > 5.0:
                 first_price = None  # discard, fall back below
-        if days is None:
-            try:
-                d = _date.fromisoformat(listed[:10])
-                days = (_date.today() - d).days
-            except ValueError:
-                days = None
-        # Calculate price change percentage
-        change_pct = ''
-        if first_price and current_price and first_price > 0:
-            pct = ((current_price - first_price) / first_price) * 100
-            change_pct = f"{pct:+.1f}%"
-        if first_price:
-            return (listed[:10],
-                    str(days) if days is not None else '',
-                    _fmt_price(first_price),
-                    change_pct)
-        # first_price was discarded — still return the date/days but no price
-        return (listed[:10],
-                str(days) if days is not None else '',
-                '',
-                '')
+        return _pack(listed, days, first_price)
 
     # Fall back to our own tracking.
     # Use first_seen (set once, never overwritten) for the date, and
@@ -338,20 +346,7 @@ def _get_listing_age(listing, price_data=None):
     if first_seen or our:
         first_date = first_seen or (our[0].get('date', '') if our else '')
         first_price = our[0].get('price') if our else None
-        days = None
-        try:
-            d = _date.fromisoformat(first_date[:10])
-            days = (_date.today() - d).days
-        except ValueError:
-            pass
-        change_pct = ''
-        if first_price and current_price and first_price > 0:
-            pct = ((current_price - first_price) / first_price) * 100
-            change_pct = f"{pct:+.1f}%"
-        return (first_date[:10],
-                str(days) if days is not None else '',
-                _fmt_price(first_price) if first_price else '',
-                change_pct)
+        return _pack(first_date, None, first_price)
 
     return '', '', '', ''
 
@@ -466,12 +461,7 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
         deal_type = _t(listing.get('deal_type', '?'))
         source = listing.get('source', '')
 
-        # "map" link if coordinates available
-        map_link = ""
-        if listing.get('lat') and listing.get('lon'):
-            marker_id = utils.listing_key(listing)
-            map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
-                        f"return false\" style=\"font-size:11px;color:var(--link)\">map</a>")
+        map_link = _map_link(listing)
 
         zebra = ' class="z"' if idx % 2 else ''
         rows.append(
@@ -556,11 +546,7 @@ def build_near_school_html(all_listings):
         ppu_val = l.get('price_per_m2', 0) or 0
         source = l.get('source', '')
 
-        map_link = ""
-        if l.get('lat') and l.get('lon'):
-            marker_id = utils.listing_key(l)
-            map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
-                        f"return false\" style=\"font-size:11px;color:var(--link)\">map</a>")
+        map_link = _map_link(l)
 
         zebra = ' class="z"' if idx % 2 else ''
         share = ""
@@ -652,12 +638,21 @@ def build_gone_html(gone, price_data=None, today=None):
         src = _t(src_raw)
         if src_raw == "izsoles.ta.gov.lv":
             src += " <span style='color:var(--auction)'>· auction</span>"
+        # "cut before gone" — the ask dropped before the ad vanished:
+        # usually means it sold fast once the price hit the right level.
+        cut_tag = ""
+        _tp = [utils.to_float(o.get("price") or o.get("p"))
+               for o in (entry.get("our_tracking") or [])]
+        _tp = [p for p in _tp if p]
+        if len(_tp) >= 2 and _tp[-1] < _tp[0]:
+            cut_tag = (f"<br><span style='font-size:11px;color:var(--good)'>"
+                       f"−{_fmt_price(_tp[0] - _tp[-1])} before gone</span>")
         rows.append(
             f'<tr{zebra}>'
             f"<td style='font-size:13px'>{_t(r.get('d') or '')}</td>"
             f"<td style='font-size:13px'>{_t(r.get('s') or '—')}</td>"
             f"<td style='text-align:right;font-weight:bold'>"
-            f"{_fmt_price(r.get('p')) if r.get('p') else '-'}</td>"
+            f"{_fmt_price(r.get('p')) if r.get('p') else '-'}{cut_tag}</td>"
             f"<td style='text-align:right;color:var(--muted)'>{listed}</td>"
             f"<td style='font-size:12px;color:var(--faint)'>{src}</td>"
             f"<td style='font-size:12px'>{link}</td>"
@@ -822,10 +817,18 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None,
             sp_disp += (f"<br><span style='font-size:11px;color:var(--muted)'>"
                         f"dep. {_fmt_price(dep)}</span>")
         cb = a.get("auction_current_bid")
+        # FIRST BID: yesterday's effective price was still the start
+        # price (no bids) and a real bid exists now — the lot just
+        # attracted its first competition.
+        first_bid = ""
+        if (cb and sp and prev_p is not None and prev_p <= sp):
+            first_bid = ("<br><span class='badge b-new' "
+                         "title='No bids yesterday — the first bid "
+                         "just landed'>FIRST BID</span>")
         cb_disp = (_fmt_price(cb) if cb else
                    "<span class='badge b-ended' "
                    "title='No bids placed yet — weak competition so far'>"
-                   "no bids yet</span>") + bid_delta
+                   "no bids yet</span>") + bid_delta + first_bid
         cb_style = "font-weight:bold" if cb else "color:var(--faint)"
         ap = a.get("auction_appraisal")
         ap_disp = _fmt_price(ap) if ap else "-"
@@ -853,11 +856,7 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None,
             end += (f"<br><span style='font-size:11px;color:var(--muted)'>reg. by "
                     f"{_t(reg)}</span>")
 
-        map_link = ""
-        if a.get("lat") and a.get("lon"):
-            marker_id = utils.listing_key(a)
-            map_link = (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
-                        f"return false\" style=\"font-size:11px;color:var(--auction)\">map</a>")
+        map_link = _map_link(a, "var(--auction)")
 
         zebra = ' class="z"' if idx % 2 else ''
         rows.append(
@@ -956,10 +955,16 @@ _FLAT_FIELDS = ("district", "rooms", "area_m2", "floor", "price_eur",
                 # custom view (chips: −€X, MOTIVATED, LOWEST, RELISTED,
                 # −X% vs district). Null when the signal doesn't apply.
                 "_drop_eur", "_mot", "_at_low", "_relisted_price",
-                "_vs_district_pct")
+                "_vs_district_pct",
+                # sale/rent — without it rent flats leak into the sale
+                # budget view (a €600/mo ad looks like an absurd bargain).
+                "deal_type",
+                # coordinates + our own trail, for the map link and the
+                # 'seen N d' line in the custom view (car-view parity).
+                "lat", "lon", "_first_seen", "_price_hist")
 
 # Dictionary-encoded like the car embed (see car_digest._MARKET_DICT_FIELDS)
-_FLAT_DICT_FIELDS = ("district", "source")
+_FLAT_DICT_FIELDS = ("district", "source", "deal_type", "_first_seen")
 
 
 def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
@@ -984,8 +989,7 @@ def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
         if info:
             if info.get("drop_eur"):
                 drop = round(info["drop_eur"])
-            if utils.is_motivated(info, config.MOTIVATED_STALE_DAYS_FLAT,
-                                  config.MOTIVATED_MIN_DROP_EUR_FLAT):
+            if utils.flat_is_motivated(info):
                 mot = 1
             if info.get("at_low"):
                 low = 1
@@ -995,6 +999,10 @@ def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
         ppu = utils.to_float(listing.get("price_per_m2"))
         if med and ppu:
             vs = round((ppu - med) / med * 100)
+        entry = price_data.get(key) or {}
+        hist = [[p.get("date"), p.get("price")]
+                for p in (entry.get("our_tracking") or [])
+                if p.get("price") is not None]
         return [
             listing.get("district"), listing.get("rooms"),
             listing.get("area_m2"), listing.get("floor"),
@@ -1003,6 +1011,9 @@ def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
             listing.get("source"), url, listing.get("id"),
             listing.get("street"),
             drop, mot, low, relisted, vs,
+            listing.get("deal_type"),
+            listing.get("lat"), listing.get("lon"),
+            entry.get("first_seen"), hist or None,
         ]
 
     rows = []
@@ -1083,6 +1094,7 @@ function __flatBudgetInit() {
   var rows = payload.rows.concat(payload.extra || []);
   var districtSel = document.getElementById('flat-filter-district');
   var roomsSel = document.getElementById('flat-filter-rooms');
+  var dtypeSel = document.getElementById('flat-filter-dtype');
 
   // Fill the district dropdown from today's data.
   if (districtSel) {
@@ -1098,7 +1110,8 @@ function __flatBudgetInit() {
   function readFilters() {
     return {
       district: districtSel && districtSel.value ? districtSel.value : '',
-      rooms: roomsSel && roomsSel.value ? roomsSel.value : ''
+      rooms: roomsSel && roomsSel.value ? roomsSel.value : '',
+      dtype: dtypeSel ? dtypeSel.value : 'sale'
     };
   }
   function anyFilterSet(f) { return !!(f.district || f.rooms); }
@@ -1107,6 +1120,11 @@ function __flatBudgetInit() {
     if (f.rooms === '5') {
       if (!(r[idx.rooms] >= 5)) return false;   // '5+' means five or more
     } else if (f.rooms && String(r[idx.rooms]) !== f.rooms) return false;
+    // deal_type is always scoped (default sale) — rent flats are priced
+    // monthly and would read as absurd bargains in the sale view. A null
+    // field means the pipeline didn't tag it -> treat as sale (the
+    // historical assumption before rent was scraped).
+    if (f.dtype && (r[idx.deal_type] || 'sale') !== f.dtype) return false;
     return true;
   }
 
@@ -1207,7 +1225,9 @@ function __flatBudgetInit() {
         [idx._relisted_price, 'b-relist', function(v){
           return 'RELISTED' + (v ? ' · was €'+Math.round(v).toLocaleString('en-US') : '');}],
         [idx._vs_district_pct, 'b-cheap', function(v){
-          return v <= -10 ? v+'% vs district' : null;}]
+          return v <= -10 ? v+'% vs district' : null;}],
+        [idx._vs_district_pct, 'b-mot', function(v){
+          return v >= 20 ? '+'+v+'% vs district' : null;}]
       ];
       chips.forEach(function(c){
         var i = c[0]; if (i == null) return;
@@ -1219,6 +1239,50 @@ function __flatBudgetInit() {
         srcTd.appendChild(document.createTextNode(' '));
         srcTd.appendChild(s);
       });
+      if (r[idx.deal_type] === 'rent') {
+        var rt = document.createElement('span');
+        rt.className = 'badge b-reg';
+        rt.textContent = 'rent';
+        srcTd.appendChild(document.createTextNode(' '));
+        srcTd.appendChild(rt);
+      }
+      if (r[idx.lat] != null && r[idx.lon] != null &&
+          typeof showOnMap === 'function') {
+        var ml = document.createElement('a');
+        ml.href = '#';
+        ml.textContent = 'map';
+        ml.style.cssText = 'font-size:11px;color:var(--link)';
+        ml.setAttribute('data-key', r[idx.source] + ':' + r[idx.id]);
+        ml.onclick = function () {
+          showOnMap(this.getAttribute('data-key'));
+          return false;
+        };
+        srcTd.appendChild(document.createTextNode(' '));
+        srcTd.appendChild(ml);
+      }
+      // 'seen N d' + own trail — the same line the car custom view prints.
+      var hbits = [];
+      var fs = r[idx._first_seen];
+      if (fs) {
+        var ft = Date.parse(String(fs) + 'T00:00:00Z');
+        if (!isNaN(ft)) {
+          var fdd = Math.max(0, Math.round((Date.now() - ft) / 86400000));
+          hbits.push(fdd > 0 ? 'seen ' + fdd + ' d' : 'seen today');
+        }
+      }
+      var hist = r[idx._price_hist] || [];
+      if (hist.length >= 2) {
+        var htail = hist.slice(-4).map(function (h) { return fmtEur(h[1]); });
+        hbits.push((hist.length > 4 ? '… ' : '') + htail.join(' → '));
+      }
+      if (hbits.length) {
+        srcTd.appendChild(document.createElement('br'));
+        var hsp = document.createElement('span');
+        hsp.style.color = 'var(--muted)';
+        hsp.style.fontSize = '12px';
+        hsp.textContent = hbits.join(' · ');
+        srcTd.appendChild(hsp);
+      }
       tr.appendChild(srcTd);
       table.appendChild(tr);
     });
@@ -1266,7 +1330,7 @@ function __flatBudgetInit() {
     if (timer) clearTimeout(timer);
     timer = setTimeout(apply, 150);
   });
-  [districtSel, roomsSel].forEach(function (el) {
+  [districtSel, roomsSel, dtypeSel].forEach(function (el) {
     if (el) el.addEventListener('change', function () {
       if (timer) clearTimeout(timer);
       timer = setTimeout(apply, 150);
@@ -1278,6 +1342,7 @@ function __flatBudgetInit() {
     [districtSel, roomsSel].forEach(function (el) {
       if (el) el.value = '';
     });
+    if (dtypeSel) dtypeSel.value = 'sale';
     hide();
   });
   var okBtn = document.getElementById('flat-budget-ok');
@@ -1297,7 +1362,7 @@ function __flatBudgetInit() {
   var urlMax = params.get('max');
   if (urlMax && !isNaN(parseInt(urlMax, 10))) input.value = urlMax;
   var urlActive = !!urlMax;
-  ['district', 'rooms'].forEach(function (name) {
+  ['district', 'rooms', 'dtype'].forEach(function (name) {
     var el = document.getElementById('flat-filter-' + name);
     var v = params.get(name);
     if (v && el) { el.value = v; urlActive = true; }
@@ -1319,180 +1384,8 @@ if (document.readyState === 'loading') {
 # (key watch_flats_v1). A watched flat missing from today's embedded data
 # is flagged "no longer listed" (sold or ad expired). Same mechanism as
 # CAR_WATCH_JS in car_digest.py.
-FLAT_WATCH_JS = """
-function __flatWatchInit() {
-  var dataEl = document.getElementById('flat-listings-data');
-  var box = document.getElementById('flat-watch-box');
-  var listEl = document.getElementById('flat-watch-list');
-  var countEl = document.getElementById('flat-watch-count');
-  if (!dataEl || !box || !listEl) return;
-  if (typeof localStorage === 'undefined') return;
-  var payload = JSON.parse(dataEl.textContent);
-  var F = payload.fields, idx = {};
-  F.forEach(function (f, i) { idx[f] = i; });
-  if (payload.dict) {
-    Object.keys(payload.dict).forEach(function (f) {
-      var i = idx[f], dict = payload.dict[f];
-      (payload.rows || []).concat(payload.extra || []).forEach(function (r) {
-        if (r[i] != null) r[i] = dict[r[i]];
-      });
-    });
-  }
-  var byKey = {};
-  payload.rows.forEach(function (r) {
-    if (r[idx.source] != null && r[idx.id] != null)
-      byKey[r[idx.source] + ':' + r[idx.id]] = r;
-  });
-  (payload.extra || []).forEach(function (r) {
-    if (r[idx.source] != null && r[idx.id] != null) {
-      var k = r[idx.source] + ':' + r[idx.id];
-      if (!byKey[k]) byKey[k] = r;
-    }
-  });
-  var KEY = 'watch_flats_v1';
-  function load() {
-    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
-    catch (e) { return {}; }
-  }
-  function save(w) {
-    try { localStorage.setItem(KEY, JSON.stringify(w)); } catch (e) {}
-  }
-  function fmtEur(v) {
-    return v == null ? '—' : '€' + Math.round(Number(v)).toLocaleString('en-US');
-  }
-
-  function refreshStars() {
-    if (!document.querySelectorAll) return;
-    var w = load();
-    Array.prototype.forEach.call(
-      document.querySelectorAll('.watch-star'), function (s) {
-        s.textContent = w[s.getAttribute('data-key')] ? '★' : '☆';
-      });
-  }
-
-  function toggle(btn) {
-    var key = btn.getAttribute('data-key');
-    if (!key) return;
-    var w = load();
-    if (w[key]) {
-      delete w[key];
-    } else {
-      w[key] = {
-        added: new Date().toISOString().slice(0, 10),
-        label: btn.getAttribute('data-label') || key,
-        price: parseFloat(btn.getAttribute('data-price')),
-        url: btn.getAttribute('data-url') || ''
-      };
-    }
-    save(w);
-    refreshStars();
-    renderBox();
-  }
-
-  function remove(key) {
-    var w = load();
-    delete w[key];
-    save(w);
-    refreshStars();
-    renderBox();
-  }
-
-  function renderBox() {
-    var w = load();
-    var keys = Object.keys(w).sort(function (a, b) {
-      return String(w[b].added || '').localeCompare(String(w[a].added || ''));
-    });
-    if (countEl) countEl.textContent = '(' + keys.length + ')';
-    listEl.innerHTML = '';
-    if (!keys.length) {
-      var p = document.createElement('p');
-      p.className = 'note';
-      p.textContent = 'Nothing starred yet — click ☆ on a listing to pin it here.';
-      listEl.appendChild(p);
-      return;
-    }
-    var table = document.createElement('table');
-    keys.forEach(function (key) {
-      var w0 = w[key];
-      var cur = byKey[key];
-      var tr = document.createElement('tr');
-      var td = document.createElement('td');
-      td.style.padding = '6px';
-      var rm = document.createElement('button');
-      rm.type = 'button';
-      rm.className = 'watch-remove';
-      rm.setAttribute('data-key', key);
-      rm.title = 'Stop watching';
-      rm.textContent = '✕';
-      rm.style.cssText = 'border:0;background:none;color:var(--bad);cursor:pointer;margin-right:6px';
-      td.appendChild(rm);
-      var label = w0.label || key;
-      var url = (cur && cur[idx.url]) ? cur[idx.url] : (w0.url || '');
-      if (url) {
-        var a = document.createElement('a');
-        a.href = url;
-        a.textContent = label;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        td.appendChild(a);
-      } else {
-        td.appendChild(document.createTextNode(label));
-      }
-      var meta = document.createElement('span');
-      meta.style.fontSize = '12px';
-      var delta = null;
-      if (cur) {
-        meta.style.color = 'var(--muted)';
-        meta.textContent = ' — ' + fmtEur(cur[idx.price_eur]) +
-          ' · still listed today';
-        var p0 = Number(w0.price), p1 = Number(cur[idx.price_eur]);
-        if (isFinite(p0) && isFinite(p1) && Math.abs(p1 - p0) >= 1) {
-          delta = document.createElement('span');
-          delta.style.color = p1 < p0 ? 'var(--good)' : 'var(--bad)';
-          delta.style.fontWeight = 'bold';
-          delta.style.fontSize = '12px';
-          delta.textContent = ' ' + (p1 < p0 ? '▼' : '▲') + ' ' +
-            fmtEur(Math.abs(p1 - p0)) + ' since starred';
-        }
-      } else {
-        meta.style.color = 'var(--bad)';
-        meta.textContent = ' — last seen ' + fmtEur(w0.price) +
-          ' · NO LONGER LISTED (sold or expired)';
-      }
-      td.appendChild(meta);
-      if (delta) td.appendChild(delta);
-      var since = document.createElement('span');
-      since.style.color = 'var(--faint)';
-      since.style.fontSize = '11px';
-      since.textContent = ' · watching since ' + (w0.added || '?');
-      td.appendChild(since);
-      tr.appendChild(td);
-      table.appendChild(tr);
-    });
-    listEl.appendChild(table);
-  }
-
-  document.addEventListener('click', function (e) {
-    var t = e.target;
-    if (!t || !t.getAttribute || !t.classList) return;
-    if (t.classList.contains('watch-star')) { toggle(t); }
-    else if (t.classList.contains('watch-remove')) {
-      remove(t.getAttribute('data-key'));
-    }
-  });
-  refreshStars();
-  renderBox();
-  if (typeof window !== 'undefined') {
-    window.__flatWatch = { toggle: toggle, renderBox: renderBox, load: load };
-    window.__flatWatchRefresh = refreshStars;
-  }
-}
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', __flatWatchInit);
-} else {
-  __flatWatchInit();
-}
-"""
+FLAT_WATCH_JS = web_style.watch_js("flat", "flat-listings-data",
+                                    "watch_flats_v1")
 
 
 def build_price_cuts_html(all_listings, price_data, top_n=None):
@@ -1519,15 +1412,13 @@ def build_price_cuts_html(all_listings, price_data, top_n=None):
     rows = []
     for idx, (l, info) in enumerate(cuts):
         zebra = ' class="z"' if idx % 2 else ''
-        mot = (utils.is_motivated(info, config.MOTIVATED_STALE_DAYS_FLAT,
-                                  config.MOTIVATED_MIN_DROP_EUR_FLAT)
-               and " <span class='badge b-mot' "
-                   "title='Stale listing + real cut: seller may be "
-                   "negotiable'>MOTIVATED</span>" or "")
+        mot = (web_style.motivated_badge()
+               if utils.flat_is_motivated(info) else "")
         days = f"{info['days']}d" if info.get("days") else "?"
         url = utils.safe_url(l.get('url', ''))
         title = _t(l.get('street') or l.get('title') or l.get('district') or '?')
         title_cell = f"<a href='{url}'>{title}</a>" if url else title
+        map_link = _map_link(l)
         rows.append(
             f"<tr{zebra}>"
             f"<td>{_t(l.get('district',''))}</td>"
@@ -1540,7 +1431,7 @@ def build_price_cuts_html(all_listings, price_data, top_n=None):
             f"(−{info['drop_pct']:.0f}%)</td>"
             f"<td style='text-align:right' data-sort='{info.get('days',0)}'>"
             f"{days}</td>"
-            f"<td>{_source_link(l)}{mot}</td>"
+            f"<td>{_source_link(l)}{mot}{map_link}</td>"
             "</tr>")
     return (
         "<div class='card'>"
@@ -1561,11 +1452,11 @@ def build_price_cuts_html(all_listings, price_data, top_n=None):
 
 
 def build_html(main_deals, still_active, comparison_html, status_note,
-               price_data=None, map_markers=None,
+               *, price_data=None, map_markers=None,
                newest_html="", near_school_html="", auctions_html="",
                all_scored=None, all_listings=None, gone_html="",
                source_counts=None, health_pairs=None, n_auctions=None,
-               auctions_failed=False, n_gone=None):
+               auctions_failed=False, n_gone=None, market_pulse=None):
     today = date.today().isoformat()
     run_time = _now_header_str()
     sections = []
@@ -1622,7 +1513,11 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             "<select id='flat-filter-rooms'><option value=''>Any rooms"
             "</option><option value='1'>1</option><option value='2'>2</option>"
             "<option value='3'>3</option><option value='4'>4</option>"
-            "<option value='5'>5+</option></select>"
+            "<option value='5'>5+</option></select> "
+            "<select id='flat-filter-dtype'>"
+            "<option value='sale'>For sale</option>"
+            "<option value='rent'>For rent</option>"
+            "<option value=''>Any type</option></select>"
             "</div>"
             f"<p class='note' style='margin:6px 0 0'>Enter a maximum price "
             f"(from €{config.MIN_SALE_PRICE_EUR:,} up) and/or pick "
@@ -1683,6 +1578,20 @@ def build_html(main_deals, still_active, comparison_html, status_note,
         kpis.append(web_style.kpi("gone", n_gone, "warn"))
     if health_pairs:
         kpis.append(web_style.kpi("health issues", len(health_pairs), "bad"))
+    if market_pulse and market_pulse.get("ppu"):
+        _d = market_pulse.get("delta")
+        _dt = f" · Δ7d {_d:+.1f}%" if _d is not None else ""
+        kpis.append(web_style.kpi(
+            "Riga median", f"€{int(round(market_pulse['ppu'])):,}/m²{_dt}"))
+    n_mot = 0
+    if price_data and all_listings:
+        for _l in all_listings:
+            _info = utils.flat_motivated(
+                price_data.get(utils.listing_key(_l)))
+            if utils.flat_is_motivated(_info):
+                n_mot += 1
+    if n_mot:
+        kpis.append(web_style.kpi("motivated", n_mot, "good"))
     kpi_html = f"<div class='kpis'>{''.join(kpis)}</div>"
 
     _STYLE = web_style.style_block()
@@ -1703,13 +1612,14 @@ def build_html(main_deals, still_active, comparison_html, status_note,
 {flat_watch_script}
 </head><body>
 {web_style.THEME_TOGGLE_HTML}
+{web_style.TOP_BTN_HTML}
 <h2>Riga flat deals - {run_time}</h2>
 <p>Districts: {', '.join(config.DISTRICTS.keys())} &middot; Sources:
 ss.com, city24.lv{', izsoles.ta.gov.lv (auctions)' if config.IZSOLES_ENABLED else ''}</p>
 <p class="note">Scoring: {status_note}</p>
 <p class="note">Sale ranking: 50% deal score + 50% walking distance to
 {config.SCHOOL_NAME} (shown in the Distance column). New builds excluded.
-Sales only — rentals are out of scope.</p>
+Rentals are scraped too — pick "For rent" in the budget tool below.</p>
 {coverage_note}
 {kpi_html}
 {flat_budget_html}
@@ -1720,13 +1630,13 @@ Sales only — rentals are out of scope.</p>
 href="#sec-school">Near school</a><a href="#sec-auctions">Auctions</a><a
 href="#sec-cuts">Price cuts</a><a href="#sec-gone">Gone</a><a
 href="#sec-map">Map</a></p>
-<div id="sec-gone">{gone_html}</div>
-<div id="sec-cuts">{price_cuts_html}</div>
-<div id="sec-map">{map_html}</div>
+<div id="sec-deals">{body_sections}</div>
+<div id="sec-newest">{newest_html}</div>
 <div id="sec-school">{near_school_html}</div>
 <div id="sec-auctions">{auctions_html}</div>
-<div id="sec-newest">{newest_html}</div>
-<div id="sec-deals">{body_sections}</div>
+<div id="sec-cuts">{price_cuts_html}</div>
+<div id="sec-gone">{gone_html}</div>
+<div id="sec-map">{map_html}</div>
 <hr><p class="note">Generated by Flat_Searcher. Higher deal score = cheaper than
 expected for its size/floor/district. Always verify on the source site before
 contacting.</p>
@@ -1743,8 +1653,6 @@ def _build_map_html(markers):
     """
     if not markers:
         return ""
-
-    import json as _json
 
     center_lat, center_lon = 56.95, 24.10
     zoom = 12
@@ -1770,13 +1678,16 @@ def _build_map_html(markers):
         })
 
     # '</' -> '<\/' so a popup string can never terminate the <script> tag
-    js_data = _json.dumps(js_markers, ensure_ascii=False).replace("</", "<\\/")
-    n_markers = len(js_markers)
+    js_data = json.dumps(js_markers, ensure_ascii=False).replace("</", "<\\/")
+    n_school = sum(1 for m in js_markers if m["school"])
+    n_list = len(js_markers) - n_school
+    map_title = (f"Map ({n_list} listings"
+                 f"{' + school' if n_school else ''})")
 
     return f"""
 <!-- Inline map at bottom -->
 <div id="map-container">
-  <div class="map-header">Map ({n_markers - 1} listings + school)</div>
+  <div class="map-header">{map_title}</div>
   <div id="map"></div>
 </div>
 <script>
@@ -1834,18 +1745,23 @@ function showOnMap(markerId) {{
 
 
 def save_digest(main_deals, still_active, comparison_html, status_note,
-                price_data=None, map_markers=None, newest_html="",
+                *, price_data=None, map_markers=None, newest_html="",
                 near_school_html="", auctions_html="", all_scored=None,
                 all_listings=None, gone_html="", source_counts=None,
+                market_pulse=None,
                 health_pairs=None, n_auctions=None, auctions_failed=False,
                 n_gone=None):
     """Build today's digest and write it to data/digests/. Returns (path, info)."""
     html = build_html(main_deals, still_active, comparison_html, status_note,
-                      price_data, map_markers, newest_html,
-                      near_school_html, auctions_html, all_scored,
-                      all_listings, gone_html, source_counts=source_counts,
+                      price_data=price_data, map_markers=map_markers,
+                      newest_html=newest_html,
+                      near_school_html=near_school_html,
+                      auctions_html=auctions_html, all_scored=all_scored,
+                      all_listings=all_listings, gone_html=gone_html,
+                      source_counts=source_counts,
                       health_pairs=health_pairs, n_auctions=n_auctions,
-                      auctions_failed=auctions_failed, n_gone=n_gone)
+                      auctions_failed=auctions_failed, n_gone=n_gone,
+                      market_pulse=market_pulse)
     today = date.today().isoformat()
     digest_path = os.path.join(config.DIGEST_DIR, f"digest_{today}.html")
     utils.write_text(digest_path, html)

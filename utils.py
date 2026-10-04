@@ -182,11 +182,11 @@ def flat_motivated(entry):
         return None
     c = entry.get("cenumednieks") or {}
     op, cp = c.get("original_price"), c.get("current_price")
-    drop_eur = drop_pct = 0.0
+    cenu_drop = cenu_pct = 0.0
     try:
         if op and cp and float(cp) < float(op):
-            drop_eur = float(op) - float(cp)
-            drop_pct = drop_eur / float(op) * 100
+            cenu_drop = float(op) - float(cp)
+            cenu_pct = cenu_drop / float(op) * 100
     except (TypeError, ValueError):
         pass
     # our_tracking rows are {"date", "price"} dicts (price_history writes
@@ -200,10 +200,17 @@ def flat_motivated(entry):
         if v is not None:
             obs.append(v)
     own_drops = sum(1 for a, b in zip(obs, obs[1:]) if b < a)
-    # No cenu data at all -> fall back to our own trail only.
-    if not c and len(obs) >= 2 and obs[-1] < obs[0]:
-        drop_eur = float(obs[0]) - float(obs[-1])
-        drop_pct = drop_eur / float(obs[0]) * 100
+    own_drop = own_pct = 0.0
+    if len(obs) >= 2 and obs[-1] < obs[0]:
+        own_drop = float(obs[0]) - float(obs[-1])
+        own_pct = own_drop / float(obs[0]) * 100
+    # Take the larger signal: cenu normally wins (longer history), but a
+    # cenu dict without usable prices must not shadow a real own-trail
+    # drop (a bare {days_on_market} cenu used to zero out the drop).
+    if cenu_drop >= own_drop:
+        drop_eur, drop_pct, was, now = cenu_drop, cenu_pct, op, cp
+    else:
+        drop_eur, drop_pct, was, now = own_drop, own_pct, obs[0], obs[-1]
     if not drop_eur and not own_drops and not c:
         return None
     # at_low: current ask is the lowest point in the whole observed
@@ -223,8 +230,8 @@ def flat_motivated(entry):
         "relists": len(c.get("previous_listings") or []),
         "trail_drops": own_drops,
         "at_low": at_low,
-        "was": op if drop_eur and c else (obs[0] if drop_eur else None),
-        "now": cp if drop_eur and c else (obs[-1] if drop_eur else None),
+        "was": was if drop_eur else None,
+        "now": now if drop_eur else None,
     }
 
 
@@ -232,8 +239,17 @@ def car_motivated(l, today=None):
     """car listing dict -> motivated-seller info dict, or None.
 
     Uses the _price_hist trail and _first_seen annotation cars.run()
-    attaches from car_seen.json. days = days since first seen."""
+    attaches from car_seen.json. days = days since first seen.
+    A _relisted annotation contributes the vanished ad's last ask as the
+    trail's first point — reposting under a new id wipes _price_hist, so
+    without it a repost-at-a-cut would look like a brand-new ad."""
     hist = []
+    r = l.get("_relisted") or {}
+    try:
+        if r.get("p") is not None and r.get("gone"):
+            hist.append((str(r["gone"]), float(r["p"])))
+    except (TypeError, ValueError):
+        pass
     for point in l.get("_price_hist") or []:
         try:
             hist.append((point[0], float(point[1])))
@@ -259,7 +275,8 @@ def car_motivated(l, today=None):
                   and len(set(prices)) > 1)
     return {
         "drop_eur": drop_eur, "drop_pct": drop_pct, "days": days,
-        "relists": 0, "trail_drops": n_drops, "at_low": at_low,
+        "relists": 1 if r.get("p") is not None else 0,
+        "trail_drops": n_drops, "at_low": at_low,
         "was": hist[0][1] if drop_eur else None,
         "now": hist[-1][1] if drop_eur else None,
     }
@@ -272,6 +289,19 @@ def is_motivated(info, stale_days, min_drop_eur):
     repeated = (info.get("trail_drops", 0) >= config.MOTIVATED_MIN_TRAIL_DROPS
                 or info.get("relists", 0) >= config.MOTIVATED_MIN_RELISTINGS)
     return info.get("days", 0) >= stale_days or repeated
+
+
+def flat_is_motivated(info):
+    """is_motivated() with the flat thresholds from config — single home
+    for the (stale_days, min_drop_eur) pair callers used to repeat."""
+    return is_motivated(info, config.MOTIVATED_STALE_DAYS_FLAT,
+                        config.MOTIVATED_MIN_DROP_EUR_FLAT)
+
+
+def car_is_motivated(info):
+    """is_motivated() with the car thresholds from config."""
+    return is_motivated(info, config.MOTIVATED_STALE_DAYS_CAR,
+                        config.MOTIVATED_MIN_DROP_EUR_CAR)
 
 
 def older_than_days(date_str, days, today=None):

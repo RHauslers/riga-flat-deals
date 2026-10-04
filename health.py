@@ -18,6 +18,8 @@ Detected conditions:
                         the source's street text (2026-09-30: 13% of SS.com
                         flats silently had no position for weeks)
 """
+from datetime import date as _date
+
 import config
 import utils
 
@@ -31,7 +33,6 @@ def update_streaks(statuses, today=None, path=None):
     {key: fail_days} for streaks >= 2 — a 1-day blip stays quiet, a
     persistent outage escalates onto the digest banner.
     """
-    from datetime import date as _date
     today = today or _date.today().isoformat()
     path = path or config.HEALTH_STATE_JSON
     st = utils.read_json(path, {})

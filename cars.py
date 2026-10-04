@@ -115,36 +115,6 @@ def load_snapshot(path=None):
     return data
 
 
-def _ineligible_reason(l):
-    """Coarse single reason a listing failed car_value.eligible()."""
-    price, year = l.get("price_eur"), l.get("year")
-    mileage = l.get("mileage_km")
-    if price is None:
-        return "missing price"
-    try:
-        if not (config.CAR_MIN_PRICE_EUR <= float(price) <= config.CAR_COMPARABLE_MAX_PRICE_EUR):
-            return "price out of range"
-    except (TypeError, ValueError):
-        return "missing price"
-    if (not isinstance(year, int)
-            or not config.CAR_MIN_YEAR <= year <= date.today().year + 1):
-        return "year out of range"
-    if mileage is None:
-        return "missing mileage"
-    try:
-        if float(mileage) > config.CAR_MAX_MILEAGE_KM:
-            return "mileage too high"
-    except (TypeError, ValueError):
-        return "missing mileage"
-    if not l.get("make") or not l.get("model"):
-        return "missing make/model"
-    if l.get("fuel") not in config.CAR_FUEL_TYPES:
-        return "unknown fuel"
-    if l.get("fuel") != "electric" and not l.get("engine_l"):
-        return "missing engine"
-    return "ineligible"
-
-
 def _badge(entry, price, today=None):
     """Badge for a qualified listing based on its previous shown state."""
     today = today or date.today().isoformat()
@@ -215,7 +185,7 @@ def run():
                 eligible_listings.append(l)
                 n_ok += 1
             else:
-                reason = _ineligible_reason(l)
+                reason = car_value.ineligible_reason(l)
                 drop_reasons[reason] = drop_reasons.get(reason, 0) + 1
         source_counts[name] = {"raw": len(items), "eligible": n_ok}
         if n_ok == 0 and name not in source_errors:
@@ -256,10 +226,23 @@ def run():
     # only for sources that produced data (a silent source may have
     # failed, not sold out).
     ok_source_names = {n for n, _ in SOURCES if n not in source_errors}
+    today_keys = {utils.listing_key(l) for l in deduped}
+    prev_car_rows = gone.car_snapshot_rows(prev_snapshot.get("listings"))
     gone_car_rows = gone.gone_rows(
-        gone.car_snapshot_rows(prev_snapshot.get("listings")),
-        {utils.listing_key(l) for l in deduped},
-        ok_source_names, config.CAR_GONE_MAX_ROWS)
+        prev_car_rows, today_keys, ok_source_names, config.CAR_GONE_MAX_ROWS)
+
+    # RELISTED — a car that vanished recently and is back under a new ad
+    # id (same make/model/year/fuel + ~same odometer). Reposting is the
+    # classic "needs to sell" move, and the fresh id wipes the price
+    # trail, so the prior ask has to be reattached here for the drop
+    # signal to see it. Annotate before scoring so the copies carry it.
+    prev_snapshot_keys = {r.get("k") for r in prev_car_rows}
+    relisted = gone.find_car_relisted(
+        deduped, prev_snapshot_keys, prev_snapshot.get("recent_gone"))
+    for l in deduped:
+        r = relisted.get(utils.listing_key(l))
+        if r:
+            l["_relisted"] = {"p": r.get("p"), "gone": r.get("gone")}
 
     qualified, assessed = car_value.score_and_rank(deduped)
 
@@ -267,7 +250,10 @@ def run():
                 {"v": 2, "date": today,
                  "fields": list(config.CAR_SNAPSHOT_FIELDS),
                  "rows": [[l.get(f) for f in config.CAR_SNAPSHOT_FIELDS]
-                          for l in deduped]})
+                          for l in deduped],
+                 "recent_gone": gone.recent_gone_rows(
+                     prev_snapshot.get("recent_gone"), gone_car_rows,
+                     today, live_rows=gone.car_snapshot_rows(deduped))})
 
     seen = _read_seen()
     badges = {}

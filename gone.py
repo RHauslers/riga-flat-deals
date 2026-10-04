@@ -39,7 +39,8 @@ def flat_active_rows(listings):
 
 
 def car_snapshot_rows(listings):
-    """Same shape from car snapshot listings: {k, p, mk, mo, y, u}."""
+    """Same shape from car snapshot listings: {k, p, mk, mo, y, m, f, g, u}.
+    m/f/g feed the car RELISTED match — a reposted car keeps its specs."""
     rows = []
     for l in listings or []:
         if not l.get("source") or not l.get("id"):
@@ -50,6 +51,9 @@ def car_snapshot_rows(listings):
             "mk": l.get("make") or "",
             "mo": l.get("model") or "",
             "y": l.get("year"),
+            "m": l.get("mileage_km"),
+            "f": l.get("fuel") or "",
+            "g": l.get("gearbox") or "",
             "u": l.get("url") or "",
         })
     return rows
@@ -127,8 +131,9 @@ def _norm_street(s):
     return " ".join(utils.strip_diacritics(s or "").lower().split())
 
 
-def _same_flat(l, gone_row):
-    """Same physical flat under a different ad id: identical district +
+def _matches_gone_flat(l, gone_row):
+    """Live listing vs a recently-gone row: same physical flat under a
+    different ad id. Identical district +
     normalised street + equal rooms, and — when both carry an area —
     within GONE_RELIST_AREA_DIFF_M2. When area is missing on either side
     the price must additionally be within 15% (weak-signal compensator).
@@ -159,7 +164,51 @@ def find_relisted(listings, prev_active_keys, recent_gone):
         if not key or key in (prev_active_keys or ()):
             continue
         for r in recent_gone or []:
-            if _same_flat(l, r):
+            if _matches_gone_flat(l, r):
+                out[key] = r
+                break
+    return out
+
+
+def _norm_car(s):
+    return utils.strip_diacritics(s or "").lower().replace("-", " ").strip()
+
+
+def _matches_gone_car(l, gone_row):
+    """Live listing vs a recently-gone row: same physical car reposted
+    under a new ad id. Identical
+    make+model+year+fuel (+gearbox when known), and mileage within 15% —
+    reposters rarely edit the odometer figure much, while a different
+    car of the same model almost never lands inside that window."""
+    for lf, gf in (("make", "mk"), ("model", "mo"), ("fuel", "f")):
+        if _norm_car(l.get(lf)) != _norm_car(gone_row.get(gf)):
+            return False
+    ly, gy = utils.to_int(l.get("year")), utils.to_int(gone_row.get("y"))
+    if ly is None or gy is None or ly != gy:
+        return False
+    lg, gg = _norm_car(l.get("gearbox")), _norm_car(gone_row.get("g"))
+    if lg and gg and lg != gg:
+        return False
+    lm, gm = utils.to_float(l.get("mileage_km")), utils.to_float(gone_row.get("m"))
+    if lm is None or gm is None:
+        # no odometer on either side -> require a close price instead
+        lp, gp = utils.to_float(l.get("price_eur")), utils.to_float(gone_row.get("p"))
+        if lp is None or gp is None or gp <= 0:
+            return False
+        return abs(lp - gp) / gp <= 0.15
+    return abs(lm - gm) <= gm * 0.15 + 2000
+
+
+def find_car_relisted(listings, prev_snapshot_keys, recent_gone):
+    """{listing_key: gone_row} for today's car ads that were NOT live
+    yesterday but match a recently-gone car — reposted under a new id."""
+    out = {}
+    for l in listings or []:
+        key = utils.listing_key(l)
+        if not key or key in (prev_snapshot_keys or ()):
+            continue
+        for r in recent_gone or []:
+            if _matches_gone_car(l, r):
                 out[key] = r
                 break
     return out

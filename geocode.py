@@ -374,18 +374,18 @@ def get_map_data(listings):
             f"<b style='font-size:15px'>{price:,.0f} EUR</b>"
         )
         if listing.get("price_per_m2"):
-            popup += f" <span style='color:#666'>({listing['price_per_m2']:.0f} EUR/m²)</span>"
+            popup += f" <span style='color:var(--muted,#666)'>({listing['price_per_m2']:.0f} EUR/m²)</span>"
         if score is not None:
             popup += f"<br>Deal score: <b>{score:+.2f}</b>"
         if listing.get("street"):
-            popup += f"<br><span style='color:#666'>{approx}{_e(listing['street'])}</span>"
+            popup += f"<br><span style='color:var(--muted,#666)'>{approx}{_e(listing['street'])}</span>"
             if approx:
-                popup += (" <span style='color:#999;font-size:11px'>"
+                popup += (" <span style='color:var(--faint,#999);font-size:11px'>"
                           "(street-level position)</span>")
         if listing.get("series") == "Auction":
-            popup += "<br><b style='color:#8e44ad'>State/bailiff auction</b>"
+            popup += "<br><b style='color:var(--auction,#8e44ad)'>State/bailiff auction</b>"
             if listing.get("ownership_share"):
-                popup += (f"<br><b style='color:#c0392b'>SHARE: "
+                popup += (f"<br><b style='color:var(--bad,#c0392b)'>SHARE: "
                           f"{_e(listing['ownership_share'])} of the flat</b>")
             if listing.get("auction_start_price"):
                 popup += (f"<br>Start: "

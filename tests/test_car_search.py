@@ -487,6 +487,10 @@ class _TempPaths(unittest.TestCase):
             mock.patch.object(config, "HEALTH_STATE_JSON",
                               os.path.join(self.tmp.name,
                                            "health_state.json")),
+            # market history — save_stats appends here on every call
+            mock.patch.object(config, "CAR_MARKET_HISTORY_JSON",
+                              os.path.join(self.tmp.name,
+                                           "car_market_history.json")),
         ]
         for p in self._patches:
             p.start()
@@ -810,7 +814,7 @@ class TestDigestOutput(unittest.TestCase):
         # Only the template's own scripts are allowed (column sort +
         # theme boot/toggle); the listing-controlled title must arrive
         # escaped, not as markup (an injected tag would add a fourth).
-        self.assertEqual(html_text.count("<script>"), 3)
+        self.assertEqual(html_text.count("<script>"), 4)
         self.assertNotIn("<script>x", html_text)
         self.assertNotIn("javascript:", html_text)
 
@@ -945,6 +949,79 @@ class TestBudgetTool(unittest.TestCase):
                                    msg=key)
             self.assertAlmostEqual(l["_median"], js_rows[key]["median"],
                                    delta=0.01, msg=key)
+
+    @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_js_custom_view_renders_motivated_chips(self):
+        """The custom-budget view must show the same motivated chips the
+        Python table rows do: −€X drop, MOTIVATED (stale + real cut),
+        LOWEST SEEN."""
+        mot = _car("ss.com", "m1", 3000)
+        mot["_first_seen"] = (date.today() - timedelta(days=40)).isoformat()
+        mot["_price_hist"] = [[mot["_first_seen"], 3800],
+                              [date.today().isoformat(), 3000]]
+        html_text = car_digest.build_html([], [], {}, {}, {}, "2026-09-26",
+                                          market=[mot] + self._market())
+        payload = re.search(
+            r'id="car-market-data">(.*?)</script>', html_text, re.S).group(1)
+        js = re.search(
+            r'<script id="car-budget-js">(.*?)</script>', html_text,
+            re.S).group(1)
+        driver = (
+            "var fs = require('fs');\n"
+            "function makeEl(extra) {\n"
+            "  return Object.assign({style: {}, children: [], innerHTML: '',\n"
+            "    addEventListener: function(){},\n"
+            "    appendChild: function(c){this.children.push(c);},\n"
+            "    setAttribute: function(){}, textContent: '', value: ''},\n"
+            "    extra || {});\n"
+            "}\n"
+            "var elements = {\n"
+            "  'car-market-data': {textContent:\n"
+            "    fs.readFileSync(process.argv[3], 'utf8')},\n"
+            "  'car-budget-input': makeEl({value: '5000'}),\n"
+            "  'car-budget-status': makeEl(), 'car-default-view': makeEl(),\n"
+            "  'car-custom-view': makeEl(), 'car-budget-ok': makeEl(),\n"
+            "  'car-budget-reset': makeEl()};\n"
+            "var parsed = false, readyCbs = [];\n"
+            "global.document = {\n"
+            "  get readyState() { return parsed ? 'complete' : 'loading'; },\n"
+            "  getElementById: function(id) {\n"
+            "    return parsed ? (elements[id] || null) : null; },\n"
+            "  createElement: function(tag) { return makeEl(); },\n"
+            "  createTextNode: function(t) { return {textContent: t}; },\n"
+            "  addEventListener: function(ev, cb) {\n"
+            "    if (ev === 'DOMContentLoaded') readyCbs.push(cb); }};\n"
+            "global.window = {};\n"
+            "eval(fs.readFileSync(process.argv[4], 'utf8'));\n"
+            "parsed = true;\n"
+            "readyCbs.forEach(function(cb) { cb(); });\n"
+            "global.window.__carBudget.apply();\n"
+            "var found = [];\n"
+            "function walk(el) {\n"
+            "  (el.children || []).forEach(function (c) {\n"
+            "    if (c.className && c.className.indexOf('badge') === 0) {\n"
+            "      found.push(c.className + '|' + c.textContent); }\n"
+            "    walk(c); });\n"
+            "}\n"
+            "walk(elements['car-custom-view']);\n"
+            "console.log(JSON.stringify(found));\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            drv = os.path.join(tmp, "driver.js")
+            pay = os.path.join(tmp, "payload.txt")
+            jsf = os.path.join(tmp, "budget.js")
+            for path, text in ((drv, driver), (pay, payload), (jsf, js)):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            out = subprocess.run(["node", drv, "--", pay, jsf],
+                                 capture_output=True, text=True,
+                                 encoding="utf-8", timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        badges = json.loads(out.stdout.strip())
+        self.assertIn("badge b-mot|MOTIVATED", badges)
+        self.assertIn("badge b-low|LOWEST SEEN", badges)
+        self.assertTrue(any(b.startswith("badge b-cheap|−€")
+                            for b in badges), badges)
 
     def test_history_html_days_trail_and_sparkline(self):
         d12 = (date.today() - timedelta(days=12)).isoformat()
@@ -1776,9 +1853,10 @@ class TestIneligibleReason(unittest.TestCase):
     def test_future_year_out_of_range(self):
         l = _car("ss.com", "x1", 3000)
         l["year"] = date.today().year + 5
-        self.assertEqual(cars._ineligible_reason(l), "year out of range")
+        self.assertEqual(car_value.ineligible_reason(l), "year out of range")
         l["year"] = date.today().year + 1   # allowed bound
-        self.assertNotEqual(cars._ineligible_reason(l), "year out of range")
+        self.assertNotEqual(car_value.ineligible_reason(l),
+                            "year out of range")
 
 
 class TestCarMotivatedSeller(unittest.TestCase):

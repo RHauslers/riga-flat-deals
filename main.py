@@ -148,9 +148,9 @@ def _run_body(today, _t0):
     all_listings = []
     source_counts = {"ss.com": 0, "city24.lv": 0}
     source_errors = {}
-    _scraper_names = {ss_com: "ss.com", city24: "city24.lv"}
     for dt in config.DEAL_TYPES:
-        for scraper in (ss_com, city24):
+        for src_name, scraper in (("ss.com", ss_com),
+                                ("city24.lv", city24)):
             try:
                 items = scraper.scrape(dt)
                 all_listings.extend(items)
@@ -159,9 +159,8 @@ def _run_body(today, _t0):
                     if src in source_counts:
                         source_counts[src] += 1
             except Exception as e:
-                source_errors[_scraper_names[scraper]] = \
-                    f"{type(e).__name__}: {e}"
-                print(f"[main] {scraper.__name__} {dt} failed: {e}")
+                source_errors[src_name] = f"{type(e).__name__}: {e}"
+                print(f"[main] {src_name} {dt} failed: {e}")
                 traceback.print_exc()
 
     print(f"[main] total scraped (target districts): {len(all_listings)} "
@@ -400,7 +399,24 @@ def _run_body(today, _t0):
 
     # Step 7 cont: district-level market stats for the Market tab
     #     (computed earlier so the rows could carry _district_median_ppu).
-    flat_market.save_stats(_flat_stats, today, len(all_listings))
+    #     City-wide medians feed the "Riga" history point — the digest's
+    #     market-pulse KPI reads its Δ7d below.
+    _city_median_ask = utils.median(
+        [utils.to_float(l.get("price_eur")) for l in all_listings
+         if l.get("deal_type") == "sale" and l.get("price_eur")])
+    _rent_stats = flat_market.compute_district_stats(
+        all_listings, price_data, today, deal_type="rent")
+    flat_market.save_stats(_flat_stats, today, len(all_listings),
+                           city_ppu=_city_median_ppu,
+                           city_price=_city_median_ask,
+                           rent_stats=_rent_stats)
+    _market_pulse = None
+    if _city_median_ppu:
+        _market_pulse = {
+            "ppu": _city_median_ppu,
+            "delta": utils.delta_7d(
+                flat_market.load_history().get("Riga", [])),
+        }
 
     # Step 7 cont: "Disappeared — likely sold/removed": yesterday's live-ad ids
     #     minus today's, restricted to sources that produced data today.
@@ -423,28 +439,34 @@ def _run_body(today, _t0):
     gone_html = notifier.build_gone_html(gone_rows, price_data, today)
     if gone_rows:
         print(f"[main] {len(gone_rows)} flat ad(s) disappeared since yesterday")
+    live_rows = gone.flat_active_rows(live_now)
     utils.write_json(config.FLAT_ACTIVE_JSON,
                      {"date": today,
-                      "rows": gone.flat_active_rows(live_now),
+                      "rows": live_rows,
                       "recent_gone": gone.recent_gone_rows(
                           prev_active.get("recent_gone"),
                           gone_rows, today,
-                          live_rows=gone.flat_active_rows(live_now))},
+                          live_rows=live_rows)},
                      indent=None)
 
     # Step 8: save today's digest (pass price history + map markers + sections)
     _path, info = notifier.save_digest(main_deals, still_active, comparison_html,
-                                       status_note, price_data, map_markers,
-                                       newest_html, near_school_html,
-                                       auctions_html, all_scored, all_listings,
-                                       gone_html,
+                                       status_note, price_data=price_data,
+                                       map_markers=map_markers,
+                                       newest_html=newest_html,
+                                       near_school_html=near_school_html,
+                                       auctions_html=auctions_html,
+                                       all_scored=all_scored,
+                                       all_listings=all_listings,
+                                       gone_html=gone_html,
                                        source_counts=source_counts,
                                        health_pairs=digest_issues,
                                        n_auctions=(len(auctions)
                                                    if config.IZSOLES_ENABLED
                                                    else None),
                                        auctions_failed=auctions_failed,
-                                       n_gone=len(gone_rows))
+                                       n_gone=len(gone_rows),
+                                       market_pulse=_market_pulse)
 
     # Step 8 cont: build hosted site (latest digest -> docs/index.html + archive)
     website.build()

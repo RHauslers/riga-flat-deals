@@ -1226,6 +1226,11 @@ class TestMotivatedSeller(unittest.TestCase):
         self.assertIn("Biggest price cuts", cuts)
         self.assertIn("Brivibas 1", cuts)
         self.assertIn("tbl_cuts", cuts)
+        # no coords -> no map link; with coords -> showOnMap button
+        self.assertNotIn("showOnMap", cuts)
+        cuts_geo = notifier.build_price_cuts_html(
+            [dict(listing, lat=56.95, lon=24.1)], pd)
+        self.assertIn("showOnMap('ss.com:s1')", cuts_geo)
         # below the min-drop threshold -> no section, no chip
         pd2 = {"ss.com:s1": self._entry(
             original_price=256000, current_price=255000)}
@@ -1345,10 +1350,10 @@ class TestLowestSeen(unittest.TestCase):
 
 class TestBudgetEmbedSignals(unittest.TestCase):
     def test_signal_fields_tail(self):
-        self.assertEqual(
-            notifier._FLAT_FIELDS[-5:],
-            ("_drop_eur", "_mot", "_at_low", "_relisted_price",
-             "_vs_district_pct"))
+        for f in ("_drop_eur", "_mot", "_at_low", "_relisted_price",
+                  "_vs_district_pct", "deal_type", "lat", "lon",
+                  "_first_seen", "_price_hist"):
+            self.assertIn(f, notifier._FLAT_FIELDS)
         listing = {"source": "ss.com", "id": "e1", "price_eur": 50000,
                    "price_per_m2": 1000, "district": "Z", "street": "X 1",
                    "_district_median_ppu": 1250,
@@ -1362,12 +1367,13 @@ class TestBudgetEmbedSignals(unittest.TestCase):
                 "days_on_market": 50}}})
         m = re.search(r'id="flat-listings-data">(.*)</script>', html)
         payload = _json.loads(m.group(1).replace("<\\/", "</"))
-        tail = payload["rows"][0][-5:]
-        self.assertEqual(tail[0], 10000)
-        self.assertEqual(tail[1], 1)
-        self.assertEqual(tail[2], 1)
-        self.assertEqual(tail[3], 55000)
-        self.assertEqual(tail[4], -20)
+        row = payload["rows"][0]
+        fi = {f: payload["fields"].index(f) for f in payload["fields"]}
+        self.assertEqual(row[fi["_drop_eur"]], 10000)
+        self.assertEqual(row[fi["_mot"]], 1)
+        self.assertEqual(row[fi["_at_low"]], 1)
+        self.assertEqual(row[fi["_relisted_price"]], 55000)
+        self.assertEqual(row[fi["_vs_district_pct"]], -20)
         self.assertIn("b-mot", notifier.FLAT_BUDGET_JS)
 
 
@@ -1470,6 +1476,251 @@ class TestColdReviewFixes(unittest.TestCase):
         self.assertEqual(still_row.count("<td"), main_row.count("<td") - 1)
 
 
+class TestCarRelistedMatch(unittest.TestCase):
+    """find_car_relisted matches a reposted car on specs, not ad id."""
+    def setUp(self):
+        import gone
+        self.gone = gone
+
+    def _car(self, lid="n1", **kw):
+        base = {"source": "ss.com", "id": lid, "make": "VW",
+                "model": "Golf", "year": 2015, "fuel": "Diesel",
+                "gearbox": "manual", "mileage_km": 100000,
+                "price_eur": 8000, "url": "https://x"}
+        base.update(kw)
+        return base
+
+    def _gone(self, key="ss.com:old1", **kw):
+        row = {"k": key, "p": 9500, "mk": "vw", "mo": "golf", "y": 2015,
+               "m": 98000, "f": "diesel", "g": "manual",
+               "u": "https://old", "gone": "2026-09-20"}
+        row.update(kw)
+        return row
+
+    def test_match_new_id_same_specs(self):
+        out = self.gone.find_car_relisted(
+            [self._car()], {"ss.com:other"}, [self._gone()])
+        self.assertEqual(out["ss.com:n1"]["p"], 9500)
+
+    def test_still_live_key_is_not_relist(self):
+        # the ad id itself stayed live — not a repost
+        out = self.gone.find_car_relisted(
+            [self._car(lid="old1")], {"ss.com:old1"}, [self._gone()])
+        self.assertEqual(out, {})
+
+    def test_different_model_rejected(self):
+        out = self.gone.find_car_relisted(
+            [self._car(model="Passat")], set(), [self._gone()])
+        self.assertEqual(out, {})
+
+    def test_mileage_outside_window_rejected(self):
+        out = self.gone.find_car_relisted(
+            [self._car(mileage_km=150000)], set(), [self._gone()])
+        self.assertEqual(out, {})
+
+    def test_no_odometer_falls_back_to_price(self):
+        out = self.gone.find_car_relisted(
+            [self._car(mileage_km=None, price_eur=9300)],
+            set(), [self._gone(m=None)])
+        self.assertIn("ss.com:n1", out)
+
+    def test_relisted_price_feeds_motivated_trail(self):
+        car = self._car()
+        car["_relisted"] = {"p": 9500, "gone": "2026-09-20"}
+        car["_price_hist"] = [["2026-10-01", 8000]]
+        car["_first_seen"] = "2026-10-01"
+        info = utils.car_motivated(car, today="2026-10-05")
+        self.assertIsNotNone(info)
+        self.assertEqual(info["drop_eur"], 1500)
+
+
+class TestRentDistrictStats(unittest.TestCase):
+    def test_rent_stats_split_from_sale(self):
+        listings = [
+            _flat(lid="s1", deal_type="sale", price=90000),
+            _flat(lid="r1", deal_type="rent", price=500),
+            _flat(lid="r2", deal_type="rent", price=700),
+        ]
+        sale = flat_market.compute_district_stats(
+            listings, {}, deal_type="sale")
+        rent = flat_market.compute_district_stats(
+            listings, {}, deal_type="rent")
+        self.assertEqual([s["ads"] for s in sale], [1])
+        self.assertEqual([s["ads"] for s in rent], [2])
+
+    def test_rent_table_rendered(self):
+        html = flat_market.flat_section_html(
+            [{"district": "C", "ads": 2, "median_ppu": 1000,
+              "median_price": 90000, "min_price": 80000, "min_url": "",
+              "new_today": 0}],
+            rent_stats=[{"district": "C", "ads": 3, "median_ppu": 12,
+                         "median_price": 550, "min_price": 500,
+                         "min_url": "", "new_today": 1}])
+        self.assertIn("flat-market-rent", html)
+        self.assertIn("rent market", html.lower())
+
+
+class TestOverpricedChip(unittest.TestCase):
+    def test_overpriced_above_threshold(self):
+        l = {"district": "C", "price_per_m2": 2000,
+             "_district_median_ppu": 1500}
+        chip = notifier._vs_district_chip(l)
+        self.assertIn("+33% vs district", chip)
+        self.assertIn("b-mot", chip)
+
+    def test_neutral_zone_no_chip(self):
+        l = {"district": "C", "price_per_m2": 1600,
+             "_district_median_ppu": 1500}
+        self.assertEqual(notifier._vs_district_chip(l), "")
+
+
+class TestAuctionFirstBid(unittest.TestCase):
+    def _auc(self, **kw):
+        a = {"title": "Flat", "address": "X 1", "url": "https://x/1",
+             "source": "izsoles.ta.gov.lv", "id": "x",
+             "auction_start_price": 40000, "area_m2": 50}
+        a.update(kw)
+        return a
+
+    def test_first_bid_badge(self):
+        a = self._auc(auction_current_bid=41000)
+        html = notifier.build_auctions_html(
+            [a], prev_bids={"izsoles.ta.gov.lv:x": 40000})
+        self.assertIn("FIRST BID", html)
+        self.assertNotIn("no bids yet", html)
+
+    def test_no_badge_without_prev(self):
+        a = self._auc(auction_current_bid=41000)
+        self.assertNotIn("FIRST BID",
+                         notifier.build_auctions_html([a]))
+
+    def test_no_badge_when_bid_existed_yesterday(self):
+        a = self._auc(auction_current_bid=42000)
+        html = notifier.build_auctions_html(
+            [a], prev_bids={"izsoles.ta.gov.lv:x": 41000})
+        self.assertNotIn("FIRST BID", html)
+
+
+class TestGoneCutTag(unittest.TestCase):
+    def test_cut_before_gone_shown(self):
+        rows = [{"k": "ss.com:g1", "d": "C", "s": "X iela", "p": 90000,
+                 "u": "https://x"}]
+        pdata = {"ss.com:g1": {"first_seen": "2026-09-01",
+                               "our_tracking": [{"date": "2026-09-01",
+                                                 "price": 100000},
+                                                {"date": "2026-09-20",
+                                                 "price": 90000}]}}
+        html = notifier.build_gone_html(rows, pdata, "2026-10-05")
+        self.assertIn("before gone", html)
+        self.assertIn("10 000", html)
+
+    def test_no_tag_without_drop(self):
+        rows = [{"k": "ss.com:g1", "d": "C", "s": "X iela", "p": 100000,
+                 "u": "https://x"}]
+        pdata = {"ss.com:g1": {"first_seen": "2026-09-01",
+                               "our_tracking": [{"date": "2026-09-01",
+                                                 "price": 90000},
+                                                {"date": "2026-09-20",
+                                                 "price": 100000}]}}
+        self.assertNotIn("before gone",
+                         notifier.build_gone_html(rows, pdata, "2026-10-05"))
+
+
+class TestMarketPulseKpi(unittest.TestCase):
+    def test_pulse_and_motivated_kpis(self):
+        l = _flat(lat=56.95, lon=24.1)
+        key = utils.listing_key(l)
+        pdata = {key: {"first_seen": "2026-08-01",
+                       "cenumednieks": {"days_on_market": 60,
+                                        "original_price": 70000,
+                                        "current_price": 60000},
+                       "our_tracking": [{"date": "2026-08-01",
+                                         "price": 70000},
+                                        {"date": "2026-09-01",
+                                         "price": 60000}]}}
+        html = notifier.build_html(
+            {"sale": [(l, 80, "m", "NEW", "")]}, {}, "", "",
+            price_data=pdata,
+            all_scored={"sale": [(l, 80, "m", "NEW", "")]},
+            all_listings=[l],
+            market_pulse={"ppu": 1500, "delta": -2.3})
+        self.assertIn("Riga median", html)
+        self.assertIn("Δ7d", html)
+        self.assertIn(">motivated<", html)
+
+
+class TestImprove20ColdReview(unittest.TestCase):
+    """Regression tests for the 2026-10-04 /improve 20 batch."""
+
+    def test_section_order_matches_nav(self):
+        """DOM order: deals first, then newest/school/auctions/cuts/gone/
+        map — the same order the Jump-to nav lists."""
+        l = _flat()
+        key = utils.listing_key(l)
+        pdata = {key: {"first_seen": "2026-08-01",
+                       "our_tracking": [{"date": "2026-08-01",
+                                         "price": 70000},
+                                        {"date": "2026-10-01",
+                                         "price": 65000}]}}
+        html = notifier.build_html(
+            {"sale": [(l, 80, "m", "NEW", "")]}, {}, "", "",
+            price_data=pdata,
+            all_scored={"sale": [(l, 80, "m", "NEW", "")]},
+            all_listings=[l],
+            gone_html="<div>gone-here</div>")
+        pos = {name: html.index(f'id="sec-{name}"')
+               for name in ("deals", "newest", "cuts", "gone", "map")}
+        self.assertLess(pos["deals"], pos["newest"])
+        self.assertLess(pos["newest"], pos["cuts"])
+        self.assertLess(pos["cuts"], pos["gone"])
+        self.assertLess(pos["gone"], pos["map"])
+
+    def test_flat_motivated_own_drop_not_shadowed_by_bare_cenu(self):
+        """A cenu dict without usable prices must not zero out a real
+        own-trail drop — take the larger signal."""
+        entry = {"cenumednieks": {"days_on_market": 60},
+                 "our_tracking": [{"date": "2026-08-01", "price": 80000},
+                                  {"date": "2026-10-01", "price": 70000}]}
+        info = utils.flat_motivated(entry)
+        self.assertIsNotNone(info)
+        self.assertEqual(info["drop_eur"], 10000)
+        self.assertEqual(info["was"], 80000)
+        self.assertEqual(info["now"], 70000)
+
+    def test_flat_motivated_prefers_larger_cenu_drop(self):
+        entry = {"cenumednieks": {"original_price": 90000,
+                                  "current_price": 70000,
+                                  "days_on_market": 60},
+                 "our_tracking": [{"date": "2026-09-01", "price": 75000},
+                                  {"date": "2026-10-01", "price": 70000}]}
+        info = utils.flat_motivated(entry)
+        self.assertEqual(info["drop_eur"], 20000)
+        self.assertEqual(info["was"], 90000)
+
+    def test_map_title_counts_schools(self):
+        """Map header must not assume exactly one school marker."""
+        import geocode
+        markers = geocode.get_map_data(
+            [{"lat": 56.9, "lon": 24.0, "district": "x",
+              "price_eur": 50000, "url": "", "marker_id": "a:1"}])
+        html = notifier._build_map_html(markers)
+        self.assertIn("Map (1 listings)", html)
+        self.assertNotIn("+ school", html)
+
+    def test_watch_js_shared_template(self):
+        import web_style
+        for ns, did, key in (("flat", "flat-listings-data",
+                              "watch_flats_v1"),
+                             ("car", "car-market-data", "watch_cars_v1")):
+            js = web_style.watch_js(ns, did, key)
+            self.assertIn(f"__{ns}WatchInit", js)
+            self.assertIn(did, js)
+            self.assertIn(key, js)
+            self.assertNotIn("@NS@", js)
+            self.assertNotIn("@DATA_ID@", js)
+            self.assertNotIn("@STORAGE_KEY@", js)
+        self.assertIn("__flatWatchInit", notifier.FLAT_WATCH_JS)
+
+
 if __name__ == "__main__":
     unittest.main()
-

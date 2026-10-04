@@ -187,7 +187,8 @@ def build_market_html(stats, run_date, total_ads, history=None,
 
     flat_section = flat_market.flat_section_html(
         flat_stats.get("districts"), flat_stats.get("date"),
-        flat_market.load_history()) \
+        flat_market.load_history(),
+        rent_stats=flat_stats.get("rent_districts")) \
         if flat_stats else ("<p class='note'>No flat stats yet — they are "
                             "written by the daily flat scan.</p>")
 
@@ -200,6 +201,7 @@ def build_market_html(stats, run_date, total_ads, history=None,
 <script>{web_style.SORT_JS}</script>
 </head><body>
 {web_style.THEME_TOGGLE_HTML}
+{web_style.TOP_BTN_HTML}
 <h1>Riga market — {_e(str(run_date))}</h1>
 <div class="mtabs">
 <button type="button" class="mtab" id="mtab-cars"
@@ -271,6 +273,7 @@ def build_page(path=None):
 <title>Riga car market</title>
 {_STYLE}</head><body>
 {web_style.THEME_TOGGLE_HTML}
+{web_style.TOP_BTN_HTML}
 <h1>Riga car market</h1>
 <p>Not generated yet — the market stats are written by the daily car
 scan.</p>

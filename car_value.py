@@ -58,6 +58,32 @@ def eligible(listing, max_price=None):
             and (listing.get("fuel") == "electric" or (engine is not None and engine > 0)))
 
 
+def ineligible_reason(listing, max_price=None):
+    """Coarse single reason a listing failed eligible() — same checks,
+    same order. For digest 'why dropped' stats, not the gate itself."""
+    price = _number(listing.get("price_eur"))
+    year = _number(listing.get("year"))
+    mileage = _number(listing.get("mileage_km"))
+    engine = _number(listing.get("engine_l"))
+    ceiling = config.CAR_COMPARABLE_MAX_PRICE_EUR if max_price is None else max_price
+    if price is None or not config.CAR_MIN_PRICE_EUR <= price <= ceiling:
+        return "missing price" if price is None else "price out of range"
+    if (year is None or not year.is_integer()
+            or not config.CAR_MIN_YEAR <= year <= date.today().year + 1):
+        return "year out of range"
+    if mileage is None:
+        return "missing mileage"
+    if not 0 <= mileage <= config.CAR_MAX_MILEAGE_KM:
+        return "mileage too high"
+    if not listing.get("make") or not listing.get("model"):
+        return "missing make/model"
+    if listing.get("fuel") not in config.CAR_FUEL_TYPES:
+        return "unknown fuel"
+    if listing.get("fuel") != "electric" and not (engine and engine > 0):
+        return "missing engine"
+    return "ineligible"
+
+
 def _same_car(a, b):
     if a.get("source") == b.get("source"):
         return False

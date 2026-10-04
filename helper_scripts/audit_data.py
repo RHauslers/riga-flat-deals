@@ -248,6 +248,30 @@ def main():
             except OSError:
                 pass
 
+    # embed/JS field parity — every idx('field') lookup in the budget
+    # JS must exist in the embedded fields tuple, or the browser tool
+    # silently reads undefined for it (fields are positional)
+    try:
+        import re
+
+        import car_digest
+        import notifier
+        for js_src, fields, label in (
+                (notifier.FLAT_BUDGET_JS, notifier._FLAT_FIELDS, "flat"),
+                (car_digest.CAR_BUDGET_JS, car_digest._MARKET_FIELDS,
+                 "car")):
+            used = {a or b for a, b in re.findall(
+                r"""idx\.(\w+)|idx\[['"](\w+)['"]\]""", js_src)}
+            missing = used - set(fields)
+            if missing:
+                _warn(f"{label} budget JS looks up fields missing from "
+                      f"the embed: {sorted(missing)}")
+            else:
+                print(f"  {label} embed fields: {len(fields)} embedded, "
+                      f"{len(used)} used by JS — parity ok")
+    except Exception as ex:  # audit must never break the daily run
+        print(f"  embed parity check failed to run: {ex}")
+
     print(f"\n=== {len(WARNINGS)} warning(s) ===")
     for w in WARNINGS:
         print(f" - {w}")

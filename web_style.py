@@ -211,6 +211,25 @@ button.ghost{background:var(--row-alt);font-weight:700}
   background:var(--card);color:var(--fg);font-size:16px;line-height:1;
   cursor:pointer;box-shadow:var(--shadow);padding:0}
 .theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
+/* Back-to-top — appears after scrolling, bottom-right corner */
+.top-btn{position:fixed;bottom:14px;right:12px;z-index:60;width:34px;
+  height:34px;border-radius:50%;border:1px solid var(--line2);
+  background:var(--card);color:var(--fg);font-size:15px;line-height:1;
+  cursor:pointer;box-shadow:var(--shadow);padding:0;display:none}
+.top-btn:hover{border-color:var(--accent);color:var(--accent)}
+/* Leaflet tiles follow dark mode (OSM has no dark tile set — the
+   standard invert+hue-rotate trick keeps roads/labels readable) */
+[data-theme="dark"] .leaflet-tile{filter:invert(1) hue-rotate(180deg)
+  brightness(.9) saturate(.7)}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .leaflet-tile{
+    filter:invert(1) hue-rotate(180deg) brightness(.9) saturate(.7)}}
+/* Print: content only — nav, toggles, buttons and controls go away */
+@media print{
+  .site-nav,.secnav,.theme-toggle,.top-btn,.watch-star,.watch-remove,
+  select,input,button{display:none!important}
+  .card,.box{box-shadow:none;border:1px solid #ccc}
+  a{color:#000;text-decoration:none}}
 .delta-up{color:var(--bad)} .delta-down{color:var(--good)}
 
 /* Watchlist star */
@@ -309,6 +328,16 @@ b.onclick=function(){var next=cur()==='dark'?'light':'dark';de.setAttribute('dat
 paint();})();</script>"""
 
 
+# Back-to-top — floating button that appears once the page is scrolled.
+TOP_BTN_HTML = """<button type="button" id="top-btn" class="top-btn"
+title="Back to top">&#8593;</button>
+<script>(function(){var b=document.getElementById('top-btn');
+function paint(){b.style.display=(window.scrollY>600)?'block':'none';}
+b.onclick=function(){window.scrollTo({top:0,behavior:'smooth'});};
+if(window.addEventListener){addEventListener('scroll',paint,{passive:true});}
+paint();})();</script>"""
+
+
 def style_block(extra=""):
     """`<style>` element holding BASE_CSS (+ optional page CSS)."""
     css = BASE_CSS
@@ -348,6 +377,14 @@ def kpi(label, value, cls=""):
 def badge(text, cls):
     """Rounded status pill."""
     return f"<span class='badge {cls}'>{text}</span>"
+
+
+def motivated_badge():
+    """The amber MOTIVATED pill used by the price-cuts cards (hover
+    explains the signal)."""
+    return (" <span class='badge b-mot' "
+            "title='Stale listing + real cut: seller may be "
+            "negotiable'>MOTIVATED</span>")
 
 
 # Click-to-sort table headers, shared by both digests.
@@ -392,3 +429,195 @@ function sortTable(tableId, colIdx) {
   }
 }
 """
+
+# ---------------------------------------------------------------------------
+# Shared ☆ watchlist script — one template parameterised per page.
+# Stars persist picks in localStorage; a watched listing missing from
+# today's embedded data is flagged "no longer listed" (sold/expired).
+# @NS@ = id/global prefix ("flat"/"car"), @DATA_ID@ = embedded-JSON element
+# id, @STORAGE_KEY@ = localStorage key.
+# ---------------------------------------------------------------------------
+_WATCH_JS_TEMPLATE = r"""
+function __@NS@WatchInit() {
+  var dataEl = document.getElementById('@DATA_ID@');
+  var box = document.getElementById('@NS@-watch-box');
+  var listEl = document.getElementById('@NS@-watch-list');
+  var countEl = document.getElementById('@NS@-watch-count');
+  if (!dataEl || !box || !listEl) return;
+  if (typeof localStorage === 'undefined') return;
+  var payload = JSON.parse(dataEl.textContent);
+  var F = payload.fields, idx = {};
+  F.forEach(function (f, i) { idx[f] = i; });
+  if (payload.dict) {
+    Object.keys(payload.dict).forEach(function (f) {
+      var i = idx[f], dict = payload.dict[f];
+      (payload.rows || []).concat(payload.extra || []).forEach(function (r) {
+        if (r[i] != null) r[i] = dict[r[i]];
+      });
+    });
+  }
+  var byKey = {};
+  payload.rows.forEach(function (r) {
+    if (r[idx.source] != null && r[idx.id] != null)
+      byKey[r[idx.source] + ':' + r[idx.id]] = r;
+  });
+  (payload.extra || []).forEach(function (r) {
+    if (r[idx.source] != null && r[idx.id] != null) {
+      var k = r[idx.source] + ':' + r[idx.id];
+      if (!byKey[k]) byKey[k] = r;
+    }
+  });
+  var KEY = '@STORAGE_KEY@';
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+    catch (e) { return {}; }
+  }
+  function save(w) {
+    try { localStorage.setItem(KEY, JSON.stringify(w)); } catch (e) {}
+  }
+  function fmtEur(v) {
+    return v == null ? '—' : '€' + Math.round(Number(v)).toLocaleString('en-US');
+  }
+
+  function refreshStars() {
+    if (!document.querySelectorAll) return;
+    var w = load();
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.watch-star'), function (s) {
+        s.textContent = w[s.getAttribute('data-key')] ? '★' : '☆';
+      });
+  }
+
+  function toggle(btn) {
+    var key = btn.getAttribute('data-key');
+    if (!key) return;
+    var w = load();
+    if (w[key]) {
+      delete w[key];
+    } else {
+      w[key] = {
+        added: new Date().toISOString().slice(0, 10),
+        label: btn.getAttribute('data-label') || key,
+        price: parseFloat(btn.getAttribute('data-price')),
+        url: btn.getAttribute('data-url') || ''
+      };
+    }
+    save(w);
+    refreshStars();
+    renderBox();
+  }
+
+  function remove(key) {
+    var w = load();
+    delete w[key];
+    save(w);
+    refreshStars();
+    renderBox();
+  }
+
+  function renderBox() {
+    var w = load();
+    var keys = Object.keys(w).sort(function (a, b) {
+      return String(w[b].added || '').localeCompare(String(w[a].added || ''));
+    });
+    if (countEl) countEl.textContent = '(' + keys.length + ')';
+    listEl.innerHTML = '';
+    if (!keys.length) {
+      var p = document.createElement('p');
+      p.className = 'note';
+      p.textContent = 'Nothing starred yet — click ☆ on a listing to pin it here.';
+      listEl.appendChild(p);
+      return;
+    }
+    var table = document.createElement('table');
+    keys.forEach(function (key) {
+      var w0 = w[key];
+      var cur = byKey[key];
+      var tr = document.createElement('tr');
+      var td = document.createElement('td');
+      td.style.padding = '6px';
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'watch-remove';
+      rm.setAttribute('data-key', key);
+      rm.title = 'Stop watching';
+      rm.textContent = '✕';
+      rm.style.cssText = 'border:0;background:none;color:var(--bad);cursor:pointer;margin-right:6px';
+      td.appendChild(rm);
+      var label = w0.label || key;
+      var url = (cur && cur[idx.url]) ? cur[idx.url] : (w0.url || '');
+      if (url) {
+        var a = document.createElement('a');
+        a.href = url;
+        a.textContent = label;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        td.appendChild(a);
+      } else {
+        td.appendChild(document.createTextNode(label));
+      }
+      var meta = document.createElement('span');
+      meta.style.fontSize = '12px';
+      var delta = null;
+      if (cur) {
+        meta.style.color = 'var(--muted)';
+        meta.textContent = ' — ' + fmtEur(cur[idx.price_eur]) +
+          ' · still listed today';
+        var p0 = Number(w0.price), p1 = Number(cur[idx.price_eur]);
+        if (isFinite(p0) && isFinite(p1) && Math.abs(p1 - p0) >= 1) {
+          delta = document.createElement('span');
+          delta.style.color = p1 < p0 ? 'var(--good)' : 'var(--bad)';
+          delta.style.fontWeight = 'bold';
+          delta.style.fontSize = '12px';
+          delta.textContent = ' ' + (p1 < p0 ? '▼' : '▲') + ' ' +
+            fmtEur(Math.abs(p1 - p0)) + ' since starred';
+        }
+      } else {
+        meta.style.color = 'var(--bad)';
+        meta.textContent = ' — last seen ' + fmtEur(w0.price) +
+          ' · NO LONGER LISTED (sold or expired)';
+      }
+      td.appendChild(meta);
+      if (delta) td.appendChild(delta);
+      var since = document.createElement('span');
+      since.style.color = 'var(--faint)';
+      since.style.fontSize = '11px';
+      since.textContent = ' · watching since ' + (w0.added || '?');
+      td.appendChild(since);
+      tr.appendChild(td);
+      table.appendChild(tr);
+    });
+    listEl.appendChild(table);
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.getAttribute || !t.classList) return;
+    if (t.classList.contains('watch-star')) { toggle(t); }
+    else if (t.classList.contains('watch-remove')) {
+      remove(t.getAttribute('data-key'));
+    }
+  });
+  refreshStars();
+  renderBox();
+  if (typeof window !== 'undefined') {
+    window.__@NS@Watch = { toggle: toggle, renderBox: renderBox, load: load };
+    window.__@NS@WatchRefresh = refreshStars;
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', __@NS@WatchInit);
+} else {
+  __@NS@WatchInit();
+}
+"""
+
+
+def watch_js(ns, data_id, storage_key):
+    """Instantiate the shared watchlist script for a page.
+    ns='flat'/'car' (dom-id + window-global prefix), data_id is the
+    embedded-JSON element id, storage_key the localStorage key."""
+    return (_WATCH_JS_TEMPLATE
+            .replace("@NS@", ns)
+            .replace("@DATA_ID@", data_id)
+            .replace("@STORAGE_KEY@", storage_key))

@@ -200,6 +200,7 @@ def _cars_placeholder_html():
 <title>Riga car deals</title>
 {_STYLE}</head><body>
 {web_style.THEME_TOGGLE_HTML}
+{web_style.TOP_BTN_HTML}
 {_nav_html("", "cars")}
 <h1>Riga car deals</h1>
 <p>Not generated yet — the car digest has not run yet.</p>
@@ -509,6 +510,7 @@ def build():
 <title>Riga flat & car deals — archive</title>
 {_STYLE}</head><body>
 {web_style.THEME_TOGGLE_HTML}
+{web_style.TOP_BTN_HTML}
 {_nav_html("", "")}
 <h1>Riga flat & car deals — archive</h1>
 <p class="note">Districts: {', '.join(config.DISTRICTS.keys())} · Sources: ss.com, city24.lv, pp.lv</p>

@@ -1,10 +1,114 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-04 18:49
+Last updated: 2026-10-04 20:24
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
+
+- 2026-10-04 20:24 — /improve 20 (cold read first; changelog sanity
+  filter dropped 2 candidates — helper_scripts/scrub_email_text.py +
+  compact_state.py deletions, both documented "keep for reruns";
+  item 5 flagged as revisiting a prior decision). Findings:
+  (1) Digest body order was the exact reverse of the Jump-to nav —
+    every feature had been prepended so the main Deals table rendered
+    LAST; placeholder divs reordered Deals->Newest->School->Auctions
+    ->Cuts->Gone->Map;
+  (2-4) stale copy swept: digest said "Sales only — rentals are out of
+    scope" (rent is scraped+embedded), car budget note said chips are
+    "default view only" (they render in the custom view), and the
+    config comment claimed "403/429 still abort immediately" 4 lines
+    above SS_COM_RETRY_STATUS which retries 429;
+  (5) config.MAX_SALE_PRICE_EUR deleted — it was kept as "display-only"
+    but nothing read it (revisiting a prior decision: 2026-09-30 #5);
+  (6) notifier._map_link(listing, color) helper replaces 5 identical
+    showOnMap blocks (auction passes var(--auction));
+  (7) FLAT_WATCH_JS/CAR_WATCH_JS (~98% identical) -> shared
+    web_style.watch_js(ns, data_id, storage_key) template (@TOKEN@
+    substitution); car gains the flat version's payload.extra merge
+    (harmless no-op without extra rows);
+  (8) gone._same_flat/_same_car renamed _matches_gone_flat/_matches_gone_car
+    — same name as utils._same_flat but relist-match semantics;
+  (9) utils.flat_motivated own-trail drop was shadowed by ANY cenu dict
+    — now computes cenu+own drops independently and takes the larger
+    signal (a bare {days_on_market} cenu no longer zeroes a real drop);
+  (10) cars._ineligible_reason moved to car_value.ineligible_reason —
+    single home next to eligible(), same _number coercion (also fixes
+    drift: mileage floor + engine>0 now match the gate);
+  (11) gone.flat_active_rows(live_now) no longer computed twice;
+  (12) notifier.build_html/save_digest gained a `*` keyword-only
+    barrier after the 4 core params — positional arg-order swaps now
+    fail loudly;
+  (13) utils.flat_is_motivated/car_is_motivated wrap the repeated
+    (stale_days, min_drop) config pairs — 7 call sites converted;
+  (14) _get_listing_age's duplicated days/change_pct/tuple branches
+    collapsed into a _pack() closure;
+  (15) inline imports hoisted (health date, notifier json/date);
+  (16) map header counted "n_markers - 1" assuming exactly one school
+    — now sums m["school"] and drops "+ school" when none;
+  (17) geocode popup hexes -> var(--muted/--faint/--auction/--bad)
+    with hex fallbacks (popups render in-document, dark mode applies);
+  (18) main's _scraper_names module-keyed dict -> (name, scraper)
+    tuple loop;
+  (19) .gitignore comment seen_ids.json -> seen_deals.json;
+  (20) MOTIVATED badge literal (2 more copies in the cuts cards) ->
+    web_style.motivated_badge().
+  Tests: 225 -> 230 (+5 in TestImprove20ColdReview: section order,
+  cenu-shadowed drop, map title, watch template). JS syntax OK
+  (node --check on both instantiated watch scripts). Audit: 0 warnings.
+
+- 2026-10-04 20:09 — /addnewf 15 (first run under the new name).
+  (1) Car RELISTED detection — car_snapshot_rows carries specs
+    (mk/mo/y/m/f/g), find_car_relisted matches a new-id ad on
+    make+model+year+fuel (+gearbox) with mileage within 15%+2000km
+    (price±15% fallback when odometer missing); cars.run annotates
+    _relisted BEFORE scoring so copies keep it; utils.car_motivated
+    re-attaches the vanished ad's last ask as the trail's first point
+    (reposting wipes _price_hist); purple "RELISTED · was €X" chip in
+    default rows AND the custom view (embedded field + JS).
+  (2) Flat budget embed gained deal_type + For-sale/For-rent/Any
+    filter — rent flats no longer pollute the sale budget view (null
+    deal_type treated as sale for backward compat).
+  (3) Flat custom view: map link (lat/lon embedded, showOnMap),
+    "seen N d · trail" line (_first_seen/_price_hist embedded),
+    +N% vs district overpriced chip (b-mot, >=+20%).
+  (4) Car LOW KM chip (odometer <=75% of pool median, min comps) —
+    Python badge + JS parity via item.poolMileage.
+  (5) Auction FIRST BID badge — prev effective price <= start price
+    and a real bid exists now.
+  (6) Market pulse — flat_market records a "Riga" pseudo-district
+    history point; digest KPI shows "Riga median €X/m² · Δ7d".
+  (7) Motivated-count KPI chips on both digests.
+  (8) Rent district stats — compute_district_stats(deal_type=) +
+    rent:* history keys + second table on the market page.
+  (9) Back-to-top button (TOP_BTN_HTML, all pages).
+  (10) Dark-mode Leaflet tiles (invert+hue-rotate CSS trick).
+  (11) @media print — nav/buttons/inputs hidden (generic selectors
+    only — element ids would trip the assertNotIn embed tests).
+  (12) Flat gone table "−€X before gone" tag when the trail's last
+    ask undercuts the first.
+  (13) audit_data embed/JS field parity check — every idx.FIELD the
+    budget JS reads must exist in the embedded fields tuple.
+  Fixes caught by tests: subprocess.run needed encoding="utf-8" for
+  the Node badge assertions (cp1252 mangled −€ on Windows);
+  car-market _TempPaths didn't patch CAR_MARKET_HISTORY_JSON — a
+  save_stats call rewrote the real history file (content identical,
+  formatting only; file restored, path now patched). Tests: 206.
+
+- 2026-10-04 19:45 — user-requested batch: (1) car custom-budget view now
+  renders motivated chips — the JS gained motivatedInfo() (port of
+  utils.car_motivated + is_motivated; _price_hist/_first_seen were already
+  embedded) plus motStaleDays/motMinDropEur/motMinTrailDrops in the embed
+  config; −€X b-cheap chip, MOTIVATED, LOWEST SEEN all carry over to the
+  custom view (same "no chips without a net drop" gate as _motivated_chip;
+  note text updated). Also switched the embed's fuel list to
+  config.CAR_FUEL_TYPES. (2) flats "Biggest price cuts" rows gained the
+  map button (showOnMap link on coords — markers already cover
+  all_listings). (3) the /iterate skill was renamed to /addnewf
+  (~/.codeium/windsurf/skills/addnewf/SKILL.md) — old name gone, /improve
+  unchanged. Tests: 208 -> 209 (Node parity test asserts the three badge
+  classes render in the custom view; cuts-map assertions added to the
+  existing cuts test), all green.
 
 - 2026-10-04 18:49 — /improve 15 (cold read first, changelog sanity filter
   after proposing — 0 dropped). Bugs fixed:

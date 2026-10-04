@@ -23,7 +23,8 @@ CAR_PP_REQUEST_DELAY_SECONDS = 5.0
 CAR_SOURCE_TIMEOUT_SECONDS = 30
 # Transient-network resilience (2026-09-30: an SS.com ConnectTimeout window
 # killed the whole flat scrape from the CI runner). Retries apply ONLY to
-# connection/timeout errors — 403/429 still abort immediately.
+# connection/timeout errors and the statuses in SS_COM_RETRY_STATUS;
+# 403 still aborts immediately.
 REQUEST_RETRIES = 2            # extra attempts per request on conn errors
 REQUEST_RETRY_DELAY_SECONDS = 10
 # HTTP statuses worth one bounded retry (rate-limit / transient server
@@ -164,7 +165,8 @@ MAX_CATEGORIES_PER_FIELD = 20
 # Sanity filters: drop listings with implausible prices (city24 occasionally
 # returns garbage like 189 EUR for a sale listing). These are minimums only.
 MIN_SALE_PRICE_EUR = 5000    # below this, a sale listing is likely erroneous
-MAX_SALE_PRICE_EUR = 75000   # the buyer's own target budget (display only)
+# (MAX_SALE_PRICE_EUR removed 2026-10-04 — nothing displayed it; the
+#  budget lives in the digest's budget input.)
 # No upper sale cap: every plausible listing is kept — the browser budget
 # tool filters by the user's own maximum instead.
 MIN_RENT_PRICE_EUR = 50      # below this, a rent listing is likely erroneous
