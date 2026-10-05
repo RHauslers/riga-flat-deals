@@ -26,6 +26,31 @@
     --shadow:0 1px 2px rgba(0,0,0,.35);
   }
 }
+/* Manual override: a data-theme attr on <html> beats the OS preference
+   (specificity :root[attr] > :root inside the media query). The light
+   override must re-declare the tokens or a dark-OS user could never
+   switch back. */
+:root[data-theme="dark"]{
+  --bg:#0d1420; --card:#17202e; --fg:#e2e8f0; --muted:#94a3b8; --faint:#64748b;
+  --line:#2c3a4f; --line2:#3b4c63; --th-bg:#1b2637; --row-alt:#16202f;
+  --hover:#22304a; --link:#6ea8fe; --accent:#93b4fd;
+  --good:#4ade80; --good-bg:#14532d; --bad:#f87171; --bad-bg:#442222;
+  --warn:#fbbf24; --warn-bg:#3a2c12; --warn-line:#57441d;
+  --info-bg:#16233a; --info-line:#2b3f5c;
+  --auction:#a78bfa; --star:#facc15; --badge-bg:#26344a;
+  --shadow:0 1px 2px rgba(0,0,0,.35);
+}
+:root[data-theme="light"]{
+  --bg:#f1f5f9; --card:#ffffff; --fg:#0f172a; --muted:#5d6b7d; --faint:#93a1b3;
+  --line:#e2e8f0; --line2:#cbd5e1; --th-bg:#f8fafc; --row-alt:#f8fafc;
+  --hover:#eef4fb; --link:#2563eb; --accent:#1d4ed8;
+  --good:#16a34a; --good-bg:#e8f7ee; --bad:#dc2626; --bad-bg:#fdeaea;
+  --warn:#b45309; --warn-bg:#fdf4e3; --warn-line:#ecd9b0;
+  --info-bg:#f4f8fc; --info-line:#d4e0ec;
+  --auction:#7c3aed; --star:#d4a017; --badge-bg:#eef2f7;
+  --radius:10px; --radius-s:6px;
+  --shadow:0 1px 2px rgba(15,23,42,.06),0 1px 3px rgba(15,23,42,.08);
+}
 *{box-sizing:border-box}
 body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   background:var(--bg);color:var(--fg);max-width:1020px;margin:0 auto;
@@ -50,6 +75,7 @@ td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top;
 tr:hover>td{background:var(--hover)}
 tr.z>td{background:var(--row-alt)}
 tr.z:hover>td{background:var(--hover)}
+tr:target>td{background:var(--warn-bg)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 th.sort-th{cursor:pointer}
 th.sort-th:hover{background:var(--hover);color:var(--fg)}
@@ -80,6 +106,9 @@ input,select,button{font:inherit;font-size:13px;color:var(--fg);
 input:focus,select:focus{outline:2px solid var(--link);outline-offset:0;
   border-color:var(--link)}
 button{cursor:pointer}
+button.primary{background:var(--accent);color:#fff;
+  border-color:transparent;font-weight:700}
+button.ghost{background:var(--row-alt);font-weight:700}
 
 /* KPI stat chips */
 .kpis{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
@@ -103,6 +132,39 @@ button{cursor:pointer}
 .badge.b-src{border:1px solid var(--line2);color:var(--muted);background:transparent}
 .badge.b-cheap{background:var(--good-bg);color:var(--good)}
 .badge.b-mot{background:var(--warn-bg);color:var(--warn)}
+.badge.b-relist{background:transparent;border:1px solid var(--auction);color:var(--auction)}
+.badge.b-low{background:var(--good-bg);color:var(--good)}
+/* In-page section jump nav (chip row above the digest sections) */
+.secnav{margin:4px 0 14px;font-size:12px;color:var(--faint)}
+.secnav a{display:inline-block;padding:2px 9px;margin:2px 3px 2px 0;
+  border:1px solid var(--line2);border-radius:999px;color:var(--link);
+  text-decoration:none;background:var(--card)}
+.secnav a:hover{border-color:var(--accent);color:var(--accent)}
+/* Dark-mode manual toggle — fixed corner button */
+.theme-toggle{position:fixed;top:10px;right:12px;z-index:60;width:34px;
+  height:34px;border-radius:50%;border:1px solid var(--line2);
+  background:var(--card);color:var(--fg);font-size:16px;line-height:1;
+  cursor:pointer;box-shadow:var(--shadow);padding:0}
+.theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
+/* Back-to-top — appears after scrolling, bottom-right corner */
+.top-btn{position:fixed;bottom:14px;right:12px;z-index:60;width:34px;
+  height:34px;border-radius:50%;border:1px solid var(--line2);
+  background:var(--card);color:var(--fg);font-size:15px;line-height:1;
+  cursor:pointer;box-shadow:var(--shadow);padding:0;display:none}
+.top-btn:hover{border-color:var(--accent);color:var(--accent)}
+/* Leaflet tiles follow dark mode (OSM has no dark tile set — the
+   standard invert+hue-rotate trick keeps roads/labels readable) */
+[data-theme="dark"] .leaflet-tile{filter:invert(1) hue-rotate(180deg)
+  brightness(.9) saturate(.7)}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .leaflet-tile{
+    filter:invert(1) hue-rotate(180deg) brightness(.9) saturate(.7)}}
+/* Print: content only — nav, toggles, buttons and controls go away */
+@media print{
+  .site-nav,.secnav,.theme-toggle,.top-btn,.watch-star,.watch-remove,
+  select,input,button{display:none!important}
+  .card,.box{box-shadow:none;border:1px solid #ccc}
+  a{color:#000;text-decoration:none}}
 .delta-up{color:var(--bad)} .delta-down{color:var(--good)}
 
 /* Watchlist star */
@@ -156,17 +218,32 @@ summary:focus-visible{outline:2px solid var(--link);outline-offset:2px;border-ra
   th,td{padding:6px 7px}
   .kpi{min-width:70px;padding:6px 10px}
 }
-</style></head><body>
-<style>.site-nav{margin:0 0 18px}.site-nav a{display:inline-block;padding:7px 16px;margin-right:6px;border-radius:999px;text-decoration:none;font-size:13.5px;font-weight:600;background:var(--card,#fff);color:var(--accent,#1d4ed8);border:1px solid var(--line,#e2e8f0)}.site-nav a:hover{background:var(--hover,#eef4fb);text-decoration:none}.site-nav a.on{background:var(--accent,#1d4ed8);color:#fff;border-color:var(--accent,#1d4ed8)}</style><nav class="site-nav" aria-label="Sections"><a href="index.html">Flats</a><a href="cars.html">Cars</a><a href="market.html">Market</a><a href="archive.html">Archive</a></nav>
+</style><script>(function(){try{var t=localStorage.getItem('fs_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script></head><body>
+<button type="button" id="theme-toggle" class="theme-toggle"
+title="Toggle dark/light (your choice is remembered)">&#9790;</button>
+<script>(function(){var b=document.getElementById('theme-toggle');var de=document.documentElement;
+function cur(){return de.getAttribute('data-theme')||(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');}
+function paint(){b.innerHTML=cur()==='dark'?'&#9788;':'&#9790;';}
+b.onclick=function(){var next=cur()==='dark'?'light':'dark';de.setAttribute('data-theme',next);try{localStorage.setItem('fs_theme',next);}catch(e){}paint();};
+paint();})();</script>
+<button type="button" id="top-btn" class="top-btn"
+title="Back to top">&#8593;</button>
+<script>(function(){var b=document.getElementById('top-btn');
+function paint(){b.style.display=(window.scrollY>600)?'block':'none';}
+b.onclick=function(){window.scrollTo({top:0,behavior:'smooth'});};
+if(window.addEventListener){addEventListener('scroll',paint,{passive:true});}
+paint();})();</script>
+<style>.site-nav{margin:0 0 18px}.site-nav a{display:inline-block;padding:7px 16px;margin-right:6px;border-radius:999px;text-decoration:none;font-size:13.5px;font-weight:600;background:var(--card,#fff);color:var(--accent,#1d4ed8);border:1px solid var(--line,#e2e8f0)}.site-nav a:hover{background:var(--hover,#eef4fb);text-decoration:none}.site-nav a.on{background:var(--accent,#1d4ed8);color:#fff;border-color:var(--accent,#1d4ed8)}.daynav{font-size:12px;margin:2px 0 12px;color:var(--faint,#94a3b8)}.daynav a{color:var(--link,#2563eb);text-decoration:none;padding:1px 6px}.daynav a:hover{text-decoration:underline}.daynav .cur{font-weight:600;color:var(--fg,#0f172a);padding:0 6px}.daynav .off{color:var(--faint,#94a3b8);padding:1px 6px}</style><nav class="site-nav" aria-label="Sections"><a href="index.html">Flats</a><a href="cars.html">Cars</a><a href="market.html">Market</a><a href="archive.html">Archive</a></nav>
 
 <h1>Riga flat & car deals — archive</h1>
 <p class="note">Districts: Zolitude, Sampeteris, Imanta · Sources: ss.com, city24.lv, pp.lv</p>
-<div class='card'><span class='cov-cell cov-one' title='2026-09-21: flat digest only'></span><span class='cov-cell cov-one' title='2026-09-22: flat digest only'></span><span class='cov-cell cov-one' title='2026-09-23: flat digest only'></span><span class='cov-cell cov-one' title='2026-09-24: flat digest only'></span><span class='cov-cell cov-one' title='2026-09-25: flat digest only'></span><span class='cov-cell cov-both' title='2026-09-26: flat + car digests'></span><span class='cov-cell cov-both' title='2026-09-27: flat + car digests'></span><span class='cov-cell cov-both' title='2026-09-28: flat + car digests'></span><span class='cov-cell cov-both' title='2026-09-29: flat + car digests'></span><span class='cov-cell cov-both' title='2026-09-30: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-01: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-02: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-03: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-04: flat + car digests'></span><div class='note'>Last 14 days: green = both digests, amber = one source only, red = no scan. Hover a cell for the date.</div></div>
+<div class='card'><span class='cov-cell cov-one' title='2026-09-22: flat digest only'></span><span class='cov-cell cov-one' title='2026-09-23: flat digest only'></span><span class='cov-cell cov-one' title='2026-09-24: flat digest only'></span><span class='cov-cell cov-one' title='2026-09-25: flat digest only'></span><span class='cov-cell cov-both' title='2026-09-26: flat + car digests'></span><span class='cov-cell cov-both' title='2026-09-27: flat + car digests'></span><span class='cov-cell cov-both' title='2026-09-28: flat + car digests'></span><span class='cov-cell cov-both' title='2026-09-29: flat + car digests'></span><span class='cov-cell cov-both' title='2026-09-30: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-01: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-02: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-03: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-04: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-05: flat + car digests'></span><div class='note'>Last 14 days: green = both digests, amber = one source only, red = no scan. Hover a cell for the date.</div></div>
 <p><a href="index.html">← Back to today's deals</a></p>
 <div class='card'><h2>Flat digests (31 total)</h2>
 <table>
 <tr><th>Date</th><th>Summary</th></tr>
-<tr><td><b><a href='archive/digest_2026-10-04.html'>2026-10-04 (today)</a></b></td><td class='note'>3 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-10-05.html'>2026-10-05 (today)</a></b></td><td class='note'>2 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-10-04.html'>2026-10-04</a></b></td><td class='note'>3 new/changed</td></tr>
 <tr><td><b><a href='archive/digest_2026-10-03.html'>2026-10-03</a></b></td><td class='note'>7 new/changed</td></tr>
 <tr><td><b><a href='archive/digest_2026-10-02.html'>2026-10-02</a></b></td><td class='note'>5 new/changed</td></tr>
 <tr><td><b><a href='archive/digest_2026-10-01.html'>2026-10-01</a></b></td><td class='note'>2 new/changed</td></tr>
@@ -196,12 +273,12 @@ summary:focus-visible{outline:2px solid var(--link);outline-offset:2px;border-ra
 <tr><td><b><a href='archive/digest_2026-09-07.html'>2026-09-07</a></b></td><td class='note'>2 new/changed</td></tr>
 <tr><td><b><a href='archive/digest_2026-09-06.html'>2026-09-06</a></b></td><td class='note'>6 new/changed</td></tr>
 <tr><td><b><a href='archive/digest_2026-09-05.html'>2026-09-05</a></b></td><td class='note'>2 new/changed</td></tr>
-<tr><td><b><a href='archive/digest_2026-09-04.html'>2026-09-04</a></b></td><td class='note'>2 new/changed</td></tr>
 </table></div>
-<div class='card'><h2>Car digests (9 total)</h2>
+<div class='card'><h2>Car digests (10 total)</h2>
 <table>
 <tr><th>Date</th><th>Summary</th></tr>
-<tr><td><b><a href='archive/cars_2026-10-04.html'>2026-10-04 (today)</a></b></td><td class='note'>29 qualifying, 9 new · 20 still active</td></tr>
+<tr><td><b><a href='archive/cars_2026-10-05.html'>2026-10-05 (today)</a></b></td><td class='note'>202 qualifying, 65 new · 5 price drop · 120 reappeared · 12 still active · 20 gone since yesterday</td></tr>
+<tr><td><b><a href='archive/cars_2026-10-04.html'>2026-10-04</a></b></td><td class='note'>29 qualifying, 9 new · 20 still active</td></tr>
 <tr><td><b><a href='archive/cars_2026-10-03.html'>2026-10-03</a></b></td><td class='note'>216 qualifying, 125 new · 91 still active</td></tr>
 <tr><td><b><a href='archive/cars_2026-10-02.html'>2026-10-02</a></b></td><td class='note'>164 qualifying, 110 new · 2 price drop · 52 reappeared</td></tr>
 <tr><td><b><a href='archive/cars_2026-10-01.html'>2026-10-01</a></b></td><td class='note'>214 qualifying, 20 new · 6 reappeared · 188 still active</td></tr>
@@ -211,6 +288,6 @@ summary:focus-visible{outline:2px solid var(--link);outline-offset:2px;border-ra
 <tr><td><b><a href='archive/cars_2026-09-27.html'>2026-09-27</a></b></td><td class='note'>188 qualifying</td></tr>
 <tr><td><b><a href='archive/cars_2026-09-26.html'>2026-09-26</a></b></td><td class='note'>173 qualifying</td></tr>
 </table></div>
-<hr><p class="note">Generated by Flat_Searcher on 2026-10-04. Digests are kept
+<hr><p class="note">Generated by Flat_Searcher on 2026-10-05. Digests are kept
 for 30 days.</p>
 </body></html>
