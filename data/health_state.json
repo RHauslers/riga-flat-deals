@@ -1,1 +1,1 @@
-{"flat:ss.com":{"fail_days":0,"last_ok":"2026-10-05"},"flat:city24.lv":{"fail_days":1,"last_fail":"2026-10-05"},"flat:izsoles":{"fail_days":0,"last_ok":"2026-10-05"},"cars:ss.com":{"fail_days":0,"last_ok":"2026-10-05"},"cars:pp.lv":{"fail_days":0,"last_ok":"2026-10-05"}}
+{"flat:ss.com":{"fail_days":0,"last_ok":"2026-10-06"},"flat:city24.lv":{"fail_days":2,"last_fail":"2026-10-06"},"flat:izsoles":{"fail_days":0,"last_ok":"2026-10-06"},"cars:ss.com":{"fail_days":0,"last_ok":"2026-10-06"},"cars:pp.lv":{"fail_days":0,"last_ok":"2026-10-06"}}
