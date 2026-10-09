@@ -1,11 +1,24 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-09 23:51
+Last updated: 2026-10-10 01:05
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
 
+- 2026-10-10 01:05 — push + live run. Committed the /improve batch
+  (6f6a7e5, rebased onto remote's Oct 5-9 CI data commits — first local
+  run had computed against a stale Oct-4 baseline, so it was discarded
+  and the pipeline re-run on top of the rebased tree). Live run then
+  exposed a LATENT bug not in the /improve batch: car_digest._low_km_chip
+  used f"{_e(km):,}" — a ',' numeric format spec on an escaped string,
+  which raised ValueError whenever a qualifying LOW KM listing existed;
+  fixed to f"{int(km):,}" (commit +data: 076dfa5). Verified end-to-end:
+  full run 811s, cars standalone re-run saved cars_2026-10-10.html
+  (247 qualifying), site rebuilt (index/cars/archive 2026-10-10), pushed.
+  Note: ss.com car deep-scan rotates model pages (cap 200 of ~727) so
+  back-to-back runs see different listing sets — qualifying counts vary
+  run to run by design.
 - 2026-10-09 23:51 — /improve 200 (cold read; 22 filtered items, all
   implemented). Four real bugs + a block of dead code that earlier
   sessions added on a FALSE premise (the 2026-10-04 rent UI was built
