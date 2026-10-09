@@ -91,7 +91,8 @@ DEAL_TYPES = ["sale"]
 
 # ----------------------------------------------------------------------------
 # 3. ss.com settings
-#    English "today" pages for Riga flats. One page holds all of today's ads.
+#    Per-district listing pages for Riga flats (all active ads — the old
+#    "today" page was redundant).
 # ----------------------------------------------------------------------------
 SS_COM_BASE = "https://www.ss.com"
 # District-specific listing pages (not just "today" — shows ALL active listings).
@@ -172,7 +173,7 @@ MIN_SALE_PRICE_EUR = 5000    # below this, a sale listing is likely erroneous
 MIN_RENT_PRICE_EUR = 50      # below this, a rent listing is likely erroneous
 
 # ----------------------------------------------------------------------------
-# 5a2. SCHOOL PROXIMITY (Rīgas Ziemeļvalstu ģimnāzija)
+# 5a. SCHOOL PROXIMITY (Rīgas Ziemeļvalstu ģimnāzija)
 #      The buyer's daughters attend this school. Sale listings are ranked by
 #      a 50/50 blend of deal score (cheap vs model) and proximity (walking
 #      distance to the school). Rent listings are unaffected.
@@ -193,7 +194,7 @@ NEAR_SCHOOL_RADIUS_KM = 1.0
 NEAR_SCHOOL_MAX_ROWS = 25   # cap the section; "+N more" note beyond this
 
 # ----------------------------------------------------------------------------
-# 5a3. NEW BUILD EXCLUSION
+# 5b. NEW BUILD EXCLUSION
 #      The buyer explicitly does not want newly built apartments. SS.com marks
 #      these with series = "New". City24's project names are free text, so we
 #      also check for common new-build keywords there.
@@ -304,7 +305,7 @@ CHAT_INJECT_WINDOW_RE = r"devin|cascade|windsurf"
 CHAT_INJECT_SUBMIT = False
 
 # ----------------------------------------------------------------------------
-# 9. STATE / BAILIFF AUCTIONS (izsoles.ta.gov.lv)
+# 8. STATE / BAILIFF AUCTIONS (izsoles.ta.gov.lv)
 #     The State Land Service e-auction site lists forced-sale auctions run by
 #     bailiffs (zvērināti tiesu izpildītāji) plus state and municipal property.
 #     Starting prices are often well below market because the goal is debt
@@ -325,7 +326,7 @@ IZSOLES_MAX_DETAILS = 30   # safety cap on detail pages fetched per run
 AUCTION_ENDING_SOON_DAYS = 3
 
 # ----------------------------------------------------------------------------
-# 8. FILE PATHS (data dir is committed so history persists across CI runs)
+# 9. FILE PATHS (data dir is committed so history persists across CI runs)
 # ----------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")

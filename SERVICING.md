@@ -1,10 +1,74 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-04 23:38
+Last updated: 2026-10-09 23:51
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
+
+- 2026-10-09 23:51 — /improve 200 (cold read; 22 filtered items, all
+  implemented). Four real bugs + a block of dead code that earlier
+  sessions added on a FALSE premise (the 2026-10-04 rent UI was built
+  believing "rent is scraped+embedded" — DEAL_TYPES=['sale'] since
+  62c0712, never re-enabled; revisiting that decision to strip it):
+  (1) BUG: cars.load_snapshot() v2 branch dropped "recent_gone" — car
+    RELISTED detection was silently dead since it shipped (a41b6ef);
+    the key is now carried through, pinned by an extended
+    test_snapshot_v2_roundtrip test;
+  (2) BUG: history.append_history appended an empty-price row EVERY
+    run for a listing that lost its price (the dedupe baseline never
+    updates on None, so it fell through to the append branch);
+  (3) BUG: price_history.update_price_history KeyError'd on legacy
+    {"d","p"}-shaped our_tracking rows — the shape flat_motivated
+    explicitly tolerates; writer, timeline reader and _entry_last_activity
+    now decode both shapes;
+  (4) BUG: utils.dedupe_cross_source matched only cluster[0] — a flat
+    resembling a LATER cluster member spawned a false duplicate
+    (tolerance chaining); now any-member;
+  (5) run lock TOCTOU: exists()->read->write let two processes both
+    pass; now O_CREAT|O_EXCL atomic create with stale/corrupt-lock
+    takeover preserved;
+  (6) midnight incoherence: run's `today` now threaded through
+    append_history, update_seen_deals, update_price_history, classify,
+    enrich_coordinates, build_auctions_html, build_html/save_digest,
+    cars.run, izsoles.scrape (all take today=None -> date.today() so
+    tests/helpers still work); a run crossing midnight no longer writes
+    state under mixed dates;
+  (7) _prev_bids r["k"] -> r.get("k") — a malformed flat_active.json row
+    used to KeyError the run;
+  (8) _map_link marker_id (raw source:id) now json.dumps + HTML-escaped
+    inside the onclick attr — a quote in a scraped id could break the
+    attribute/inject JS;
+  (9) upsert_history_point compared p[0]==run_date raw but str(p[0]) for
+    ordering — non-str dates appended duplicate same-day points; both
+    sides now str();
+  (10) izsoles filtered POST had no status check — an HTTP error page
+    parsed as "0 auctions" (silent outage); now raise_for_status;
+  (11) dead rent pipeline removed (revisiting a prior decision: built on
+    the false premise rent was scraped): _rent_stats/_district_rent_median
+    annotation in main, notifier._yield_chip + 4 call sites, the
+    _district_rent_median embed field, flat_section_html rent block,
+    save_stats rent_districts, _append_history rent:* loop, the market
+    Yield column, the "For rent" <select>, the false "Rentals are scraped
+    too" copy (-> "Sales only — rentals are out of scope"), the JS yield
+    chip + rent badge blocks, README lines, one rent-table test
+    (test_rent_stats_split_from_sale kept — compute_district_stats keeps
+    its generic deal_type param);
+  (12-15) dead FLAT/CAR/SITE_PAGE_CSS constants, unused `import json` in
+    city24, audit_data._last_activity -> price_history._entry_last_activity,
+    geocode._geocode_address's unused `district` param;
+  (16-19) stale docstrings/comments: ss_com still described the removed
+    "today" page (module + scrape()), main.py's "6g overwrite" step ref,
+    health.check now takes issues= so main's evaluate() isn't run twice,
+    "out-of-budget" log wording (budget filter long gone);
+  (20) config.py section numbers were scrambled (5a2/5a3/5c-5f/9/8) ->
+    sequential 5a/5b, auctions 8, paths 9;
+  (21) _market_pulse read _riga_hist[-2][3] -> named _ADS_IDX;
+  (22) 6 regression tests (TestImprove200ColdReview + extended snapshot
+    v2 test).
+  Tests: 241 -> 245 (+5 net). All green; node --check clean on the
+  budget/watch JS; audit_data 0 structural warnings (only 5d staleness —
+  no run since 10-04). Not committed.
 
 - 2026-10-04 23:38 — /improve 20 second pass (chained after /addnewf
   20; fresh cold read of different surface). One real bug fixed mid-

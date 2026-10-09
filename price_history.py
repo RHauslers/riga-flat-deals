@@ -199,7 +199,7 @@ def _extract_ss_id(listing):
     return None
 
 
-def update_price_history(listings):
+def update_price_history(listings, today=None):
     """Update price history for a batch of listings.
 
     For each listing:
@@ -210,7 +210,7 @@ def update_price_history(listings):
     Returns the updated price_history dict.
     """
     history = load_price_history()
-    today = date.today().isoformat()
+    today = today or date.today().isoformat()
     n_fetched = 0
     n_tracked = 0
 
@@ -244,7 +244,8 @@ def update_price_history(listings):
             old_price = listing.get('old_price')
             if old_price and float(old_price) > 0 and float(old_price) != float(price):
                 # Use yesterday as the date (we don't know when it changed)
-                yesterday = (date.today() - timedelta(days=1)).isoformat()
+                yesterday = (date.fromisoformat(today)
+                             - timedelta(days=1)).isoformat()
                 entry['our_tracking'].append({'date': yesterday, 'price': float(old_price)})
                 entry['city24_old_price'] = float(old_price)
 
@@ -252,15 +253,21 @@ def update_price_history(listings):
         if not entry['our_tracking']:
             entry['our_tracking'].append(today_obs)
             n_tracked += 1
-        elif entry['our_tracking'][-1]['price'] != float(price):
-            # Price changed — new observation
-            entry['our_tracking'].append(today_obs)
-            n_tracked += 1
-        elif entry['our_tracking'][-1]['date'] != today:
-            # Same price, new day — update the LAST entry's date only.
-            # This is safe: our_tracking[0] is only touched when a price
-            # change creates a new first entry, which can't happen here.
-            entry['our_tracking'][-1]['date'] = today
+        else:
+            # Legacy "p"/"d"-keyed rows decode too — flat_motivated already
+            # tolerates them; a direct ['price'] index used to KeyError here.
+            last_obs = entry['our_tracking'][-1] or {}
+            last_price = last_obs.get('price', last_obs.get('p'))
+            last_date = last_obs.get('date', last_obs.get('d'))
+            if last_price != float(price):
+                # Price changed — new observation
+                entry['our_tracking'].append(today_obs)
+                n_tracked += 1
+            elif last_date != today:
+                # Same price, new day — update the LAST entry's date only.
+                # This is safe: our_tracking[0] is only touched when a price
+                # change creates a new first entry, which can't happen here.
+                last_obs['date'] = today
 
         # 2. Fetch CenuMednieks data for SS.com listings (weekly refresh).
         #    cenumednieks_attempt stamps every try — hits AND misses — so an
@@ -289,7 +296,7 @@ def update_price_history(listings):
 
     # Prune entries whose newest observed activity is older than
     # PRICE_HISTORY_KEEP_DAYS — dead listings were accumulating forever.
-    cutoff = (date.today()
+    cutoff = (date.fromisoformat(today)
               - timedelta(days=config.PRICE_HISTORY_KEEP_DAYS)).isoformat()
     stale = [k for k, e in history.items()
              if (_entry_last_activity(e) or "") < cutoff]
@@ -311,8 +318,9 @@ def update_price_history(listings):
 def _entry_last_activity(entry):
     """Newest date we have on record for a listing — used to prune entries
     that haven't been seen for a long time."""
-    dates = [str(o.get('date')) for o in entry.get('our_tracking') or []
-             if o.get('date')]
+    dates = [str(o.get('date') or o.get('d'))
+             for o in entry.get('our_tracking') or []
+             if o.get('date') or o.get('d')]
     cenu = entry.get('cenumednieks') or {}
     if cenu.get('fetched_at'):
         dates.append(str(cenu['fetched_at']))
@@ -377,11 +385,15 @@ def get_price_timeline(listing, history=None):
                 'source': 'CenuMednieks (previous ad)',
             })
 
-    # Our own tracking (daily observations)
+    # Our own tracking (daily observations) — tolerate legacy "p"/"d" keys.
     for obs in entry.get('our_tracking', []):
+        obs_date = obs.get('date') or obs.get('d')
+        obs_price = obs.get('price', obs.get('p'))
+        if not obs_date or obs_price is None:
+            continue
         timeline.append({
-            'date': obs['date'],
-            'price': obs['price'],
+            'date': obs_date,
+            'price': obs_price,
             'source': 'Flat_Searcher',
         })
 

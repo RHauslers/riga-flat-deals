@@ -122,9 +122,13 @@ def gone_spike_issue(prev_rows, gone):
         f"the per-source counts before trusting it.")
 
 
-def check(source_counts, total, context="daily", geocoded=None):
-    """Evaluate health and print any issues. Returns the list of issue keys."""
-    issues = evaluate(source_counts, total, geocoded)
+def check(source_counts, total, context="daily", geocoded=None,
+          issues=None):
+    """Evaluate health and print any issues. Returns the list of issue keys.
+    ``issues`` reuses an evaluate() result the caller already computed
+    (e.g. for the digest banner) instead of running the same check twice."""
+    issues = evaluate(source_counts, total, geocoded) \
+        if issues is None else issues
     for issue_key, message in issues:
         print(f"[health] ISSUE ({context}) {issue_key}: {message}")
     return [k for k, _ in issues]

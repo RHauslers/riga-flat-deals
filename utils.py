@@ -363,11 +363,15 @@ def upsert_history_point(points, run_date, point, max_points):
     point is replaced wherever it sits, then the series is capped at
     max_points. Shared by the flat/car market history writers — a backfill
     merged after live appends had produced unordered duplicate tails."""
+    run_date = str(run_date)
     for i, p in enumerate(points):
-        if p[0] == run_date:
+        # Normalise both sides to str — a date/int p[0] used to slip past
+        # the raw `==` and append a duplicate same-day point.
+        p_date = str(p[0])
+        if p_date == run_date:
             points[i] = point
             break
-        if str(p[0]) > run_date:
+        if p_date > run_date:
             points.insert(i, point)
             break
     else:
@@ -568,7 +572,10 @@ def dedupe_cross_source(listings):
         clusters = []
         for l in group:
             for cluster in clusters:
-                if _same_flat(cluster[0], l):
+                # Match ANY cluster member — cluster[0] alone missed
+                # flats that resemble a later member (e.g. the first
+                # listing lacked a street token check the second passes).
+                if any(_same_flat(m, l) for m in cluster):
                     cluster.append(l)
                     break
             else:

@@ -1812,11 +1812,17 @@ class TestStateCompaction(_TempPaths):
                           "fields": list(config.CAR_SNAPSHOT_FIELDS),
                           "rows": [[l.get(f) for f in
                                     config.CAR_SNAPSHOT_FIELDS]
-                                   for l in lst]})
+                                   for l in lst],
+                          "recent_gone": [{"k": "ss.com:old1", "p": 3200,
+                                           "mk": "vw", "mo": "golf-5",
+                                           "y": 2007, "gone": "2026-10-02"}]})
         snap = cars.load_snapshot(self.snapshot_json)
         self.assertEqual(snap["date"], "2026-10-03")
         self.assertEqual(len(snap["listings"]), 1)
         self.assertEqual(snap["listings"][0]["id"], "c1")
+        # recent_gone must survive the v2 load — without it RELISTED
+        # detection gets an empty pool every day after the first.
+        self.assertEqual(snap["recent_gone"][0]["k"], "ss.com:old1")
         # v1 layout still reads
         with open(self.snapshot_json, "w", encoding="utf-8") as f:
             json.dump({"date": "2026-10-02", "listings": lst}, f)

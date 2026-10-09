@@ -53,17 +53,38 @@ def _acquire_run_lock():
     MAIN_LOCK_STALE_HOURS is treated as a crashed-run leftover and taken
     over; an unreadable lock never blocks the run."""
     try:
-        if os.path.exists(config.MAIN_LOCK_FILE):
-            with open(config.MAIN_LOCK_FILE, encoding="utf-8") as f:
-                info = json.load(f)
-            age_h = (time.time() - float(info.get("ts", 0))) / 3600
-            if age_h < config.MAIN_LOCK_STALE_HOURS:
-                print(f"[main] another run in progress "
-                      f"(pid {info.get('pid')}, {info.get('date', '?')})"
-                      " — aborting")
-                return False
-            print("[main] stale lock from a crashed run — taking over")
-        with open(config.MAIN_LOCK_FILE, "w", encoding="utf-8") as f:
+        parent = os.path.dirname(config.MAIN_LOCK_FILE)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        while True:
+            try:
+                # O_CREAT|O_EXCL is atomic — the old exists()->open()
+                # sequence let two processes both pass the check and
+                # interleave writes.
+                fd = os.open(config.MAIN_LOCK_FILE,
+                             os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                break
+            except FileExistsError:
+                pass
+            try:
+                with open(config.MAIN_LOCK_FILE, encoding="utf-8") as f:
+                    info = json.load(f)
+                age_h = (time.time() - float(info.get("ts", 0))) / 3600
+                if age_h < config.MAIN_LOCK_STALE_HOURS:
+                    print(f"[main] another run in progress "
+                          f"(pid {info.get('pid')}, {info.get('date', '?')})"
+                          " — aborting")
+                    return False
+                print("[main] stale lock from a crashed run — taking over")
+                os.remove(config.MAIN_LOCK_FILE)
+            except (OSError, ValueError, TypeError):
+                # An unreadable/corrupt lock must not block the run
+                # either — drop it and retry the atomic create.
+                try:
+                    os.remove(config.MAIN_LOCK_FILE)
+                except OSError:
+                    return True
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump({"pid": os.getpid(), "ts": time.time(),
                        "date": str(date.today())}, f)
         return True
@@ -176,7 +197,7 @@ def _run_body(today, _t0):
                     and l["price_eur"] >= min_price.get(l.get("deal_type"), 0)]
     dropped = before - len(all_listings)
     if dropped:
-        print(f"[main] dropped {dropped} listing(s) with implausible/out-of-budget prices")
+        print(f"[main] dropped {dropped} listing(s) with implausible prices")
 
     # Step 1 cont: exclude newly built apartments (buyer's explicit requirement)
     all_listings, n_new_builds = utils.filter_new_builds(all_listings)
@@ -188,11 +209,11 @@ def _run_body(today, _t0):
     all_listings, _n_merged = utils.dedupe_cross_source(all_listings)
 
     # Step 2: update price history (CenuMednieks backfill + our own daily tracking)
-    price_data = price_history.update_price_history(all_listings)
+    price_data = price_history.update_price_history(all_listings, today=today)
 
     # Step 2 cont: geocode listings (city24 has coords from API, SS.com via Nominatim)
     if config.GEOCODE_ENABLED:
-        all_listings = geocode.enrich_coordinates(all_listings)
+        all_listings = geocode.enrich_coordinates(all_listings, today=today)
 
     # Step 2 cont: compute distance to school for each listing (used in sale scoring
     #      and shown as a Distance column in the digest)
@@ -206,7 +227,7 @@ def _run_body(today, _t0):
     auctions_failed = False
     if config.IZSOLES_ENABLED:
         try:
-            auctions = izsoles.scrape()
+            auctions = izsoles.scrape(today=today)
         except Exception as e:
             auctions_failed = True
             print(f"[main] izsoles auction scrape failed: {e}")
@@ -217,19 +238,20 @@ def _run_body(today, _t0):
                     and a["price_eur"] >= config.MIN_SALE_PRICE_EUR]
         if before_a and len(auctions) != before_a:
             print(f"[main] auctions: dropped {before_a - len(auctions)} "
-                  f"out-of-budget auction(s)")
+                  f"below-minimum-price auction(s)")
         if auctions and config.GEOCODE_ENABLED:
-            auctions = geocode.enrich_coordinates(auctions)
+            auctions = geocode.enrich_coordinates(auctions, today=today)
         geocode.annotate_school_km(auctions)
         if auctions:
-            print(f"[main] auctions: {len(auctions)} in-budget active "
+            print(f"[main] auctions: {len(auctions)} active "
                   f"auction(s) after filters")
 
     # Step 3: health check -> loud log line if a scraper (or the geocoder) looks
     #     broken. The same issue list feeds the digest's outage banner.
     geocoded = geocode.coverage(all_listings) if config.GEOCODE_ENABLED else None
-    digest_issues = health.evaluate(source_counts, len(all_listings),
-                                    geocoded=geocoded)
+    eval_issues = health.evaluate(source_counts, len(all_listings),
+                                  geocoded=geocoded)
+    digest_issues = list(eval_issues)
     for _src, _err in sorted(source_errors.items()):
         if not any(k == f"source_zero:{_src}" for k, _ in digest_issues):
             digest_issues.append((f"source_failed:{_src}", _err))
@@ -250,7 +272,7 @@ def _run_body(today, _t0):
             f"parser or a block, not a one-off blip."))
         print(f"[health] ISSUE outage_streak:{_key}: {_days} days")
     health.check(source_counts, len(all_listings), context="daily",
-                 geocoded=geocoded)
+                 geocoded=geocoded, issues=eval_issues)
 
     _t_scrape = time.monotonic()
     print(f"[main] flat scrape+enrich took {_t_scrape-_t0:.0f}s")
@@ -260,7 +282,7 @@ def _run_body(today, _t0):
     # try/except and only reports a status string back.
     car_status = ""
     try:
-        car_status = cars.run()
+        car_status = cars.run(today=today)
     except Exception as e:
         print(f"[main] cars.run failed: {e}")
         traceback.print_exc()
@@ -284,7 +306,7 @@ def _run_body(today, _t0):
     #    making genuine bargains look ordinary.
     hist_rows_all = history.load_history()          # one CSV read total
     hist_rows = [r for r in hist_rows_all if r.get('scrape_date') != today]
-    history.append_history(all_listings,
+    history.append_history(all_listings, today=today,
                            latest_price=history.latest_prices(hist_rows_all))
 
     # Step 5 cont: load state
@@ -305,18 +327,14 @@ def _run_body(today, _t0):
     # — built before this section — see the annotation too.
     _flat_stats = flat_market.compute_district_stats(
         all_listings, price_data, today)
-    _rent_stats = flat_market.compute_district_stats(
-        all_listings, price_data, today, deal_type="rent")
     _district_ppu = {s["district"]: s.get("median_ppu")
                      for s in _flat_stats if s.get("median_ppu")}
-    _district_rent = {s["district"]: s.get("median_price")
-                      for s in _rent_stats if s.get("median_price")}
     for _l in all_listings:
         _l["_district_median_ppu"] = _district_ppu.get(_l.get("district"))
-        _l["_district_rent_median"] = _district_rent.get(_l.get("district"))
 
     # Step 7: classify into main (badges) + still_active; build comparison header
-    main_deals, still_active = classify.classify(all_scored, seen_deals, last_digest)
+    main_deals, still_active = classify.classify(all_scored, seen_deals,
+                                                 last_digest, today=today)
     comparison_html = classify.comparison_header(all_scored, last_digest)
 
     n_main = sum(len(v) for v in main_deals.values())
@@ -351,8 +369,8 @@ def _run_body(today, _t0):
     #     deltas AND the RELISTED match below (loaded once, before the
     #     flat_active.json overwrite further down).
     prev_active = utils.read_json(config.FLAT_ACTIVE_JSON, {})
-    _prev_bids = {r["k"]: r["p"] for r in prev_active.get("rows", [])
-                  if r.get("k", "").startswith("izsoles.")}
+    _prev_bids = {r.get("k"): r.get("p") for r in prev_active.get("rows", [])
+                  if (r.get("k") or "").startswith("izsoles.")}
     # RELISTED: a flat live today under a NEW ad id that matches a
     # recently-gone ad (same district+street+rooms+~area) — the seller
     # withdrew and reposted. Annotated before every section builder so
@@ -389,8 +407,8 @@ def _run_body(today, _t0):
     # Step 7 cont: build "State & bailiff auctions" section (izsoles.ta.gov.lv):
     #     sorted by distance, budget-filtered, with start price / current
     #     bid / end date. Not part of the deal-score ranking.
-    #     prev_active (loaded before the 6g overwrite below) supplies
-    #     yesterday's auction bids -> NEW badges and bid-move deltas.
+    #     prev_active (loaded before the flat_active.json overwrite below)
+    #     supplies yesterday's auction bids -> NEW badges and bid deltas.
     # City-wide median EUR/m2 across today's plausible sale listings —
     # the market-relative signal for auction "vs market" chips and flat
     # "vs district" chips below (official appraisals are often stale).
@@ -399,7 +417,7 @@ def _run_body(today, _t0):
          if l.get("deal_type") == "sale" and l.get("price_per_m2")])
     auctions_html = notifier.build_auctions_html(
         auctions, failed=auctions_failed, prev_bids=_prev_bids,
-        median_ppu=_city_median_ppu)
+        median_ppu=_city_median_ppu, today=today)
     print(f"[main] auctions section built")
 
     # Step 7 cont: district-level market stats for the Market tab
@@ -411,14 +429,15 @@ def _run_body(today, _t0):
          if l.get("deal_type") == "sale" and l.get("price_eur")])
     flat_market.save_stats(_flat_stats, today, len(all_listings),
                            city_ppu=_city_median_ppu,
-                           city_price=_city_median_ask,
-                           rent_stats=_rent_stats)
+                           city_price=_city_median_ask)
     _market_pulse = None
     if _city_median_ppu:
         _riga_hist = flat_market.load_history().get("Riga", [])
         # save_stats already appended today's point — [-2] is yesterday's.
-        _ads_prev = (_riga_hist[-2][3]
-                     if len(_riga_hist) > 1 and len(_riga_hist[-2]) > 3
+        # Row layout: [date, median_ppu, median_price, ads].
+        _ADS_IDX = 3
+        _ads_prev = (_riga_hist[-2][_ADS_IDX]
+                     if len(_riga_hist) > 1 and len(_riga_hist[-2]) > _ADS_IDX
                      else None)
         _market_pulse = {
             "ppu": _city_median_ppu,
@@ -476,13 +495,14 @@ def _run_body(today, _t0):
                                                    else None),
                                        auctions_failed=auctions_failed,
                                        n_gone=len(gone_rows),
-                                       market_pulse=_market_pulse)
+                                       market_pulse=_market_pulse,
+                                       today=today)
 
     # Step 8 cont: build hosted site (latest digest -> docs/index.html + archive)
     website.build()
 
     # Step 9: update state: record today's surfaced deals + save today's digest
-    history.update_seen_deals(all_scored, seen_deals)
+    history.update_seen_deals(all_scored, seen_deals, today=today)
     history.save_last_digest(all_scored, today)
 
     _elapsed = time.monotonic() - _t0

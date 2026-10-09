@@ -288,13 +288,6 @@ summary:focus-visible{outline:2px solid var(--link);outline-offset:2px;border-ra
 }
 """
 
-# Page-specific CSS for the flat digest (kept near its markup before the
-# shared stylesheet existed). Kept tiny — BASE_CSS covers the rest.
-FLAT_PAGE_CSS = ""
-CAR_PAGE_CSS = ""
-SITE_PAGE_CSS = ""
-
-
 # Standalone nav styles — emitted by website._nav_html itself so injected
 # nav still looks right on legacy archived pages that predate BASE_CSS
 # (var() fallbacks resolve to the light palette there).
@@ -811,17 +804,7 @@ function __flatBudgetInit() {
         [idx._vs_district_pct, 'b-cheap', function(v){
           return v <= -10 ? v+'% vs district' : null;}],
         [idx._vs_district_pct, 'b-mot', function(v){
-          return v >= 20 ? '+'+v+'% vs district' : null;}],
-        // Gross rental yield on sale rows — same ~X% chip the deal
-        // tables show (district rent median x12 ÷ ask).
-        [idx._district_rent_median, 'b-cheap', function(v, row){
-          var p = row[idx.price_eur];
-          if ((row[idx.deal_type] || 'sale') !== 'sale' || !v || !p) {
-            return null;
-          }
-          var y = v * 12 / p * 100;
-          return (y >= 3 && y <= 20)
-            ? '~' + y.toFixed(1) + '% yield' : null;}]
+          return v >= 20 ? '+'+v+'% vs district' : null;}]
       ];
       chips.forEach(function(c){
         var i = c[0]; if (i == null) return;
@@ -833,13 +816,6 @@ function __flatBudgetInit() {
         srcTd.appendChild(document.createTextNode(' '));
         srcTd.appendChild(s);
       });
-      if (r[idx.deal_type] === 'rent') {
-        var rt = document.createElement('span');
-        rt.className = 'badge b-reg';
-        rt.textContent = 'rent';
-        srcTd.appendChild(document.createTextNode(' '));
-        srcTd.appendChild(rt);
-      }
       if (r[idx.lat] != null && r[idx.lon] != null &&
           typeof showOnMap === 'function') {
         var ml = document.createElement('a');

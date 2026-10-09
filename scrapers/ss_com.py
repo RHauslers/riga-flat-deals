@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-ss.com scraper for Riga flats (today's listings).
+ss.com scraper for Riga flats (all active listings in target districts).
 
 Page structure (verified):
   Each listing is <tr id="tr_{numeric_id}"> with cells in this order:
@@ -9,8 +9,9 @@ Page structure (verified):
   The ad detail link is the first <a href="/msg/.../riga/{district}/{slug}.html">.
   Highlighted rows wrap the cell text in <b>.
 
-We fetch the "today" page for each deal type, parse every row, then keep only
-rows whose district matches one of our target districts (config.DISTRICTS).
+We fetch the per-district listing pages for each deal type — those already
+include today's new ads — and keep rows whose district is in
+config.SS_COM_DISTRICT_SLUGS (i.e. our target districts).
 """
 import re
 import time
@@ -233,10 +234,9 @@ def _next_page_url(soup, base_url):
 def scrape(deal_type, max_pages=None):
     """Return list of listing dicts for the given deal_type ('rent'/'sale').
 
-    Scrapes both the "today" page (new listings) AND district-specific pages
-    (all active listings). District pages are where CenuMednieks historical
-    data is most valuable — older listings that have been on the market for
-    weeks/months with price drop history.
+    Scrapes the district-specific listing pages (all active ads — the old
+    "today" page was redundant since district pages include new listings
+    plus older ones with price history).
 
     max_pages: override config.SS_COM_MAX_PAGES (e.g. hourly scan uses fewer
     pages to limit request volume and avoid IP blocks).

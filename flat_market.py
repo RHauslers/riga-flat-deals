@@ -75,16 +75,11 @@ def compute_district_stats(listings, price_data=None, today=None,
     return stats
 
 
-def _stats_table_html(stats, history, table_id, hist_prefix="",
-                      rent_median_by_district=None):
-    """Shared per-district stats table (sale and rent differ only in
-    which series prefix their history uses). ``rent_median_by_district``
-    ({district: EUR/mo median}) adds a gross-yield column on the sale
-    table — rent median ×12 ÷ sale median ask."""
+def _stats_table_html(stats, history, table_id, hist_prefix=""):
+    """Per-district stats table; ``hist_prefix`` selects the series
+    prefix in flat_market_history ("" for sale districts)."""
     headers = ["District", "Ads", "New", "Median €/m²", "Δ 7d", "Trend",
                "Med. days", "Cuts", "Median ask", "Cheapest"]
-    if rent_median_by_district:
-        headers.append("Yield")
     head = "".join(
         "<th class='sort-th' style='padding:6px;{align}' "
         "onclick=\"sortTable('{tid}', {i})\">{name}</th>".format(
@@ -118,12 +113,6 @@ def _stats_table_html(stats, history, table_id, hist_prefix="",
             delta_html = f"<span style='color:{color}'>{delta:+.1f}%</span>"
         spark = utils.sparkline_svg(
             [(p[0], p[1]) for p in pts], title="median €/m²")
-        yield_html, yield_sort = "—", -1.0
-        if rent_median_by_district is not None:
-            rm = rent_median_by_district.get(s["district"])
-            if rm and s.get("median_price"):
-                y = rm * 12 / s["median_price"] * 100
-                yield_sort, yield_html = round(y, 1), f"~{y:.1f}%"
         rows.append(
             f"<tr{zebra}>"
             f"<td style='padding:6px' data-sort='{_e(d_raw)}'>{dist_l}</td>"
@@ -151,79 +140,50 @@ def _stats_table_html(stats, history, table_id, hist_prefix="",
             f"{utils.fmt_eur(s['median_price'])}</td>"
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['min_price'] or 0}'>{cheap}</td>"
-            + (f"<td style='padding:6px;text-align:right' "
-               f"data-sort='{yield_sort:.1f}'>{yield_html}</td>"
-               if rent_median_by_district else "")
-            + f"</tr>")
+            f"</tr>")
     return f"<table id='{table_id}'><tr>{head}</tr>{''.join(rows)}</table>"
 
 
-def flat_section_html(stats, run_date=None, history=None, rent_stats=None):
-    """The flats block for the Market page — '' when no stats. Sale and
-    rent districts get one table each (rent trends live under rent:*)."""
-    if not stats and not rent_stats:
+def flat_section_html(stats, run_date=None, history=None):
+    """The flats block for the Market page — '' when no stats."""
+    if not stats:
         return ""
     history = history or {}
     as_of = f" — as of {_e(str(run_date))}" if run_date else ""
-    sale_html = ""
-    if stats:
-        sale_html = (
-            f"<h2 id='flats'>Riga flat market — by district{as_of}</h2>"
-            "<p class='note'>All in-budget sale listings from today's scan, "
-            "grouped by district. Median €/m² is the asking-price reality "
-            "check; <b>New</b> = ads first seen today; <b>Δ 7d</b> = median "
-            "€/m² change over the last week; <b>Trend</b> = the same as a "
-            "sparkline. <b>Med. days</b> = median ad age (market "
-            "temperature); <b>Cuts</b> = share of ads that already cut their "
-            "ask — high on both means sellers are waiting and negotiating. "
-            "<b>Yield</b> = rough gross rental yield (district median rent "
-            "×12 ÷ median sale ask — before costs/vacancy). "
-            "Clicking a district opens the Flats tab filtered to it.</p>"
-            + _stats_table_html(
-                stats, history, "flat-market",
-                rent_median_by_district={
-                    str(s["district"]): s["median_price"]
-                    for s in (rent_stats or []) if s.get("median_price")}))
-    rent_html = ""
-    if rent_stats:
-        rent_html = (
-            "<h2 id='flats-rent' style='margin-top:24px'>Riga rent market"
-            " — by district</h2>"
-            "<p class='note'>The same view over rent listings (monthly "
-            "asking prices; €/m² is per month too). Districts link opens "
-            "the Flats tab filtered to that district — pick “For rent” "
-            "there.</p>"
-            + _stats_table_html(rent_stats, history, "flat-market-rent",
-                                hist_prefix="rent:"))
-    return sale_html + rent_html
+    return (
+        f"<h2 id='flats'>Riga flat market — by district{as_of}</h2>"
+        "<p class='note'>All in-budget sale listings from today's scan, "
+        "grouped by district. Median €/m² is the asking-price reality "
+        "check; <b>New</b> = ads first seen today; <b>Δ 7d</b> = median "
+        "€/m² change over the last week; <b>Trend</b> = the same as a "
+        "sparkline. <b>Med. days</b> = median ad age (market "
+        "temperature); <b>Cuts</b> = share of ads that already cut their "
+        "ask — high on both means sellers are waiting and negotiating. "
+        "Clicking a district opens the Flats tab filtered to it.</p>"
+        + _stats_table_html(stats, history, "flat-market"))
 
 
 def save_stats(stats, run_date, total_ads, path=None,
-               city_ppu=None, city_price=None, rent_stats=None):
+               city_ppu=None, city_price=None):
     """Persist district stats for website.build(). Also appends today's
     per-district medians to flat_market_history.json so the page can draw
     trend sparklines once a district has been tracked on multiple days.
     ``city_ppu``/``city_price`` also record a whole-city "Riga" point so
-    the digest can quote a market-wide median + Δ7d. ``rent_stats`` (the
-    same shape, computed over rent listings) is persisted alongside under
-    "rent_districts" and tracked under "rent:<district>" history keys."""
+    the digest can quote a market-wide median + Δ7d."""
     path = path or config.FLAT_MARKET_STATS_JSON
     utils.write_json(path, {"date": run_date, "total": total_ads,
-                            "districts": stats,
-                            "rent_districts": rent_stats or []},
+                            "districts": stats},
                      indent=None)
     _append_history(stats, run_date, city_ppu=city_ppu,
-                    city_price=city_price, total_ads=total_ads,
-                    rent_stats=rent_stats)
+                    city_price=city_price, total_ads=total_ads)
     return path
 
 
 def _append_history(stats, run_date, path=None, city_ppu=None,
-                    city_price=None, total_ads=None, rent_stats=None):
+                    city_price=None, total_ads=None):
     """flat_market_history.json: {district: [[date, median_ppu,
     median_price, ads], ...]}, capped at FLAT_MARKET_HISTORY_MAX_POINTS.
-    "Riga" is a reserved pseudo-district holding the city-wide series;
-    rent districts are tracked separately under "rent:<district>"."""
+    "Riga" is a reserved pseudo-district holding the city-wide series."""
     path = path or config.FLAT_MARKET_HISTORY_JSON
     hist = utils.read_json(path, {})
     for s in stats:
@@ -234,14 +194,6 @@ def _append_history(stats, run_date, path=None, city_ppu=None,
                  s["ads"]]
         utils.upsert_history_point(
             pts, run_date, point, config.FLAT_MARKET_HISTORY_MAX_POINTS)
-    for s in rent_stats or []:
-        if s.get("median_ppu") is None:
-            continue
-        pts = hist.setdefault("rent:" + str(s["district"]), [])
-        utils.upsert_history_point(
-            pts, run_date,
-            [run_date, s["median_ppu"], s.get("median_price"), s["ads"]],
-            config.FLAT_MARKET_HISTORY_MAX_POINTS)
     if city_ppu is not None:
         utils.upsert_history_point(
             hist.setdefault("Riga", []), run_date,

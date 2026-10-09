@@ -36,9 +36,9 @@ def save_seen_deals(seen_deals):
     utils.write_json(config.SEEN_DEALS_JSON, seen_deals, indent=None)
 
 
-def update_seen_deals(scored_by_type, seen_deals):
+def update_seen_deals(scored_by_type, seen_deals, today=None):
     """Record today's surfaced deals into seen_deals, preserving first_shown_date."""
-    today = date.today().isoformat()
+    today = today or date.today().isoformat()
     for dt, items in scored_by_type.items():
         for entry in items:
             listing, score, _method = entry
@@ -53,7 +53,7 @@ def update_seen_deals(scored_by_type, seen_deals):
             }
     # Prune entries not re-shown for SEEN_DEALS_TTL_DAYS — the dict
     # otherwise grows forever with long-gone listings.
-    cutoff = (date.today()
+    cutoff = (date.fromisoformat(today)
               - timedelta(days=config.SEEN_DEALS_TTL_DAYS)).isoformat()
     stale = [k for k, v in seen_deals.items()
              if (v.get("last_shown_date") or "") < cutoff]
@@ -106,7 +106,7 @@ def latest_prices(rows):
     return latest
 
 
-def append_history(listings, latest_price=None):
+def append_history(listings, latest_price=None, today=None):
     """Append unified listings to history.csv.
 
     A listing is appended when:
@@ -131,7 +131,7 @@ def append_history(listings, latest_price=None):
                 for r in csv.DictReader(f):
                     # DictReader yields rows in file order, so the last one wins
                     latest_price[utils.listing_key(r)] = utils.to_float(r.get('price_eur'))
-    today = date.today().isoformat()
+    today = today or date.today().isoformat()
     new_rows = 0
     with open(config.HISTORY_CSV, "a", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=config.HISTORY_COLUMNS)
@@ -145,6 +145,10 @@ def append_history(listings, latest_price=None):
             except (ValueError, TypeError):
                 current_price_f = None
             prev = latest_price.get(key)
+            if current_price_f is None and prev is not None:
+                # Price vanished from a known ad — nothing new to learn;
+                # without this an empty-price row was appended every run.
+                continue
             if prev is not None and current_price_f is not None and prev == current_price_f:
                 # Same price as last record — skip (no new info)
                 continue
@@ -164,7 +168,7 @@ def append_history(listings, latest_price=None):
         print(f"[history] appended {new_rows} new/changed rows")
 
 
-def load_history(exclude_today=False):
+def load_history(exclude_today=False, today=None):
     """Return list of dicts (full history).
 
     exclude_today=True drops rows scraped today. Use this for MODEL TRAINING:
@@ -175,7 +179,7 @@ def load_history(exclude_today=False):
     """
     if not os.path.exists(config.HISTORY_CSV):
         return []
-    today = date.today().isoformat()
+    today = today or date.today().isoformat()
     rows = []
     with open(config.HISTORY_CSV, "r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)

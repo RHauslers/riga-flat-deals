@@ -1230,7 +1230,7 @@ class TestMotivatedSeller(unittest.TestCase):
         self.assertNotIn("showOnMap", cuts)
         cuts_geo = notifier.build_price_cuts_html(
             [dict(listing, lat=56.95, lon=24.1)], pd)
-        self.assertIn("showOnMap('ss.com:s1')", cuts_geo)
+        self.assertIn("showOnMap(&quot;ss.com:s1&quot;)", cuts_geo)
         # below the min-drop threshold -> no section, no chip
         pd2 = {"ss.com:s1": self._entry(
             original_price=256000, current_price=255000)}
@@ -1548,18 +1548,6 @@ class TestRentDistrictStats(unittest.TestCase):
         self.assertEqual([s["ads"] for s in sale], [1])
         self.assertEqual([s["ads"] for s in rent], [2])
 
-    def test_rent_table_rendered(self):
-        html = flat_market.flat_section_html(
-            [{"district": "C", "ads": 2, "median_ppu": 1000,
-              "median_price": 90000, "min_price": 80000, "min_url": "",
-              "new_today": 0}],
-            rent_stats=[{"district": "C", "ads": 3, "median_ppu": 12,
-                         "median_price": 550, "min_price": 500,
-                         "min_url": "", "new_today": 1}])
-        self.assertIn("flat-market-rent", html)
-        self.assertIn("rent market", html.lower())
-
-
 class TestOverpricedChip(unittest.TestCase):
     def test_overpriced_above_threshold(self):
         l = {"district": "C", "price_per_m2": 2000,
@@ -1826,6 +1814,82 @@ class TestImprove20SecondPass(unittest.TestCase):
                   "median_age": 10, "cut_pct": 0}]
         html = flat_market._stats_table_html(stats, {}, "t")
         self.assertNotIn("javascript:", html)
+
+
+class TestImprove200ColdReview(unittest.TestCase):
+    """/improve 200 regression tests: history no-price rows, dedupe
+    any-member matching, legacy price-history shapes, map-link escaping."""
+
+    def test_append_history_skips_priceless_known_listing(self):
+        """A listing that loses its price must not get a fresh empty-price
+        row every run (the baseline never updated on None, so each run
+        re-appended)."""
+        import csv
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "history.csv")
+            with mock.patch.object(config, "HISTORY_CSV", path):
+                history.append_history([_flat(lid="f1", price=50000)],
+                                       today="2026-10-08")
+                gone = _flat(lid="f1", price=50000)
+                gone["price_eur"] = None
+                history.append_history([gone], today="2026-10-09")
+            with open(path, encoding="utf-8-sig", newline="") as f:
+                rows = list(csv.DictReader(f))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["price_eur"], "50000")
+
+    def test_dedupe_matches_any_cluster_member(self):
+        """Tolerance chaining: C matches cluster member B but not the
+        cluster's first member A — comparing only cluster[0] missed it."""
+        a = _flat(source="ss.com", lid="a", price=100000, area=50.0)
+        b = _flat(source="city24.lv", lid="b", price=102000, area=51.0)
+        c = _flat(source="ss.com", lid="c", price=104000, area=52.0)
+        out, merged = utils.dedupe_cross_source([a, b, c])
+        self.assertEqual(merged, 2)
+        self.assertEqual(len(out), 1)
+
+    def test_price_history_tolerates_p_shaped_rows(self):
+        """Legacy {"d","p"}-keyed our_tracking rows used to KeyError at
+        entry['our_tracking'][-1]['price'] and kill the whole run."""
+        import json as _json
+        import tempfile
+        import price_history
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "ph.json")
+            legacy = {"ss.com:f1": {
+                "first_seen": "2026-10-01",
+                "our_tracking": [{"d": "2026-10-01", "p": 50000}]}}
+            with open(path, "w", encoding="utf-8") as f:
+                _json.dump(legacy, f)
+            listing = _flat(lid="f1", price=48000)
+            with mock.patch.object(config, "PRICE_HISTORY_JSON", path), \
+                 mock.patch.object(config, "PRICE_HISTORY_CENU_ENABLED",
+                                   False):
+                hist = price_history.update_price_history([listing])
+            tr = hist["ss.com:f1"]["our_tracking"]
+            self.assertEqual(len(tr), 2)
+            self.assertEqual(tr[-1]["price"], 48000)
+            # The timeline reader decodes the legacy shape too.
+            tl = price_history.get_price_timeline(listing, hist)
+            self.assertIsNotNone(tl)
+            self.assertEqual(tl[0]["price"], 50000)
+
+    def test_upsert_history_point_normalises_date(self):
+        """A non-str p[0] (e.g. a date object) must still collapse into
+        its same-day point, not append a duplicate."""
+        pts = [[date(2026, 10, 8), 100]]
+        utils.upsert_history_point(
+            pts, "2026-10-08", ["2026-10-08", 110], 10)
+        self.assertEqual(len(pts), 1)
+        self.assertEqual(pts[0][1], 110)
+
+    def test_map_link_escapes_marker_id(self):
+        """A quote in a scraped ad id must not terminate the onclick
+        attribute early."""
+        html = notifier._map_link(_flat(lid="x'y", lat=56.9, lon=24.0))
+        self.assertIn(
+            "showOnMap(&quot;ss.com:x&#x27;y&quot;)", html)
 
 
 if __name__ == "__main__":

@@ -252,18 +252,23 @@ def parse_ownership_share(text):
     return share, text[m.end():].strip()
 
 
-def scrape():
+def scrape(today=None):
     """Return active Riga apartment auctions as unified listing dicts."""
     if not config.IZSOLES_ENABLED:
         return []
+    today = today or date.today().isoformat()
 
     s = requests.Session()
     s.headers.update({"User-Agent": USER_AGENT})
 
-    # Warm-up GET (session cookie), then the filtered POST search.
+    # Warm-up GET (session cookie), then the filtered POST search. The
+    # POST is the one request whose failure must surface — unchecked, an
+    # HTTP error page would parse as "0 auctions" and look like a quiet
+    # day instead of a source outage.
     s.get(config.IZSOLES_BASE, timeout=config.IZSOLES_TIMEOUT)
     r = s.post(config.IZSOLES_BASE, data=SEARCH_PAYLOAD,
                timeout=config.IZSOLES_TIMEOUT)
+    r.raise_for_status()
     r.encoding = "utf-8"
     link_items, max_page = _parse_list_page(r.text)
 
@@ -293,7 +298,6 @@ def scrape():
     # Fetch each detail page (rate-limited, capped).
     listings = []
     n_failed = 0
-    today = date.today().isoformat()
     for it in unique_items[:config.IZSOLES_MAX_DETAILS]:
         listing = None
         try:

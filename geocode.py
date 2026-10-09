@@ -232,16 +232,13 @@ def _plausible(lat, lon):
         <= config.GEOCODE_MAX_KM_FROM_SCHOOL
 
 
-def _geocode_address(address, district="Riga"):
+def _geocode_address(address):
     """Geocode a street string via Nominatim, trying normalised candidates
     from most to least specific.
 
     Returns (lat, lon, precision, n_requests); precision is 'house',
     'street' or None when nothing matched. Each request is followed by the
-    rate-limit pause. ``district`` is accepted for backward compatibility
-    but no longer used in the query — canonical ASCII district names
-    ("Sampeteris") hurt Nominatim more than they help, and the distance
-    guard in _plausible() does the disambiguation instead.
+    rate-limit pause.
     """
     n = 0
     for query, precision in address_candidates(address):
@@ -260,7 +257,7 @@ def _cache_key(listing):
     return f"{listing.get('source')}:{district}:{street}"
 
 
-def enrich_coordinates(listings):
+def enrich_coordinates(listings, today=None):
     """Add lat/lon to each listing that doesn't already have coordinates.
 
     For city24 listings: coordinates are already set by the scraper.
@@ -270,7 +267,7 @@ def enrich_coordinates(listings):
     Also saves the geocode cache.
     """
     cache = load_cache()
-    today = date.today().isoformat()
+    today = today or date.today().isoformat()
     n_geocoded = 0
     n_cached = 0
     n_skipped = 0

@@ -16,8 +16,6 @@ API response = a bare JSON list of items. Each item schema (verified):
 We walk pages /pg=1 .. /pg=N, collect items, and keep only those whose
 address.district_name matches one of our target districts.
 """
-import json
-
 import config
 from utils import match_district, slugify
 

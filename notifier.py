@@ -153,7 +153,11 @@ def _map_link(listing, color="var(--link)"):
     if not (listing.get('lat') and listing.get('lon')):
         return ""
     marker_id = utils.listing_key(listing)
-    return (f" <a href=\"#\" onclick=\"showOnMap('{marker_id}');"
+    # json.dumps makes it a JS string literal; esc() then makes the
+    # attribute HTML-safe — a raw quote in a scraped ad id would break
+    # (or inject into) the onclick.
+    marker_js = utils.esc(json.dumps(marker_id))
+    return (f" <a href=\"#\" onclick=\"showOnMap({marker_js});"
             f"return false\" style=\"font-size:11px;color:{color}\">map</a>")
 
 
@@ -228,26 +232,6 @@ def _vs_district_chip(listing):
     return ""
 
 
-def _yield_chip(listing):
-    """'yield ~X%' chip — gross rental yield estimate when the district
-    has a rent median (annotated as _district_rent_median, EUR/month)
-    and this is a sale listing with a price. Rough ballpark, not an
-    appraisal."""
-    if listing.get("deal_type") != "sale":
-        return ""
-    rent_mo = utils.to_float(listing.get("_district_rent_median"))
-    price = utils.to_float(listing.get("price_eur"))
-    if not rent_mo or not price or price <= 0:
-        return ""
-    y = rent_mo * 12 / price * 100
-    if y < 3.0 or y > 20:  # outside this band the rent comp is suspect
-        return ""
-    return (f" <span class='badge b-cheap' "
-            f"title='Rough gross yield: {_t(str(listing.get('district') or ''))} "
-            f"median rent {_fmt_price(rent_mo)}/mo x12 ÷ this ask — "
-            f"before costs/vacancy'>~{y:.1f}% yield</span>")
-
-
 def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0):
     """Shared row builder for the deal tables — main and still-active
     rows are identical except the Status cell (main only)."""
@@ -298,7 +282,7 @@ def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0):
         f"{status_cell}"
         f"<td style='text-align:right;font-size:12px;color:var(--muted)' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
-        f"<td>{_watch_star(listing)}{_source_link(listing, _motivated_chips(listing, price_data) + _relisted_chip(listing) + _vs_district_chip(listing) + _yield_chip(listing) + map_link + anchor)}</td>"
+        f"<td>{_watch_star(listing)}{_source_link(listing, _motivated_chips(listing, price_data) + _relisted_chip(listing) + _vs_district_chip(listing) + map_link + anchor)}</td>"
         "</tr>"
         f"{timeline_row}"
     )
@@ -431,8 +415,7 @@ def _hero_card_html(items, price_data=None):
     if dist:
         bits.append(_t(dist))
     chips = (_motivated_chips(listing, price_data) +
-             _relisted_chip(listing) + _vs_district_chip(listing) +
-             _yield_chip(listing))
+             _relisted_chip(listing) + _vs_district_chip(listing))
     score_str = f"{score:+.2f}" if score is not None else "-"
     return (
         "<div class='card' style='border-left:4px solid var(--accent)'>"
@@ -585,7 +568,7 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
             f"<td style='text-align:right;font-weight:bold'>{price_str}</td>"
             f"<td style='text-align:right'>{ppu_str}</td>"
             f"<td style='text-align:right'>{deal_type}</td>"
-            f"<td>{_source_link(listing, _relisted_chip(listing) + _vs_district_chip(listing) + _yield_chip(listing) + map_link)}</td>"
+            f"<td>{_source_link(listing, _relisted_chip(listing) + _vs_district_chip(listing) + map_link)}</td>"
             '</tr>'
         )
 
@@ -676,7 +659,7 @@ def build_near_school_html(all_listings):
             f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(l.get('price_eur'), l.get('price_unit'))}</td>"
             f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(l.get('price_per_m2'))}</td>"
             f"<td style='text-align:right;font-size:16px;font-weight:bold;color:var(--accent)' data-sort='{score_val}'>{score_str}</td>"
-            f"<td>{_watch_star(l)}{_source_link(l, _relisted_chip(l) + _vs_district_chip(l) + _yield_chip(l) + map_link)}</td>"
+            f"<td>{_watch_star(l)}{_source_link(l, _relisted_chip(l) + _vs_district_chip(l) + map_link)}</td>"
             '</tr>'
         )
 
@@ -800,7 +783,7 @@ def build_gone_html(gone, price_data=None, today=None):
 # "State & bailiff auctions" section (izsoles.ta.gov.lv)
 # ---------------------------------------------------------------------------
 def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None,
-                        median_ppu=None):
+                        median_ppu=None, today=None):
     """State/bailiff auction listings from izsoles.ta.gov.lv.
 
     Kept separate from the main deal ranking on purpose: auctions have a
@@ -836,7 +819,8 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None,
             '</div>'
         )
 
-    today = date.today()
+    today = date.fromisoformat(today) if isinstance(today, str) \
+        else (today or date.today())
 
     def days_to_end(a):
         """Days until the auction ends (None when unparseable)."""
@@ -1079,9 +1063,7 @@ _FLAT_FIELDS = ("district", "rooms", "area_m2", "floor", "price_eur",
                 "deal_type",
                 # coordinates + our own trail, for the map link and the
                 # 'seen N d' line in the custom view (car-view parity).
-                "lat", "lon", "_first_seen", "_price_hist",
-                # district rent median (EUR/mo) for the ~X% yield chip
-                "_district_rent_median")
+                "lat", "lon", "_first_seen", "_price_hist")
 
 # Dictionary-encoded like the car embed (see car_digest._MARKET_DICT_FIELDS)
 _FLAT_DICT_FIELDS = ("district", "source", "deal_type", "_first_seen")
@@ -1134,7 +1116,6 @@ def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
             listing.get("deal_type"),
             listing.get("lat"), listing.get("lon"),
             entry.get("first_seen"), hist or None,
-            listing.get("_district_rent_median"),
         ]
 
     rows = []
@@ -1317,8 +1298,9 @@ def build_html(main_deals, still_active, comparison_html, status_note,
                newest_html="", near_school_html="", auctions_html="",
                all_scored=None, all_listings=None, gone_html="",
                source_counts=None, health_pairs=None, n_auctions=None,
-               auctions_failed=False, n_gone=None, market_pulse=None):
-    today = date.today().isoformat()
+               auctions_failed=False, n_gone=None, market_pulse=None,
+               today=None):
+    today = today or date.today().isoformat()
     run_time = _now_header_str()
     sections = []
 
@@ -1382,10 +1364,6 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             "</option><option value='1'>1</option><option value='2'>2</option>"
             "<option value='3'>3</option><option value='4'>4</option>"
             "<option value='5'>5+</option></select> "
-            "<select id='flat-filter-dtype'>"
-            "<option value='sale'>For sale</option>"
-            "<option value='rent'>For rent</option>"
-            "<option value=''>Any type</option></select>"
             "</div>"
             f"<p class='note' style='margin:6px 0 0'>Enter a maximum price "
             f"(from €{config.MIN_SALE_PRICE_EUR:,} up) and/or pick "
@@ -1501,8 +1479,8 @@ def build_html(main_deals, still_active, comparison_html, status_note,
 ss.com, city24.lv{', izsoles.ta.gov.lv (auctions)' if config.IZSOLES_ENABLED else ''}</p>
 <p class="note">Scoring: {status_note}</p>
 <p class="note">Sale ranking: 50% deal score + 50% walking distance to
-{config.SCHOOL_NAME} (shown in the Distance column). New builds excluded.
-Rentals are scraped too — pick "For rent" in the budget tool below.</p>
+{config.SCHOOL_NAME} (shown in the Distance column). Sales only —
+rentals are out of scope. New builds excluded.</p>
 {coverage_note}
 {kpi_html}
 {flat_budget_html}
@@ -1635,7 +1613,7 @@ def save_digest(main_deals, still_active, comparison_html, status_note,
                 all_listings=None, gone_html="", source_counts=None,
                 market_pulse=None,
                 health_pairs=None, n_auctions=None, auctions_failed=False,
-                n_gone=None):
+                n_gone=None, today=None):
     """Build today's digest and write it to data/digests/. Returns (path, info)."""
     html = build_html(main_deals, still_active, comparison_html, status_note,
                       price_data=price_data, map_markers=map_markers,
@@ -1646,8 +1624,8 @@ def save_digest(main_deals, still_active, comparison_html, status_note,
                       source_counts=source_counts,
                       health_pairs=health_pairs, n_auctions=n_auctions,
                       auctions_failed=auctions_failed, n_gone=n_gone,
-                      market_pulse=market_pulse)
-    today = date.today().isoformat()
+                      market_pulse=market_pulse, today=today)
+    today = today or date.today().isoformat()
     digest_path = os.path.join(config.DIGEST_DIR, f"digest_{today}.html")
     utils.write_text(digest_path, html)
     info = f"digest saved to {digest_path}"

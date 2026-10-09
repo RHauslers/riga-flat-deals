@@ -40,13 +40,14 @@ def _last_digest_keys(last_digest, deal_type):
     return {it.get("key") for it in items if it.get("key")}
 
 
-def classify(scored_by_type, seen_deals, last_digest):
+def classify(scored_by_type, seen_deals, last_digest, today=None):
     """Return (main_deals, still_active) dicts.
 
     Each main_deals entry: (listing, score, method, badge, badge_detail)
     Each still_active entry: (listing, score, method)
     """
-    today = date.today()
+    today = date.fromisoformat(today) if isinstance(today, str) \
+        else (today or date.today())
     main_deals = {}
     still_active = {}
 

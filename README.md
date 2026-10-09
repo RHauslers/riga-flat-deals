@@ -27,16 +27,16 @@ publishes the result as a static site on GitHub Pages:
   Both digests end with a "Biggest price cuts" card covering the entire
   scanned pool, plus a "Stale & stubborn" card for old ads that never cut.
 - **Market context** — flat rows show `−X% vs district` when the listing's
-  €/m² undercuts the district median ≥10% (or `+N%` when it's ≥20% over)
-  and a `~X% yield` chip from the district's rent median; cars get a
-  `LOW KM` chip below 75% of the pool median. Auction rows compare
-  against the city median and flag lots with no bids yet (`FIRST BID`);
-  the digest KPI row carries a Riga-wide `median €/m² · Δ7d` pulse and
-  new/motivated/gone counts; the market page's flats tab adds per-district
-  median days-on-market, % of ads with a cut and a rent table.
+  €/m² undercuts the district median ≥10% (or `+N%` when it's ≥20% over);
+  cars get a `LOW KM` chip below 75% of the pool median. Auction rows
+  compare against the city median and flag lots with no bids yet
+  (`FIRST BID`); the digest KPI row carries a Riga-wide
+  `median €/m² · Δ7d` pulse and new/motivated/gone counts; the market
+  page's flats tab adds per-district median days-on-market and % of ads
+  with a cut.
 - **Browser tools** — each digest embeds today's market snapshot so the
   budget tool re-filters/re-scores instantly in the page (min/max price,
-  district/rooms/type or make/model/fuel/year/km filters, shareable
+  district/rooms or make/model/fuel/year/km filters, shareable
   `?min=&max=` URLs); a localStorage watchlist pins rows between visits;
   every deal row is deep-linkable via `#r-<key>` anchors.
 - **Archive** — the last 30 days of both digests. Archived digest pages have

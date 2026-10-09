@@ -115,7 +115,10 @@ def load_snapshot(path=None):
         fields = data.get("fields") or []
         return {"date": data.get("date"),
                 "listings": [dict(zip(fields, row))
-                             for row in data.get("rows") or []]}
+                             for row in data.get("rows") or []],
+                # RELISTED detection needs this; dropping it silently
+                # killed the feature every run after the first.
+                "recent_gone": data.get("recent_gone")}
     return data
 
 
@@ -151,9 +154,9 @@ def _save_digest(html_text, today):
     return path
 
 
-def run():
+def run(today=None):
     """Daily car scan. Returns a status string."""
-    today = date.today().isoformat()
+    today = today or date.today().isoformat()
     print(f"[cars] car scan {today}")
 
     raw = {}
@@ -319,7 +322,8 @@ def run():
                                       market=deduped, gone=gone_car_rows,
                                       seen=seen)
     path = _save_digest(html_text, today)
-    cutoff = (date.today() - timedelta(days=config.CAR_SEEN_TTL_DAYS)).isoformat()
+    cutoff = (date.fromisoformat(today)
+              - timedelta(days=config.CAR_SEEN_TTL_DAYS)).isoformat()
     stale = [k for k, v in seen.items()
              if (v.get("last_seen") or v.get("first_seen") or "") < cutoff]
     for k in stale:

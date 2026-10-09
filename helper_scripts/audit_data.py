@@ -19,6 +19,7 @@ from datetime import date, timedelta
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config   # noqa: E402
+import price_history   # noqa: E402
 
 TODAY = date.today().isoformat()
 SEEN_EPOCH = date(2026, 1, 1)          # cars.py v2 epoch-day base
@@ -152,7 +153,7 @@ def main():
              if o.get("date")),
             default=None)
         dead = sum(1 for e in d.values()
-                   if (_age(_last_activity(e)) or 0)
+                   if (_age(price_history._entry_last_activity(e)) or 0)
                    > config.PRICE_HISTORY_KEEP_DAYS)
         legacy = sum(1 for e in d.values()
                      if e.get("cenumednieks") is None
@@ -303,17 +304,6 @@ def main():
     print(f"\n=== {len(WARNINGS)} warning(s) ===")
     for w in WARNINGS:
         print(f" - {w}")
-
-
-def _last_activity(entry):
-    dates = [str(o.get("date")) for o in (entry or {}).get("our_tracking") or []
-             if o.get("date")]
-    cenu = (entry or {}).get("cenumednieks") or {}
-    if cenu.get("fetched_at"):
-        dates.append(str(cenu["fetched_at"]))
-    if (entry or {}).get("first_seen"):
-        dates.append(str(entry["first_seen"]))
-    return max(dates) if dates else None
 
 
 if __name__ == "__main__":

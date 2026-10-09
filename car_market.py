@@ -176,8 +176,7 @@ def build_market_html(stats, run_date, total_ads, history=None,
 
     flat_section = flat_market.flat_section_html(
         flat_stats.get("districts"), flat_stats.get("date"),
-        flat_market.load_history(),
-        rent_stats=flat_stats.get("rent_districts")) \
+        flat_market.load_history()) \
         if flat_stats else ("<p class='note'>No flat stats yet — they are "
                             "written by the daily flat scan.</p>")
 
