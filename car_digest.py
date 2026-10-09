@@ -837,7 +837,7 @@ def _low_km_chip(l):
     if km > pool * 0.75:
         return ""
     return (f" <span class='badge b-cheap' "
-            f"title='{_e(km):,} km vs pool median ~{int(round(pool / 1000))}k km "
+            f"title='{int(km):,} km vs pool median ~{int(round(pool / 1000))}k km "
             f"— unusually low mileage for this model'>LOW KM</span>")
 
 
