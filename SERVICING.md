@@ -1,11 +1,22 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-16 18:05
+Last updated: 2026-10-16 18:45
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
 
+- 2026-10-16 18:45 — push + live run. Remote had advanced 7 daily data
+  commits (Oct 11-16, incl. today's 0f0fea2); code batch committed as
+  4078d2e (752a816 pre-rebase) and rebased cleanly onto remote BEFORE
+  the run, so the pipeline computed against today's CI baseline — not a
+  stale one like the Oct-10 mishap. Run: 976s, all scrapers healthy —
+  228 flats scraped (4 new/changed + 21 still-active + 29 auctions +
+  10 gone), cars 7726 ss.com + 231 pp.lv -> 151 qualifying deals /
+  1174 assessed; enrich_inspection fetched TA for 141 ads (steady-state
+  cache behaving as designed). Site rebuilt (index/cars/archive
+  2026-10-16): cars.html carries 25 data-heaven rows + the TA column.
+  Data commit f38e432 pushed to main.
 - 2026-10-16 18:05 — feature work + /improve 200 (pass 2). Two user-
   requested car-page features + a second cold review.
   FEATURES: (a) "Heavenly" filter — a toggle button in the cars.html
