@@ -671,7 +671,6 @@ function __flatBudgetInit() {
   var rows = payload.rows.concat(payload.extra || []);
   var districtSel = document.getElementById('flat-filter-district');
   var roomsSel = document.getElementById('flat-filter-rooms');
-  var dtypeSel = document.getElementById('flat-filter-dtype');
 
   // Fill the district dropdown from today's data.
   if (districtSel) {
@@ -687,8 +686,7 @@ function __flatBudgetInit() {
   function readFilters() {
     return {
       district: districtSel && districtSel.value ? districtSel.value : '',
-      rooms: roomsSel && roomsSel.value ? roomsSel.value : '',
-      dtype: dtypeSel ? dtypeSel.value : 'sale'
+      rooms: roomsSel && roomsSel.value ? roomsSel.value : ''
     };
   }
   function anyFilterSet(f) { return !!(f.district || f.rooms); }
@@ -697,11 +695,10 @@ function __flatBudgetInit() {
     if (f.rooms === '5') {
       if (!(r[idx.rooms] >= 5)) return false;   // '5+' means five or more
     } else if (f.rooms && String(r[idx.rooms]) !== f.rooms) return false;
-    // deal_type is always scoped (default sale) — rent flats are priced
-    // monthly and would read as absurd bargains in the sale view. A null
-    // field means the pipeline didn't tag it -> treat as sale (the
-    // historical assumption before rent was scraped).
-    if (f.dtype && (r[idx.deal_type] || 'sale') !== f.dtype) return false;
+    // Rent flats are priced monthly and would read as absurd bargains in
+    // the sale view — hardwired sale scope (the dtype <select> is gone).
+    // A null field means the pipeline didn't tag it -> treat as sale.
+    if ((r[idx.deal_type] || 'sale') !== 'sale') return false;
     return true;
   }
 
@@ -912,7 +909,7 @@ function __flatBudgetInit() {
     if (timer) clearTimeout(timer);
     timer = setTimeout(apply, 150);
   });
-  [districtSel, roomsSel, dtypeSel].forEach(function (el) {
+  [districtSel, roomsSel].forEach(function (el) {
     if (el) el.addEventListener('change', function () {
       if (timer) clearTimeout(timer);
       timer = setTimeout(apply, 150);
@@ -925,7 +922,6 @@ function __flatBudgetInit() {
     [districtSel, roomsSel].forEach(function (el) {
       if (el) el.value = '';
     });
-    if (dtypeSel) dtypeSel.value = 'sale';
     hide();
   });
   var okBtn = document.getElementById('flat-budget-ok');
@@ -949,7 +945,7 @@ function __flatBudgetInit() {
     minInput.value = urlMin;
   }
   var urlActive = !!(urlMax || urlMin);
-  ['district', 'rooms', 'dtype'].forEach(function (name) {
+  ['district', 'rooms'].forEach(function (name) {
     var el = document.getElementById('flat-filter-' + name);
     var v = params.get(name);
     if (v && el) { el.value = v; urlActive = true; }

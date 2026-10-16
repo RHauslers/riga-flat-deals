@@ -6,7 +6,8 @@ Inputs:
   - scored_by_type: dict {deal_type: [(listing, score, method), ...]} (top N)
   - seen_deals:    dict {key: {first_shown_date, last_shown_date,
                                last_shown_price, last_shown_score, deal_type}}
-  - last_digest:   dict {date, rent: [...], sale: [...]} from yesterday
+  - last_digest:   dict {date, <deal_type>: [{key, score, price, ...}]}
+                   from yesterday (written by history.save_last_digest)
 
 Outputs:
   - main_deals:    dict {deal_type: [(listing, score, method, badge, badge_detail)]}

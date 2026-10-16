@@ -1,11 +1,64 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-10 01:05
+Last updated: 2026-10-16 18:05
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
 
+- 2026-10-16 18:05 — feature work + /improve 200 (pass 2). Two user-
+  requested car-page features + a second cold review.
+  FEATURES: (a) "Heavenly" filter — a toggle button in the cars.html
+    section nav next to "Jump to: Deals / Price cuts / Gone" that shows
+    only deals which are simultaneously _good (discount/savings qualify),
+    not old (year within CAR_AGE_WARNING_YEARS) and not high-mileage
+    (< CAR_HIGH_MILEAGE_WARNING_KM); qualifying rows render with
+    data-heaven='1' and the button hides the rest client-side;
+  (b) Tehniskā apskate column — scrapers/car_ss.py gained
+    fetch_inspection() (detail-page 'Tehniskā apskate:' MM.YYYY field,
+    normalized to YYYY-MM), cars.enrich_inspection() applies it to
+    qualifying rows via a 30-day cache (data/car_ta_cache.json,
+    CAR_TA_CACHE_DAYS/CAR_TA_MAX_FETCHES in config) so steady state is
+    ~50 fetches/run not thousands; new "TA" column in the deals table
+    (expired dates warn-red) + inspection field in the embedded market
+    JSON / browser custom view; pp.lv has no server-rendered TA -> '—'.
+  /IMPROVE-2 ITEMS (all implemented, 254 tests green):
+  (1) BUG (introduced by the TA feature): enrich_inspection annotated
+    only the qualified COPIES — the deduped rows embedded as market JSON
+    never got 'inspection', so the custom-view TA line was always null;
+    values are now copied back onto same-key deduped rows;
+  (2) BUG: izsoles detail GETs lacked raise_for_status — an HTTP-error
+    page parsed as 'no listing' without counting n_failed, so a fully
+    failing detail phase read as '0 auctions' and the outage guard
+    (needs n_failed>0) could never fire;
+  (3) BUG: car_value._comparable/score_and_rank/dedupe_cross_source did
+    arithmetic on RAW scraped fields — a str '2015' passing eligible()'s
+    _number() coercion TypeError'd mid-run; score_and_rank now
+    normalizes numeric fields on market copies and the dedupe price
+    compare uses _number;
+  (4) notifier._flat_market_data_html dropped legacy {"d","p"}
+    our_tracking obs from the embedded price trail (bare .get('price')
+    only) — both shapes now decode, matching get_price_timeline;
+  (5) dead 'Type' column removed from the Newest table (deal_type is
+    always 'sale');
+  (6) today threading continued: _get_listing_age/_deal_row_html/section
+    builders/build_stale_html take the run's `today` — the 'Listed Nd'
+    and 'On market' columns no longer read the clock independently;
+  (7) dead dtype plumbing stripped from FLAT_BUDGET_JS (the
+    flat-filter-dtype select was removed in the rent cleanup): dtypeSel,
+    readFilters.dtype, reset, ?dtype= URL param gone; the sale guard in
+    passesFilters is now hardwired;
+  (8) classify.py docstring: last_digest is {date, <deal_type>:[...]},
+    not {date, rent, sale};
+  (9) 4 regression tests (TestImprove200ColdReview +3,
+    TestCarsRun.test_inspection_reaches_market_embed);
+  (10) enrich_inspection no longer writes car_ta_cache.json when nothing
+    was fetched or pruned — an unconditional write meant every
+    cars.run() test touched the real data file; _TempPaths now patches
+    CAR_TA_CACHE_JSON too.
+  Tests: 250 -> 254, all green; node --check clean on FLAT_BUDGET_JS.
+  data/car_ta_cache.json is a new committed cache file (untracked until
+  the next data commit).
 - 2026-10-10 01:05 — push + live run. Committed the /improve batch
   (6f6a7e5, rebased onto remote's Oct 5-9 CI data commits — first local
   run had computed against a stale Oct-4 baseline, so it was discarded

@@ -155,6 +155,25 @@ def _parse_price(text):
     return int(digits) if digits else None
 
 
+def fetch_inspection(url):
+    """Fetch one ad's detail page and return its tehniskā apskate month as
+    'YYYY-MM', '' when the ad explicitly says there is none ('Bez TA'/'-'),
+    or None when the spec row is absent. The list pages don't carry this
+    field, so callers should cache — see cars.enrich_inspection()."""
+    html = _fetch(url)
+    soup = BeautifulSoup(html, "lxml")
+    for td in soup.select("td.ads_opt_name"):
+        if "tehnisk" not in utils.strip_diacritics(td.get_text()).lower():
+            continue
+        val_td = td.find_next_sibling("td")
+        raw = (val_td.get_text(" ", strip=True) if val_td else "")
+        m = re.search(r"(\d{1,2})\s*[.]\s*(\d{4})", raw)
+        if m:
+            return f"{m.group(2)}-{int(m.group(1)):02d}"
+        return ""
+    return None
+
+
 def _title_specs(title):
     """Gearbox/body are taken from the ad title only when it states them
     clearly; otherwise None (unknown beats guessed)."""

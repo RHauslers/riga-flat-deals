@@ -491,6 +491,10 @@ class _TempPaths(unittest.TestCase):
             mock.patch.object(config, "CAR_MARKET_HISTORY_JSON",
                               os.path.join(self.tmp.name,
                                            "car_market_history.json")),
+            # TA cache — enrich_inspection may write it
+            mock.patch.object(config, "CAR_TA_CACHE_JSON",
+                              os.path.join(self.tmp.name,
+                                           "car_ta_cache.json")),
         ]
         for p in self._patches:
             p.start()
@@ -619,6 +623,31 @@ class TestCarsRun(_TempPaths):
             cars.run()
         seen = cars._read_seen(self.seen_json)
         self.assertEqual(seen["pp.lv:c1"]["prices"], [[today, 2800]])
+
+    def test_inspection_reaches_market_embed(self):
+        """enrich_inspection annotates the qualified copies; the same-key
+        deduped rows embedded as market JSON must get it too — otherwise
+        the browser custom view's TA spec line is always null."""
+        import re as _re
+        listings = [_car("ss.com", "cheap1", 3000)] + \
+                   [_car("ss.com", f"s{i}", p)
+                    for i, p in enumerate([4200, 4300, 4500, 4700])]
+        with mock.patch.object(cars.car_ss, "scrape",
+                               return_value=listings), \
+             mock.patch.object(cars.car_pp, "scrape", return_value=[]), \
+             mock.patch.object(cars.car_ss, "fetch_inspection",
+                               return_value="2027-03"):
+            cars.run()
+        today = date.today().isoformat()
+        html_text = _read(os.path.join(self.digest_dir,
+                                       f"cars_{today}.html"))
+        m = _re.search(
+            r'id="car-market-data">(.*?)</script>', html_text, _re.S)
+        payload = json.loads(m.group(1))
+        idx = {f: i for i, f in enumerate(payload["fields"])}
+        row = next(r for r in payload["rows"]
+                   if r[idx["id"]] == "cheap1")
+        self.assertEqual(row[idx["inspection"]], "2027-03")
 
     def test_unparseable_source_counts_as_failure(self):
         listings = [_car("pp.lv", "c1", 3000)] + \
@@ -812,9 +841,9 @@ class TestDigestOutput(unittest.TestCase):
         html_text = car_digest.build_html(qualified, assessed, {}, {}, {},
                                           "2026-09-26")
         # Only the template's own scripts are allowed (column sort +
-        # theme boot/toggle); the listing-controlled title must arrive
-        # escaped, not as markup (an injected tag would add a fourth).
-        self.assertEqual(html_text.count("<script>"), 4)
+        # theme boot/toggle + heavenly filter); the listing-controlled
+        # title must arrive escaped, not as markup.
+        self.assertEqual(html_text.count("<script>"), 5)
         self.assertNotIn("<script>x", html_text)
         self.assertNotIn("javascript:", html_text)
 
@@ -1689,7 +1718,8 @@ class TestBudgetTool(unittest.TestCase):
                                           "2026-09-26")
         self.assertIn("id='car-deals'", html_text)
         self.assertIn("sortTable('car-deals', 6)", html_text)
-        self.assertEqual(html_text.count("class='sort-th'"), 7)
+        self.assertIn("sortTable('car-deals', 7)", html_text)
+        self.assertEqual(html_text.count("class='sort-th'"), 8)
         self.assertIn("data-sort='volkswagen passat-b7'", html_text)
         self.assertIn("data-sort='3000'", html_text)
         self.assertIn("data-sort='4000'", html_text)
@@ -1981,6 +2011,71 @@ class TestCarMotivatedSeller(unittest.TestCase):
             [l], [l], {"ss.com": {"raw": 5, "eligible": 5}}, {}, {},
             "2026-10-04")
         self.assertIn("Biggest price cuts", html)
+
+
+class TestTaAndHeavenly(unittest.TestCase):
+    """TA (tehniskā apskate) detail-fetch + column, and the heavenly-only
+    toggle marking on the deals table."""
+
+    def test_fetch_inspection_parses_ads_opt(self):
+        html = ("<table><tr><td class='ads_opt_name'>Tehniskā apskate:</td>"
+                "<td class='ads_opt'>03.2027</td></tr></table>")
+        with mock.patch.object(car_ss, "_fetch", return_value=html):
+            self.assertEqual(car_ss.fetch_inspection("https://x"), "2027-03")
+
+    def test_fetch_inspection_none_and_missing(self):
+        none_html = ("<tr><td class='ads_opt_name'>Tehniskā apskate:</td>"
+                     "<td class='ads_opt'>Bez TA</td></tr>")
+        missing = "<tr><td class='ads_opt_name'>Krāsa:</td><td>red</td></tr>"
+        with mock.patch.object(car_ss, "_fetch", return_value=none_html):
+            self.assertEqual(car_ss.fetch_inspection("https://x"), "")
+        with mock.patch.object(car_ss, "_fetch", return_value=missing):
+            self.assertIsNone(car_ss.fetch_inspection("https://x"))
+
+    def test_enrich_inspection_caches_and_caps(self):
+        import tempfile, os
+        l = _car("ss.com", "ta1", 3000)
+        with tempfile.TemporaryDirectory() as td:
+            cache = os.path.join(td, "ta.json")
+            with mock.patch.object(config, "CAR_TA_CACHE_JSON", cache), \
+                 mock.patch.object(car_ss, "fetch_inspection",
+                                   return_value="2027-05") as fi:
+                cars.enrich_inspection([l], "2026-10-16")
+                self.assertEqual(l["inspection"], "2027-05")
+                # Second run: fresh cache hit — no fetch.
+                l2 = _car("ss.com", "ta1", 3000)
+                cars.enrich_inspection([l2], "2026-10-17")
+                self.assertEqual(fi.call_count, 1)
+                self.assertEqual(l2["inspection"], "2027-05")
+                # pp.lv rows are never fetched.
+                lp = _car("pp.lv", "tp1", 3000)
+                cars.enrich_inspection([lp], "2026-10-17")
+                self.assertIsNone(lp.get("inspection"))
+                self.assertEqual(fi.call_count, 1)
+
+    def test_ta_cell_rendering(self):
+        ok = _car("ss.com", "t1", 3000); ok["inspection"] = "2028-06"
+        expired = _car("ss.com", "t2", 3000); expired["inspection"] = "2020-01"
+        absent = _car("ss.com", "t3", 3000)
+        none_ta = _car("ss.com", "t4", 3000); none_ta["inspection"] = ""
+        html_text = car_digest.build_html(
+            [ok, expired, absent, none_ta],
+            [ok, expired, absent, none_ta], {}, {}, {}, "2026-10-16")
+        self.assertIn(">06.2028<", html_text)
+        self.assertIn(">01.2020<", html_text)
+        self.assertIn(">none<", html_text)
+
+    def test_heavenly_marking_and_button(self):
+        good = _car("ss.com", "h1", 3000, year=2020, mileage=120000)
+        old = _car("ss.com", "h2", 3000, year=2007, mileage=120000)
+        high_km = _car("ss.com", "h3", 3000, year=2020, mileage=350000)
+        html_text = car_digest.build_html(
+            [good, old, high_km], [good, old, high_km], {}, {}, {},
+            "2026-10-16")
+        self.assertIn("id='car-heaven-btn'", html_text)
+        self.assertIn("data-heaven='1'", html_text)
+        # Exactly one heavenly row out of three.
+        self.assertEqual(html_text.count("data-heaven='1'"), 1)
 
 
 if __name__ == "__main__":

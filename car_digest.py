@@ -7,6 +7,7 @@ run_date) -> str
 """
 import html
 import json
+import re
 from collections import Counter
 from datetime import date
 from urllib.parse import urlparse
@@ -125,7 +126,10 @@ _MARKET_FIELDS = ("source", "id", "make", "model", "year", "mileage_km",
                   "_first_seen", "_price_hist",
                   # reposted-under-a-new-id match {p, gone} — the custom
                   # view's RELISTED chip and its motivated math need it.
-                  "_relisted")
+                  "_relisted",
+                  # tehniskā apskate month 'YYYY-MM' (detail-page field,
+                  # fetched for digest rows only — None for most rows).
+                  "inspection")
 
 # Repeated string columns are stored once in payload["dict"] with int
 # indices in the rows — make/model/fuel/gearbox/body/source/_first_seen
@@ -594,6 +598,7 @@ function __carBudgetInit() {
         r[idx.mileage_km] != null ? Math.round(r[idx.mileage_km] / 1000) + 'k km' : '? km'];
       if (r[idx.gearbox]) parts.push(r[idx.gearbox]);
       if (r[idx.body]) parts.push(r[idx.body]);
+      if (r[idx.inspection]) parts.push('TA ' + String(r[idx.inspection]).split('-').reverse().join('.'));
       spec.textContent = parts.join(' · ');
       td.appendChild(spec);
       td.appendChild(document.createElement('br'));
@@ -790,6 +795,28 @@ if (document.readyState === 'loading') {
 CAR_WATCH_JS = web_style.watch_js("car", "car-market-data",
                                    "watch_cars_v1")
 
+# "Heavenly only" toggle on the default deals table — rows carry
+# data-heaven='1' when they qualify with zero caution flags (see
+# _is_heavenly). Placed in the page body right after the table, so the
+# DOM is already parsed; no readyState dance needed.
+CAR_HEAVEN_JS = """
+(function () {
+  var btn = document.getElementById('car-heaven-btn');
+  var tbl = document.getElementById('car-deals');
+  if (!btn || !tbl) return;
+  var on = false;
+  btn.addEventListener('click', function () {
+    on = !on;
+    btn.className = on ? 'primary' : 'ghost';
+    var rows = tbl.getElementsByTagName('tr');
+    for (var i = 1; i < rows.length; i++) {
+      rows[i].style.display =
+        (!on || rows[i].getAttribute('data-heaven') === '1') ? '' : 'none';
+    }
+  });
+})();
+"""
+
 
 def _sort_val(v, default=-1):
     """Numeric value for a column's data-sort attribute (-1 when unknown,
@@ -920,6 +947,51 @@ def build_cuts_html(assessed, run_date=None, top_n=None):
         "</table></div></div>")
 
 
+def _ta_cell(l, run_date=None):
+    """'TA' column — tehniskā apskate month. Red when expired (or the ad
+    states none), amber when it lapses within ~2 months; '—' when we did
+    not fetch the detail page (pp.lv ads, or over the per-run cap)."""
+    ta = l.get("inspection")
+    m = re.match(r"^(\d{4})-(\d{2})$", str(ta or ""))
+    if ta is None or (ta and not m):
+        return ("<td style='padding:6px;text-align:center' data-sort='-1'>"
+                "—</td>")
+    if ta == "":
+        return ("<td style='padding:6px;text-align:center;color:var(--bad)' "
+                "data-sort='0' title='Ad states no valid tehniskā apskate'>"
+                "none</td>")
+    sort = int(m.group(1)) * 100 + int(m.group(2))
+    disp = f"{m.group(2)}.{m.group(1)}"
+    try:
+        today_d = date.fromisoformat(str(run_date)) if run_date \
+            else date.today()
+    except ValueError:
+        today_d = date.today()
+    cur = today_d.year * 100 + today_d.month
+    if sort < cur:
+        style, tip = "color:var(--bad)", "Tehniskā apskate has expired"
+    elif sort <= cur + 2:
+        style, tip = "color:var(--warn)", "Tehniskā apskate lapses soon"
+    else:
+        style, tip = "", "Tehniskā apskate valid to"
+    return (f"<td style='padding:6px;text-align:center;{style}' "
+            f"data-sort='{sort}' title='{tip} {disp}'>{disp}</td>")
+
+
+def _is_heavenly(l):
+    """'Heavenly' deal — qualifies for the table AND carries no caution
+    flag: not high-mileage, not old. (Cheapness is the table's entry
+    bar already.) Same predicate as the caution lines in _row()."""
+    km, year = l.get("mileage_km"), l.get("year")
+    if isinstance(km, (int, float)) and \
+            km >= config.CAR_HIGH_MILEAGE_WARNING_KM:
+        return False
+    if isinstance(year, int) and \
+            year <= date.today().year - config.CAR_AGE_WARNING_YEARS:
+        return False
+    return True
+
+
 def _row(l, badges, run_date=None):
     key = utils.listing_key(l)
     title = l.get("title") or f"{l.get('make', '')} {l.get('model', '')}"
@@ -959,8 +1031,10 @@ def _row(l, badges, run_date=None):
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('_savings'))}'>{_fmt_eur(l.get('_savings'))}</td>",
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('_discount_pct'))}'>{_fmt(l.get('_discount_pct'), '%')}</td>",
         f"<td style='padding:6px;text-align:center' data-sort='{_sort_val(l.get('_score'))}'><b>{_fmt(l.get('_score'))}</b></td>",
+        _ta_cell(l, run_date),
     ]
-    return "<tr>" + "".join(cells) + "</tr>"
+    heav = " data-heaven='1'" if _is_heavenly(l) else ""
+    return f"<tr{heav}>" + "".join(cells) + "</tr>"
 
 
 def _gone_html(gone, seen, run_date):
@@ -1106,7 +1180,10 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 3)\">Comps</th>"
             "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 4)\">Discount €</th>"
             "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 5)\">Discount %</th>"
-            "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 6)\">Score</th></tr>"
+            "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 6)\">Score</th>"
+            "<th class='sort-th' style='padding:6px' onclick=\"sortTable('car-deals', 7)\" "
+            "title='Tehniskā apskate (road-worthiness inspection) month — "
+            "red = expired or none stated'>TA</th></tr>"
             f"{rows}</table></div></div>")
 
     # The custom-budget tool: embed today's full market snapshot and let the
@@ -1181,6 +1258,18 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
 
     gone_html = _gone_html(gone, seen, run_date)
     cuts_html = build_cuts_html(assessed, run_date)
+
+    n_heaven = sum(1 for l in qualified if _is_heavenly(l))
+    heaven_btn = ""
+    if qualified:
+        heaven_btn = (
+            " <button type='button' id='car-heaven-btn' class='ghost' "
+            "title='Show only deals with no caution flags — qualifying "
+            "price, year newer than "
+            f"{date.today().year - config.CAR_AGE_WARNING_YEARS}, mileage "
+            f"under {config.CAR_HIGH_MILEAGE_WARNING_KM:,} km'>"
+            f"★ Heavenly ({n_heaven})</button>")
+    heaven_js = CAR_HEAVEN_JS if qualified else ""
 
     # KPI chips — qualifying / gone / health at a glance.
     kpi_bits = [web_style.kpi("qualifying", len(qualified))]
@@ -1266,8 +1355,9 @@ listing.
 </div>
 <p class="secnav">Jump to:
 <a href="#sec-deals">Deals</a><a href="#sec-cuts">Price cuts</a><a
-href="#sec-gone">Gone</a></p>
+href="#sec-gone">Gone</a>{heaven_btn}</p>
 <div id="sec-deals">{top_html}</div>
+<script>{heaven_js}</script>
 <div id="sec-cuts">{cuts_html}</div>
 <div id="sec-gone">{gone_html}</div>
 <div class="box">

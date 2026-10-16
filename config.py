@@ -67,6 +67,11 @@ CAR_THIN_POOL_COMPS = 8
 CAR_SNAPSHOT_FIELDS = ("source", "id", "make", "model", "year", "mileage_km",
                        "fuel", "engine_l", "gearbox", "body", "price_eur",
                        "url")
+# Tehniskā apskate (road-worthiness inspection) lives only on ss.com ad
+# DETAIL pages, so it is fetched lazily for digest-qualified cars and
+# cached per ad id — the date moves only when the seller renews it.
+CAR_TA_MAX_FETCHES = 300
+CAR_TA_CACHE_DAYS = 30
 # Market tab (docs/market.html): per-model stats over the whole eligible
 # pool. Models with fewer ads than this are omitted as noise.
 CAR_MARKET_MIN_LISTINGS = 3
@@ -339,6 +344,7 @@ CAR_MARKET_STATS_JSON = os.path.join(DATA_DIR, "car_market_stats.json")
 CAR_MARKET_HISTORY_JSON = os.path.join(DATA_DIR, "car_market_history.json")
 CAR_MARKET_HISTORY_MAX_POINTS = 120  # days of per-model median kept
 CAR_MODEL_SCAN_JSON = os.path.join(DATA_DIR, "car_model_scans.json")
+CAR_TA_CACHE_JSON = os.path.join(DATA_DIR, "car_ta_cache.json")
 FLAT_MARKET_STATS_JSON = os.path.join(DATA_DIR, "flat_market_stats.json")
 FLAT_MARKET_HISTORY_JSON = os.path.join(DATA_DIR, "flat_market_history.json")
 FLAT_MARKET_HISTORY_MAX_POINTS = 120  # days of per-district median kept

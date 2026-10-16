@@ -32,6 +32,46 @@ from scrapers import car_ss, car_pp
 SOURCES = (("ss.com", car_ss), ("pp.lv", car_pp))
 
 
+def enrich_inspection(listings, today):
+    """Attach 'inspection' ('YYYY-MM', '' = none stated, None = unknown)
+    to ss.com listings — the tehniskā apskate month lives on ad detail
+    pages only, so results are cached per ad id and fetches are capped
+    per run. pp.lv ads can't be read without a browser; they stay
+    unknown."""
+    cache = utils.read_json(config.CAR_TA_CACHE_JSON, {})
+    fresh_cutoff = (date.fromisoformat(today)
+                    - timedelta(days=config.CAR_TA_CACHE_DAYS)).isoformat()
+    fetched = 0
+    for l in listings:
+        if l.get("inspection") is not None:
+            continue
+        key = utils.listing_key(l)
+        entry = cache.get(key)
+        if entry and (entry.get("f") or "") >= fresh_cutoff:
+            l["inspection"] = entry.get("ta")
+            continue
+        if l.get("source") != "ss.com" or fetched >= config.CAR_TA_MAX_FETCHES:
+            continue
+        try:
+            ta = car_ss.fetch_inspection(l.get("url"))
+        except Exception as e:
+            print(f"[cars] inspection fetch stopped: {e}")
+            break
+        fetched += 1
+        l["inspection"] = ta
+        cache[key] = {"ta": ta, "f": today}
+    stale = [k for k, v in cache.items()
+             if (v.get("f") or "") < fresh_cutoff]
+    for k in stale:
+        del cache[k]
+    # Skip the write when nothing changed — otherwise every run (and every
+    # cars.run() test that didn't fetch at all) rewrites the cache file.
+    if fetched or stale:
+        utils.write_json(config.CAR_TA_CACHE_JSON, cache, indent=None)
+    if fetched:
+        print(f"[cars] fetched tehniskā apskate for {fetched} ad(s)")
+
+
 # ---------------------------------------------------------------------------
 # car_seen.json — v2 compact layout (short keys, dates as day-offsets from
 # _SEEN_EPOCH). Both files are rewritten daily into git history; the v1
@@ -259,6 +299,19 @@ def run(today=None):
             l["_relisted"] = {"p": r.get("p"), "gone": r.get("gone")}
 
     qualified, assessed = car_value.score_and_rank(deduped)
+
+    # Tehniskā apskate for the digest rows — detail-page field, cached.
+    # Fetching is capped, so only qualified rows are enriched; the values
+    # are then copied onto the same-key deduped rows, which is what the
+    # embedded market JSON (and therefore the browser custom view) reads.
+    enrich_inspection(qualified, today)
+    _insp = {utils.listing_key(l): l["inspection"] for l in qualified
+             if l.get("inspection")}
+    for l in deduped:
+        if l.get("inspection") is None:
+            v = _insp.get(utils.listing_key(l))
+            if v:
+                l["inspection"] = v
 
     utils.write_json(config.CAR_MARKET_SNAPSHOT_JSON,
                      {"v": 2, "date": today,

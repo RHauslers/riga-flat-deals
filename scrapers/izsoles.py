@@ -302,6 +302,10 @@ def scrape(today=None):
         listing = None
         try:
             rd = s.get(it["url"], timeout=config.IZSOLES_TIMEOUT)
+            # HTTP-error bodies parse to "no listing" — without this a
+            # fully-failing detail phase silently reads as "0 auctions"
+            # and the all-failed guard below (needs n_failed > 0) can't fire.
+            rd.raise_for_status()
             rd.encoding = "utf-8"
             listing = _parse_detail(rd.text, it["url"], it["title"])
         except requests.RequestException as e:

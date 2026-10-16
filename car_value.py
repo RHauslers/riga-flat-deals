@@ -134,7 +134,9 @@ def dedupe_cross_source(listings):
                 continue
             current_link = {field: current.get(field) for field in ("source", "url", "price_eur")}
             new_link = {field: listing.get(field) for field in ("source", "url", "price_eur")}
-            if listing["price_eur"] < current["price_eur"]:
+            # _same_car already proved both prices coerce via _number —
+            # compare those, not the raw (possibly str) scraped values.
+            if _number(listing["price_eur"]) < _number(current["price_eur"]):
                 listing["also_on"] = current.get("also_on", []) + [current_link]
                 result[index] = listing
             else:
@@ -167,7 +169,21 @@ def _comparable(target, peer):
 
 
 def score_and_rank(listings):
-    market = [item for item in listings if eligible(item)]
+    # eligible() validates through _number(), so scraped fields that arrive
+    # as strings ("2015", "120000") pass the gate — but _comparable and the
+    # median math below use the raw values and would TypeError mid-run.
+    # Normalize the numeric fields on the market copies once.
+    market = []
+    for item in listings:
+        if not eligible(item):
+            continue
+        item = dict(item)
+        for f in ("price_eur", "year", "mileage_km", "engine_l"):
+            v = _number(item.get(f))
+            if v is not None:
+                item[f] = (int(v) if f in ("year", "mileage_km")
+                           and float(v).is_integer() else v)
+        market.append(item)
     # _comparable only matches inside one (make, model, fuel) bucket —
     # pre-group the market so each listing scans its own model pool,
     # not all ~1.5k cars (was O(n²) over the whole market).

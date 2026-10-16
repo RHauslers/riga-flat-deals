@@ -1891,6 +1891,89 @@ class TestImprove200ColdReview(unittest.TestCase):
         self.assertIn(
             "showOnMap(&quot;ss.com:x&#x27;y&quot;)", html)
 
+    def test_izsoles_detail_http_error_counts_as_failure(self):
+        """An HTTP-error detail page must count toward n_failed — without
+        raise_for_status the error body parsed as 'no listing' and a fully
+        failing detail phase silently returned '0 auctions'."""
+        import requests
+
+        class _Resp:
+            text = "<html></html>"
+            encoding = ""
+
+            def raise_for_status(self):
+                raise requests.HTTPError("500")
+
+        class _Sess:
+            def __init__(self):
+                self.headers = {}
+
+            def post(self, *a, **k):
+                r = _Resp()
+                r.raise_for_status = lambda: None
+                return r
+
+            def get(self, url, *a, **k):
+                if url.endswith(("/1", "/2")) or "?page" in url:
+                    return _Resp()  # unreachable in this fixture
+                return _Resp()
+
+        # Stub the two parsers so the list page yields one item and the
+        # detail parse is never reached (raise_for_status fires first).
+        item = {"url": "https://izsoles.ta.gov.lv/izsole/abc", "title": "t"}
+        with mock.patch.object(izsoles.requests, "Session",
+                               return_value=_Sess()), \
+             mock.patch.object(izsoles, "_parse_list_page",
+                               return_value=([item], 1)), \
+             mock.patch.object(config, "IZSOLES_DELAY", 0):
+            with self.assertRaises(requests.RequestException):
+                izsoles.scrape()
+
+    def test_flat_embed_trail_keeps_legacy_dp_rows(self):
+        """_flat_market_data_html must not silently drop legacy
+        {"d","p"}-shaped our_tracking observations."""
+        import json as _json
+        import re as _re
+        l = _flat(lid="f1", price=50000)
+        pd = {"ss.com:f1": {"first_seen": "2026-10-01",
+                            "our_tracking": [{"d": "2026-10-01",
+                                              "p": 55000},
+                                             {"date": "2026-10-09",
+                                              "price": 50000}]}}
+        html = notifier._flat_market_data_html(
+            {"sale": [(l, 1.5, "model")]}, [l], pd)
+        m = _re.search(
+            r'id="flat-listings-data">(.*?)</script>', html, _re.S)
+        rows = _json.loads(m.group(1))["rows"]
+        hist = rows[0][-1]  # _price_hist is the last embedded field
+        self.assertEqual(hist, [["2026-10-01", 55000],
+                                ["2026-10-09", 50000]])
+
+    def test_car_value_survives_str_numeric_fields(self):
+        """Scraped numerics can arrive as strings; score_and_rank and
+        dedupe_cross_source must coerce, not TypeError mid-run."""
+        import car_value
+        target = {"source": "ss.com", "id": "a", "make": "volkswagen",
+                  "model": "golf-7", "year": "2015",
+                  "mileage_km": "150000", "fuel": "petrol",
+                  "engine_l": "1.4", "gearbox": "manual", "body": "hatchback",
+                  "price_eur": "5000"}
+        peers = [{"source": "ss.com", "id": f"p{i}", "make": "volkswagen",
+                  "model": "golf-7", "year": 2015,
+                  "mileage_km": 150000 + i * 100, "fuel": "petrol",
+                  "engine_l": 1.4, "gearbox": "manual", "body": "hatchback",
+                  "price_eur": 6500 + i * 10} for i in range(6)]
+        qualified, assessed = car_value.score_and_rank(peers + [target])
+        self.assertTrue(assessed)
+        scored = next(r for r in assessed if r["id"] == "a")
+        self.assertIsNotNone(scored["_median"])
+        # Dedupe raw-price compare: str vs int must not crash.
+        dup = dict(peers[0]); dup.update(source="pp.lv", id="b",
+                                         price_eur="6500")
+        out, merged = car_value.dedupe_cross_source(
+            [peers[0], dup])
+        self.assertEqual(merged, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

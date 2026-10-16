@@ -232,7 +232,8 @@ def _vs_district_chip(listing):
     return ""
 
 
-def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0):
+def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0,
+                   today=None):
     """Shared row builder for the deal tables — main and still-active
     rows are identical except the Status cell (main only)."""
     score_str = f"{score:+.2f}" if score is not None else "-"
@@ -246,7 +247,8 @@ def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0):
                         f'style="padding:6px 10px;border-top:none;'
                         f'border-bottom:1px solid var(--line);background:var(--row-alt);'
                         f'font-size:11px;line-height:1.6">{timeline_html}</td></tr>')
-    listed_date, days_market, first_price, change_pct = _get_listing_age(listing, price_data)
+    listed_date, days_market, first_price, change_pct = _get_listing_age(
+        listing, price_data, today)
     price_val = listing.get('price_eur', 0) or 0
     ppu_val = listing.get('price_per_m2', 0) or 0
     score_val = score if score is not None else -999
@@ -288,19 +290,19 @@ def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0):
     )
 
 
-def _main_row_html(item, price_data=None, row_idx=0):
+def _main_row_html(item, price_data=None, row_idx=0, today=None):
     listing, score, method, badge, detail = item
     return _deal_row_html(listing, score,
                           f"<td>{_badge_html(badge, detail)}</td>",
-                          price_data, row_idx)
+                          price_data, row_idx, today)
 
 
-def _still_row_html(item, price_data=None, row_idx=0):
+def _still_row_html(item, price_data=None, row_idx=0, today=None):
     listing, score, method = item
-    return _deal_row_html(listing, score, "", price_data, row_idx)
+    return _deal_row_html(listing, score, "", price_data, row_idx, today)
 
 
-def _get_listing_age(listing, price_data=None):
+def _get_listing_age(listing, price_data=None, today=None):
     """Return (listed_date_str, days_on_market_str, first_price_str, price_change_pct_str)
     for a listing.
 
@@ -326,7 +328,7 @@ def _get_listing_age(listing, price_data=None):
         Change: % delta first_price -> current ask."""
         if days is None:
             try:
-                days = (date.today()
+                days = ((today or date.today())
                         - date.fromisoformat((date_str or '')[:10])).days
             except ValueError:
                 days = None
@@ -480,12 +482,14 @@ def _histogram_card_html(all_listings):
             f"{svg}</div>")
 
 
-def _main_section_html(title, items, subtitle, price_data=None, table_id=""):
+def _main_section_html(title, items, subtitle, price_data=None, table_id="",
+                       today=None):
     if not items:
         return (f"<div class='card'><h3>{title}</h3>"
                 f"<p class='note'>{subtitle}</p>"
                 "<p>No new or changed qualifying deals today.</p></div>")
-    rows = "".join(_main_row_html(it, price_data, idx) for idx, it in enumerate(items))
+    rows = "".join(_main_row_html(it, price_data, idx, today)
+                   for idx, it in enumerate(items))
     return (
         f"<div class='card'><h3>{title}</h3>"
         f"<p class='note'>{subtitle}</p>"
@@ -493,10 +497,12 @@ def _main_section_html(title, items, subtitle, price_data=None, table_id=""):
     )
 
 
-def _still_active_section_html(deal_type, items, price_data=None, table_id=""):
+def _still_active_section_html(deal_type, items, price_data=None,
+                               table_id="", today=None):
     if not items:
         return ""
-    rows = "".join(_still_row_html(it, price_data, idx) for idx, it in enumerate(items))
+    rows = "".join(_still_row_html(it, price_data, idx, today)
+                   for idx, it in enumerate(items))
     return (
         "<div class='card' style='opacity:0.9'>"
         f"<h3 style='color:var(--faint)'>Still active from yesterday — {deal_type}</h3>"
@@ -552,7 +558,6 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
         floor = _t(listing.get('floor', '?'))
         price_str = _fmt_price(listing.get('price_eur'), listing.get('price_unit'))
         ppu_str = _fmt_ppu(listing.get('price_per_m2'))
-        deal_type = _t(listing.get('deal_type', '?'))
         source = listing.get('source', '')
 
         map_link = _map_link(listing)
@@ -567,7 +572,6 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
             f"<td style='text-align:right'>{floor}</td>"
             f"<td style='text-align:right;font-weight:bold'>{price_str}</td>"
             f"<td style='text-align:right'>{ppu_str}</td>"
-            f"<td style='text-align:right'>{deal_type}</td>"
             f"<td>{_source_link(listing, _relisted_chip(listing) + _vs_district_chip(listing) + map_link)}</td>"
             '</tr>'
         )
@@ -590,7 +594,7 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
         "<th>Rooms</th><th>m²</th><th>Floor</th>"
         "<th style='text-align:right'>Price</th>"
         "<th style='text-align:right'>EUR/m²</th>"
-        "<th>Type</th><th>Source</th>"
+        "<th>Source</th>"
         "</tr>"
         f"{rows_html}"
         "</table></div>"
@@ -1102,9 +1106,12 @@ def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
         if med and ppu:
             vs = round((ppu - med) / med * 100)
         entry = price_data.get(key) or {}
-        hist = [[p.get("date"), p.get("price")]
+        # Tolerate legacy {"d","p"} obs like get_price_timeline does —
+        # a bare .get("price") silently drops them from the embed trail.
+        hist = [[p.get("date") or p.get("d"),
+                 p.get("price", p.get("p"))]
                 for p in (entry.get("our_tracking") or [])
-                if p.get("price") is not None]
+                if p.get("price", p.get("p")) is not None]
         return [
             listing.get("district"), listing.get("rooms"),
             listing.get("area_m2"), listing.get("floor"),
@@ -1168,7 +1175,7 @@ FLAT_WATCH_JS = web_style.watch_js("flat", "flat-listings-data",
                                     "watch_flats_v1")
 
 
-def build_stale_html(all_listings, price_data, top_n=None):
+def build_stale_html(all_listings, price_data, top_n=None, today=None):
     """'Stale & stubborn' card — sale ads older than STALE_MIN_DAYS_FLAT
     with no recorded price cut. These are the complement of the
     price-cuts card: sellers who haven't moved yet, i.e. the pool future
@@ -1188,7 +1195,7 @@ def build_stale_html(all_listings, price_data, top_n=None):
         cenu = entry.get("cenumednieks") or {}
         days = cenu.get("days_on_market")
         if days is None and entry.get("first_seen"):
-            days = utils.days_since(entry["first_seen"])
+            days = utils.days_since(entry["first_seen"], today)
         if not days or days < config.STALE_MIN_DAYS_FLAT:
             continue
         rows_src.append((l, int(days)))
@@ -1301,6 +1308,9 @@ def build_html(main_deals, still_active, comparison_html, status_note,
                auctions_failed=False, n_gone=None, market_pulse=None,
                today=None):
     today = today or date.today().isoformat()
+    # date object for the per-row "Listed Nd" math — one clock reading for
+    # the whole digest (a run crossing midnight stays self-consistent).
+    _today_d = date.fromisoformat(str(today)[:10])
     run_time = _now_header_str()
     sections = []
 
@@ -1318,10 +1328,12 @@ def build_html(main_deals, still_active, comparison_html, status_note,
                         f"cheaper than the model expects (higher = better deal). "
                         f"Click column headers to sort.")
         sections.append(_main_section_html(dt.upper(), items, subtitle,
-                                            price_data, f"tbl_main_{dt}"))
+                                            price_data, f"tbl_main_{dt}",
+                                            _today_d))
 
         still = still_active.get(dt, [])
-        sa = _still_active_section_html(dt, still, price_data, f"tbl_still_{dt}")
+        sa = _still_active_section_html(dt, still, price_data,
+                                        f"tbl_still_{dt}", _today_d)
         if sa:
             sections.append(sa)
 
@@ -1334,7 +1346,7 @@ def build_html(main_deals, still_active, comparison_html, status_note,
                                                price_data)
                         if all_scored else "")
     price_cuts_html = build_price_cuts_html(all_listings, price_data)
-    stale_html = build_stale_html(all_listings, price_data)
+    stale_html = build_stale_html(all_listings, price_data, today=_today_d)
     flat_budget_script = (f'<script id="flat-budget-js">{FLAT_BUDGET_JS}</script>'
                           if all_scored else "")
     flat_watch_script = (f'<script id="flat-watch-js">{FLAT_WATCH_JS}</script>'
