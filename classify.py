@@ -129,12 +129,15 @@ def comparison_header(scored_by_type, last_digest):
         yest_items = last_digest.get(dt, [])
 
         if today_items:
-            today_best = max((s for _, s, _ in today_items), default=None)
+            today_best = max((s for _, s, _ in today_items if s is not None),
+                             default=None)
         else:
             today_best = None
 
         if yest_items:
-            yest_best = max((it.get("score") for it in yest_items), default=None)
+            yest_best = max((it.get("score") for it in yest_items
+                             if isinstance(it, dict) and it.get("score") is not None),
+                            default=None)
         else:
             yest_best = None
 

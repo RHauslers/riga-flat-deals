@@ -13,6 +13,7 @@ We fetch the per-district listing pages for each deal type — those already
 include today's new ads — and keep rows whose district is in
 config.SS_COM_DISTRICT_SLUGS (i.e. our target districts).
 """
+import html as _html
 import re
 import time
 
@@ -91,16 +92,18 @@ def _row_to_listing(tr, deal_type, forced_district=None):
     district_cell = desc_cells[0]
     district_html = district_cell.decode_contents()
     parts = re.split(r"<br\s*/?>", district_html, maxsplit=1)
+    first_txt = _html.unescape(re.sub(r"<[^>]+>", "", parts[0])).strip()
 
     if forced_district:
         # District-specific page: the cell is just "Street" (no district
         # prefix) — take the text before any <br>.
         district = forced_district
-        street = BeautifulSoup(parts[0], "lxml").get_text(strip=True)
+        street = first_txt
     else:
         # "Today" page: cell is "District<br>Street"
-        district_name_raw = BeautifulSoup(parts[0], "lxml").get_text(strip=True)
-        street = BeautifulSoup(parts[1], "lxml").get_text(strip=True) if len(parts) > 1 else ""
+        district_name_raw = first_txt
+        street = (_html.unescape(re.sub(r"<[^>]+>", "", parts[1])).strip()
+                  if len(parts) > 1 else "")
         district = _match_district(district_name_raw)
         if district is None:
             return None  # not one of our target districts

@@ -32,12 +32,15 @@ def _riga_stamp(run_date):
 
 def _safe_url(url):
     """Return the URL only if it is an https link to an allow-listed host."""
+    u = utils.safe_url(url)
+    if not u:
+        return None
     try:
-        p = urlparse(str(url or ""))
+        p = urlparse(u)
     except Exception:
         return None
     if p.scheme == "https" and p.netloc.lower() in ALLOWED_HOSTS:
-        return str(url)
+        return u
     return None
 
 
@@ -129,7 +132,9 @@ _MARKET_FIELDS = ("source", "id", "make", "model", "year", "mileage_km",
                   "_relisted",
                   # tehniskā apskate month 'YYYY-MM' (detail-page field,
                   # fetched for digest rows only — None for most rows).
-                  "inspection")
+                  "inspection",
+                  # cross-source alternate portal links [{source, url, price_eur}]
+                  "also_on")
 
 # Repeated string columns are stored once in payload["dict"] with int
 # indices in the rows — make/model/fuel/gearbox/body/source/_first_seen
@@ -177,27 +182,54 @@ def _history_html(l, run_date=None):
             + " · ".join(bits) + _sparkline(hist) + "</span>")
 
 
-def _market_data_html(market):
+def _ref_date(run_date=None):
+    if run_date:
+        try:
+            return date.fromisoformat(str(run_date)[:10])
+        except ValueError:
+            pass
+    return date.today()
+
+
+def _market_data_html(market, run_date=None):
     """Embed the day's deduplicated eligible market (all prices up to the
     comparable ceiling, not just today's candidates) as JSON, with the
     scoring config, so the page can re-rank for any budget in the browser.
     URLs are allow-listed here — the same rule _link() applies to rows."""
     url_i = _MARKET_FIELDS.index("url")
+    also_i = _MARKET_FIELDS.index("also_on")
     rows = []
     for l in market or []:
         row = [l.get(f) for f in _MARKET_FIELDS]
         if not _safe_url(row[url_i]):
             row[url_i] = ""
+        if row[also_i]:
+            clean_also = []
+            for extra in row[also_i]:
+                if isinstance(extra, dict):
+                    clean_also.append({
+                        "source": extra.get("source"),
+                        "url": _safe_url(extra.get("url")) or "",
+                        "price_eur": extra.get("price_eur"),
+                    })
+            row[also_i] = clean_also or None
         rows.append(row)
     dicts = utils.dict_encode(rows, _MARKET_FIELDS, _MARKET_DICT_FIELDS)
+    ref_d = _ref_date(run_date)
     cfg = {
         "minPrice": config.CAR_MIN_PRICE_EUR,
         "compMax": config.CAR_COMPARABLE_MAX_PRICE_EUR,
         "defaultMax": config.CAR_PRICE_CEILING_EUR,
         "minYear": config.CAR_MIN_YEAR,
+        "maxYear": ref_d.year + 1,
+        "runDate": ref_d.isoformat(),
+        "runYear": ref_d.year,
+        "runMonth": ref_d.month,
         "maxMileage": config.CAR_MAX_MILEAGE_KM,
         "highMileageWarn": config.CAR_HIGH_MILEAGE_WARNING_KM,
         "ageWarnYears": config.CAR_AGE_WARNING_YEARS,
+        "longTaMonths": config.CAR_LONG_TA_MONTHS,
+        "lowPaceKm": config.CAR_LOW_PACE_KM_PER_YEAR,
         "yearTol": config.CAR_YEAR_TOLERANCE,
         "mileageTol": config.CAR_MILEAGE_TOLERANCE_KM,
         "engineTol": config.CAR_ENGINE_TOLERANCE_L,
@@ -211,6 +243,7 @@ def _market_data_html(market):
         "yearPoints": config.CAR_SCORE_YEAR_POINTS,
         "scoreMax": config.CAR_SCORE_MAX,
         "fuels": list(config.CAR_FUEL_TYPES),
+        "bodies": list(config.CAR_BODY_TYPES),
         "motStaleDays": config.MOTIVATED_STALE_DAYS_CAR,
         "motMinDropEur": config.MOTIVATED_MIN_DROP_EUR_CAR,
         "motMinTrailDrops": config.MOTIVATED_MIN_TRAIL_DROPS,
@@ -254,14 +287,17 @@ function __carBudgetInit() {
       });
     });
   }
-  var thisYear = new Date().getFullYear();
+  var thisYear = cfg.runYear || new Date().getFullYear();
+  var thisMonth = cfg.runMonth || (new Date().getMonth() + 1);
   var makeSel = document.getElementById('car-filter-make');
   var fuelSel = document.getElementById('car-filter-fuel');
   var gbSel = document.getElementById('car-filter-gearbox');
+  var bodySel = document.getElementById('car-filter-body');
   var yearInput = document.getElementById('car-filter-year');
   var kmInput = document.getElementById('car-filter-km');
   var modelInput = document.getElementById('car-filter-model');
   var minInput = document.getElementById('car-filter-min');
+  var taChk = document.getElementById('car-filter-ta');
 
   // 'Passat B7' / 'passat-b7' / 'passat b7' must all match: compare on
   // alphanumeric-only lowercase forms.
@@ -276,11 +312,18 @@ function __carBudgetInit() {
     return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
   }
 
+  function taMonthsLeft(ta) {
+    var m = String(ta || '').match(/^(\\d{4})-(\\d{2})$/);
+    if (!m) return null;
+    return (parseInt(m[1], 10) - thisYear) * 12 + (parseInt(m[2], 10) - thisMonth);
+  }
+
   // eligible(): the market band [minPrice, compMax] with usable specs
   function eligible(r) {
     var p = r[idx.price_eur], y = r[idx.year], m = r[idx.mileage_km];
+    var maxY = cfg.maxYear || (thisYear + 1);
     if (p == null || p < cfg.minPrice || p > cfg.compMax) return false;
-    if (y == null || y < cfg.minYear) return false;
+    if (y == null || y < cfg.minYear || y > maxY) return false;
     if (m == null || m < 0 || m > cfg.maxMileage) return false;
     if (!r[idx.make] || !r[idx.model]) return false;
     if (cfg.fuels.indexOf(r[idx.fuel]) < 0) return false;
@@ -315,15 +358,17 @@ function __carBudgetInit() {
       model: modelInput && modelInput.value ? modelInput.value : '',
       fuel: fuelSel && fuelSel.value ? fuelSel.value : '',
       gearbox: gbSel && gbSel.value ? gbSel.value : '',
+      body: bodySel && bodySel.value ? bodySel.value : '',
       minYear: yearInput ? (parseInt(yearInput.value, 10) || 0) : 0,
       maxKm: kmInput ? (parseInt(kmInput.value, 10) || 0) : 0,
-      minPrice: minInput ? (parseInt(minInput.value, 10) || 0) : 0
+      minPrice: minInput ? (parseInt(minInput.value, 10) || 0) : 0,
+      validTa: !!(taChk && taChk.checked)
     };
   }
 
   function anyFilterSet(f) {
-    return !!(f.make || f.model || f.fuel || f.gearbox || f.minYear ||
-              f.maxKm || f.minPrice);
+    return !!(f.make || f.model || f.fuel || f.gearbox || f.body ||
+              f.minYear || f.maxKm || f.minPrice || f.validTa);
   }
 
   function passesFilters(r, f) {
@@ -334,8 +379,13 @@ function __carBudgetInit() {
                        r[idx.price_eur] < f.minPrice)) return false;
     if (f.fuel && r[idx.fuel] !== f.fuel) return false;
     if (f.gearbox && r[idx.gearbox] !== f.gearbox) return false;
+    if (f.body && r[idx.body] !== f.body) return false;
     if (f.minYear && (r[idx.year] == null || r[idx.year] < f.minYear)) return false;
     if (f.maxKm && (r[idx.mileage_km] == null || r[idx.mileage_km] > f.maxKm)) return false;
+    if (f.validTa) {
+      var ml = taMonthsLeft(r[idx.inspection]);
+      if (ml === null || ml < 0) return false;
+    }
     return true;
   }
 
@@ -397,34 +447,11 @@ function __carBudgetInit() {
     return v == null ? '—' : '€' + Math.round(v).toLocaleString('en-US');
   }
 
-  // Tiny price-trail sparkline (same shape as the Python one).
-  function sparkEl(hist) {
-    if (typeof document.createElementNS === 'undefined') return null;
-    var pts = [];
-    (hist || []).forEach(function (h) {
-      var v = Number(h[1]);
-      if (!isNaN(v)) pts.push(v);
-    });
-    if (pts.length < 2) return null;
-    var w = 64, h = 16;
-    var lo = Math.min.apply(null, pts), hi = Math.max.apply(null, pts);
-    var span = (hi - lo) || 1;
-    var coords = pts.map(function (v, i) {
-      return (i * (w - 4) / (pts.length - 1) + 2).toFixed(1) + ',' +
-             (h - 3 - (v - lo) / span * (h - 6)).toFixed(1);
-    }).join(' ');
-    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', w); svg.setAttribute('height', h);
-    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
-    svg.style.verticalAlign = '-3px'; svg.style.marginLeft = '4px';
-    var pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-    pl.setAttribute('points', coords); pl.setAttribute('fill', 'none');
-    pl.setAttribute('stroke', pts[pts.length - 1] < pts[0] ? 'var(--bad)'
-      : (pts[pts.length - 1] > pts[0] ? 'var(--good)' : 'var(--muted)'));
-    pl.setAttribute('stroke-width', '1.5');
-    svg.appendChild(pl);
-    return svg;
-  }
+  var refNowMs = Math.max(Date.now(),
+    (cfg && cfg.runDate) ? (Date.parse(String(cfg.runDate) + 'T00:00:00Z') || 0) : 0);
+
+  // Tiny price-trail sparkline (shared with FLAT_BUDGET_JS).
+""" + web_style.SPARK_EL_JS + """
 
   // 'seen N d' + '€5,500 → €4,900' line (matches _history_html in Python).
   function appendHistory(td, r) {
@@ -433,7 +460,7 @@ function __carBudgetInit() {
     if (first) {
       var t = Date.parse(String(first) + 'T00:00:00Z');
       if (!isNaN(t)) {
-        var days = Math.max(0, Math.round((Date.now() - t) / 86400000));
+        var days = Math.max(0, Math.round((refNowMs - t) / 86400000));
         bits.push(days > 0 ? 'seen ' + days + ' d' : 'seen today');
       }
     }
@@ -453,8 +480,7 @@ function __carBudgetInit() {
   }
 
   // Port of utils.car_motivated + is_motivated — same rules, same data
-  // (_price_hist/_first_seen are embedded fields). Cars never relist, so
-  // the relistings branch of is_motivated has no JS counterpart.
+  // (_price_hist/_first_seen are embedded fields).
   function motivatedInfo(r) {
     var pts = [];
     // a reposted ad's wiped trail is re-attached as the first point —
@@ -477,7 +503,7 @@ function __carBudgetInit() {
     var first = r[idx._first_seen];
     if (first) {
       var t = Date.parse(String(first) + 'T00:00:00Z');
-      if (!isNaN(t)) days = Math.max(0, Math.round((Date.now() - t) / 86400000));
+      if (!isNaN(t)) days = Math.max(0, Math.round((refNowMs - t) / 86400000));
     }
     if (!drop && !nDrops) return null;
     var seen = {}, distinct = 0;
@@ -520,10 +546,55 @@ function __carBudgetInit() {
     if (f.model) parts.push('model ~' + f.model);
     if (f.fuel) parts.push('fuel=' + f.fuel);
     if (f.gearbox) parts.push('gearbox=' + f.gearbox);
+    if (f.body) parts.push('body=' + f.body);
     if (f.minYear) parts.push('year ≥' + f.minYear);
     if (f.maxKm) parts.push('km ≤' + f.maxKm.toLocaleString('en-US'));
     if (f.minPrice) parts.push('min €' + f.minPrice.toLocaleString('en-US'));
+    if (f.validTa) parts.push('valid TA');
     return parts.join(', ');
+  }
+
+  function taCell(ta) {
+    var td = document.createElement('td');
+    td.style.padding = '6px';
+    td.style.textAlign = 'center';
+    if (ta == null) {
+      td.setAttribute('data-sort', '-1');
+      td.textContent = '—';
+      return td;
+    }
+    if (ta === '') {
+      td.setAttribute('data-sort', '0');
+      td.style.color = 'var(--bad)';
+      td.title = 'Ad states no valid tehniskā apskate';
+      td.textContent = 'none';
+      return td;
+    }
+    var m = String(ta).match(/^(\\d{4})-(\\d{2})$/);
+    if (!m) {
+      td.setAttribute('data-sort', '-1');
+      td.textContent = '—';
+      return td;
+    }
+    var sort = parseInt(m[1], 10) * 100 + parseInt(m[2], 10);
+    var disp = m[2] + '.' + m[1];
+    var ml = taMonthsLeft(ta);
+    td.setAttribute('data-sort', String(sort));
+    td.textContent = disp;
+    if (ml < 0) {
+      td.style.color = 'var(--bad)';
+      td.title = 'Tehniskā apskate has expired ' + disp;
+    } else if (ml <= 2) {
+      td.style.color = 'var(--warn)';
+      td.title = 'Tehniskā apskate lapses soon ' + disp;
+    } else if (ml >= (cfg.longTaMonths || 10)) {
+      td.style.color = 'var(--good)';
+      td.style.fontWeight = '600';
+      td.title = 'Fresh tehniskā apskate valid to ' + disp;
+    } else {
+      td.title = 'Tehniskā apskate valid to ' + disp;
+    }
+    return td;
   }
 
   function render(items, qualified, maxPrice, defaultCeiling, filters) {
@@ -543,8 +614,7 @@ function __carBudgetInit() {
     note.textContent = 'Every matching listing from the market snapshot (' +
       market.length + ' eligible), scored against its comparable pool — ' +
       'green score = qualifying deal, “—” = too few comps to appraise. ' +
-      'Motivated-seller chips carry over; other badges and cross-source ' +
-      'links appear in the default view only.';
+      'Motivated-seller chips, cross-source links and TA months carry over.';
     customView.appendChild(note);
     if (!items.length) {
       var p = document.createElement('p');
@@ -554,7 +624,7 @@ function __carBudgetInit() {
     }
     var table = document.createElement('table');
     table.id = 'car-custom-table';
-    var headers = ['Listing', 'Asking', 'Median ask', 'Comps', 'Discount €', 'Discount %', 'Score'];
+    var headers = ['Listing', 'Asking', 'Median ask', 'Comps', 'Discount €', 'Discount %', 'Score', 'TA'];
     var hr = document.createElement('tr');
     hr.style.background = 'var(--line)';
     headers.forEach(function (name, col) {
@@ -572,13 +642,15 @@ function __carBudgetInit() {
     items.forEach(function (item) {
       var r = item.r;
       var tr = document.createElement('tr');
+      var rKey = (r[idx.source] || '') + ':' + (r[idx.id] || '');
+      if (rKey !== ':') tr.setAttribute('id', 'r-' + rKey);
       var td = document.createElement('td');
       td.style.padding = '6px';
       td.setAttribute('data-sort', r[idx.make] + ' ' + r[idx.model]);
       var star = document.createElement('button');
       star.type = 'button';
       star.className = 'watch-star';
-      star.setAttribute('data-key', r[idx.source] + ':' + r[idx.id]);
+      star.setAttribute('data-key', rKey);
       star.setAttribute('data-label',
         (String(r[idx.make] || '') + ' ' + String(r[idx.model] || ''))
           .replace(/-/g, ' ').trim() || 'car');
@@ -611,6 +683,22 @@ function __carBudgetInit() {
         td.appendChild(a);
       } else {
         td.appendChild(document.createTextNode(r[idx.source] || ''));
+      }
+      if (idx.also_on != null && Array.isArray(r[idx.also_on])) {
+        r[idx.also_on].forEach(function (ao) {
+          if (!ao || !ao.source) return;
+          td.appendChild(document.createTextNode(' + '));
+          if (ao.url) {
+            var aa = document.createElement('a');
+            aa.href = ao.url;
+            aa.textContent = ao.source;
+            aa.target = '_blank';
+            aa.rel = 'noopener noreferrer';
+            td.appendChild(aa);
+          } else {
+            td.appendChild(document.createTextNode(ao.source));
+          }
+        });
       }
       var mot = motivatedInfo(r);
       // _motivated_chip renders nothing when the trail has no net drop —
@@ -683,12 +771,44 @@ function __carBudgetInit() {
       scTd.style.fontWeight = 'bold';
       if (item.good) scTd.style.color = 'var(--good)';
       tr.appendChild(scTd);
+      tr.appendChild(taCell(idx.inspection != null ? r[idx.inspection] : null));
+      var taVal = idx.inspection != null ? r[idx.inspection] : null;
+      var taBad = (taVal === '' || (taVal != null && (taMonthsLeft(taVal) !== null && taMonthsLeft(taVal) < 0)));
+      if (item.good && !cautions.length && !taBad) {
+        tr.setAttribute('data-heaven', '1');
+      }
       table.appendChild(tr);
     });
     customView.appendChild(table);
     if (typeof window !== 'undefined' && window.__carWatchRefresh) {
       window.__carWatchRefresh();
     }
+    if (typeof window !== 'undefined' && window.__carHeavenApply) {
+      window.__carHeavenApply();
+    }
+  }
+
+  function syncUrl(rawMax, f) {
+    if (typeof history === 'undefined' || !history.replaceState ||
+        typeof location === 'undefined') return;
+    try {
+      var p = new URLSearchParams();
+      if (rawMax) p.set('max', rawMax);
+      if (f) {
+        if (f.make) p.set('make', f.make);
+        if (f.model) p.set('model', f.model);
+        if (f.minPrice) p.set('min', String(f.minPrice));
+        if (f.fuel) p.set('fuel', f.fuel);
+        if (f.gearbox) p.set('gearbox', f.gearbox);
+        if (f.body) p.set('body', f.body);
+        if (f.minYear) p.set('year', String(f.minYear));
+        if (f.maxKm) p.set('km', String(f.maxKm));
+        if (f.validTa) p.set('ta', '1');
+      }
+      var q = p.toString();
+      history.replaceState(null, '',
+        (location.pathname || '') + (q ? '?' + q : '') + (location.hash || ''));
+    } catch (e) {}
   }
 
   function showDefault() {
@@ -696,6 +816,7 @@ function __carBudgetInit() {
     customView.innerHTML = '';
     defaultView.style.display = '';
     if (statusEl) statusEl.textContent = '';
+    syncUrl('', null);
   }
 
   var timer = null;
@@ -708,6 +829,7 @@ function __carBudgetInit() {
     var defaultCeiling = isNaN(maxPrice);  // filters set, no budget typed
     if (defaultCeiling) maxPrice = cfg.defaultMax;
     maxPrice = Math.max(cfg.minPrice, Math.min(cfg.compMax, maxPrice));
+    syncUrl(!defaultCeiling ? String(maxPrice) : '', filters);
     var t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     var items = compute(maxPrice, filters);
     var qualified = items.filter(function (x) { return x.good; });
@@ -731,7 +853,7 @@ function __carBudgetInit() {
     if (timer) clearTimeout(timer);
     timer = setTimeout(apply, 150);
   }
-  [makeSel, fuelSel, gbSel].forEach(function (el) {
+  [makeSel, fuelSel, gbSel, bodySel, taChk].forEach(function (el) {
     if (el) el.addEventListener('change', scheduleApply);
   });
   [yearInput, kmInput, modelInput, minInput].forEach(function (el) {
@@ -740,10 +862,11 @@ function __carBudgetInit() {
   var resetBtn = document.getElementById('car-budget-reset');
   if (resetBtn) resetBtn.addEventListener('click', function () {
     input.value = '';
-    [makeSel, fuelSel, gbSel, yearInput, kmInput, modelInput, minInput]
+    [makeSel, fuelSel, gbSel, bodySel, yearInput, kmInput, modelInput, minInput]
       .forEach(function (el) {
         if (el) el.value = '';
       });
+    if (taChk) taChk.checked = false;
     showDefault();
   });
   var okBtn = document.getElementById('car-budget-ok');
@@ -773,12 +896,18 @@ function __carBudgetInit() {
   urlActive = urlSet('min', minInput) || urlActive;
   urlActive = urlSet('fuel', fuelSel) || urlActive;
   urlActive = urlSet('gearbox', gbSel) || urlActive;
+  urlActive = urlSet('body', bodySel) || urlActive;
   urlActive = urlSet('year', yearInput) || urlActive;
   urlActive = urlSet('km', kmInput) || urlActive;
+  if (params.get('ta') === '1' && taChk) {
+    taChk.checked = true;
+    urlActive = true;
+  }
   if (urlActive) apply();
   if (typeof window !== 'undefined') {
     window.__carBudget = { compute: compute, apply: apply, market: market,
-                           idx: idx, cfg: cfg, readFilters: readFilters };
+                           idx: idx, cfg: cfg, readFilters: readFilters,
+                           passesFilters: passesFilters };
   }
 }
 if (document.readyState === 'loading') {
@@ -802,18 +931,27 @@ CAR_WATCH_JS = web_style.watch_js("car", "car-market-data",
 CAR_HEAVEN_JS = """
 (function () {
   var btn = document.getElementById('car-heaven-btn');
-  var tbl = document.getElementById('car-deals');
-  if (!btn || !tbl) return;
+  if (!btn) return;
   var on = false;
+  function applyHeaven() {
+    ['car-deals', 'car-custom-table'].forEach(function (id) {
+      var tbl = document.getElementById(id);
+      if (!tbl || !tbl.getElementsByTagName) return;
+      var rows = tbl.getElementsByTagName('tr');
+      for (var i = 1; i < rows.length; i++) {
+        rows[i].style.display =
+          (!on || rows[i].getAttribute('data-heaven') === '1') ? '' : 'none';
+      }
+    });
+  }
   btn.addEventListener('click', function () {
     on = !on;
     btn.className = on ? 'primary' : 'ghost';
-    var rows = tbl.getElementsByTagName('tr');
-    for (var i = 1; i < rows.length; i++) {
-      rows[i].style.display =
-        (!on || rows[i].getAttribute('data-heaven') === '1') ? '' : 'none';
-    }
+    applyHeaven();
   });
+  if (typeof window !== 'undefined') {
+    window.__carHeavenApply = applyHeaven;
+  }
 })();
 """
 
@@ -868,6 +1006,40 @@ def _low_km_chip(l):
             f"— unusually low mileage for this model'>LOW KM</span>")
 
 
+def _pace_chip(l, run_date=None):
+    """Subtle '~Xk/yr' chip when annual mileage pace is unusually low
+    (<= CAR_LOW_PACE_KM_PER_YEAR on a car at least 3 years old)."""
+    km = utils.to_float(l.get("mileage_km"))
+    yr = utils.to_int(l.get("year"))
+    if not km or not yr:
+        return ""
+    age = _ref_date(run_date).year - yr
+    if age < 3:
+        return ""
+    pace = km / age
+    if pace > config.CAR_LOW_PACE_KM_PER_YEAR:
+        return ""
+    return (f" <span class='badge b-src' "
+            f"title='Low annual mileage pace: ~{int(round(pace)):,} km/year "
+            f"over {age} years'>"
+            f"~{max(1, int(round(pace / 1000)))}k/yr</span>")
+
+
+def _watch_star_car(l):
+    """☆ button for car rows (deals, cuts, stale)."""
+    key = utils.listing_key(l)
+    if not l.get("source") or not l.get("id"):
+        return ""
+    star_label = (f"{(l.get('make') or '').title()} "
+                  f"{(l.get('model') or '').replace('-', ' ').title()}").strip()
+    return (
+        f"<button type='button' class='watch-star' "
+        f"data-key='{_e(key)}' data-label='{_e(star_label or 'car')}' "
+        f"data-price='{_e(l.get('price_eur'))}' "
+        f"data-url='{_e(_safe_url(l.get('url')) or '')}' "
+        f"title='Watch this listing'>☆</button> ")
+
+
 def _relisted_chip(l):
     """Purple 'RELISTED · was €X' chip — the car vanished recently and
     came back under a new ad id (matched on specs by cars.run)."""
@@ -902,9 +1074,10 @@ def build_cuts_html(assessed, run_date=None, top_n=None):
         mot = (web_style.motivated_badge()
                if utils.car_is_motivated(info) else "")
         url = _safe_url(l.get('url'))
-        title = _e(f"{l.get('make','')} {l.get('model','')} "
-                   f"{l.get('title') or ''}".strip())
-        title_cell = f"<a href='{url}'>{title}</a>" if url else title
+        raw_title = (f"{l.get('make','')} {l.get('model','')} "
+                     f"{l.get('title') or ''}".strip())
+        title = _e(raw_title)
+        title_cell = _link(url, raw_title) if url else title
         days = f"{info['days']}d" if info.get("days") else "?"
         src = _e(l.get('source', ''))
         # trail sparkline — prepend the relisted ad's last ask like
@@ -918,7 +1091,7 @@ def build_cuts_html(assessed, run_date=None, top_n=None):
         spark = utils.sparkline_svg(trail_pts, title="asking-price trail")
         rows.append(
             f"<tr>"
-            f"<td data-sort='{_e(title)}'>{title_cell}<br>"
+            f"<td data-sort='{_e(title)}'>{_watch_star_car(l)}{title_cell}<br>"
             f"<span style='color:var(--muted);font-size:12px'>"
             f"{_e(l.get('year',''))} · {_spec_text(l)}</span></td>"
             f"<td data-sort='{info['drop_eur']:.0f}' "
@@ -941,16 +1114,81 @@ def build_cuts_html(assessed, run_date=None, top_n=None):
         "<span class='badge b-mot'>MOTIVATED</span> seller is likely "
         "negotiable (stale listing or repeated cuts).</p>"
         "<div class='scroll-x'><table id='car-cuts'>"
-        "<tr><th style='text-align:left'>Listing</th><th>Was → Now</th>"
-        "<th>Cut</th><th>Seen</th><th>Source</th></tr>"
+        "<tr><th class=\"sort-th\" style='text-align:left' onclick=\"sortTable('car-cuts',0)\">Listing</th>"
+        "<th class=\"sort-th\" onclick=\"sortTable('car-cuts',1)\">Was → Now</th>"
+        "<th class=\"sort-th\" onclick=\"sortTable('car-cuts',2)\">Cut</th>"
+        "<th class=\"sort-th\" onclick=\"sortTable('car-cuts',3)\">Seen</th>"
+        "<th class=\"sort-th\" onclick=\"sortTable('car-cuts',4)\">Source</th></tr>"
         + "".join(rows) +
         "</table></div></div>")
 
 
+def build_stale_html(assessed, run_date=None, top_n=None):
+    """'Stale & stubborn' card — assessed cars seen >= STALE_MIN_DAYS_CAR
+    with no observed price drop."""
+    if not assessed:
+        return ""
+    top_n = top_n or config.STALE_TOP_N
+    today_d = _ref_date(run_date)
+    stale = []
+    for l in utils.unique_by_key(assessed):
+        info = utils.car_motivated(l, today=today_d)
+        if info and info.get("drop_eur"):
+            continue
+        days = utils.days_since(l.get("_first_seen"), today_d)
+        if not days or days < config.STALE_MIN_DAYS_CAR:
+            continue
+        stale.append((l, int(days)))
+    if not stale:
+        return ""
+    stale.sort(key=lambda x: -x[1])
+    rows = []
+    for idx, (l, days) in enumerate(stale[:top_n]):
+        zebra = " class='z'" if idx % 2 else ""
+        url = _safe_url(l.get("url"))
+        raw_title = (f"{l.get('make','')} {l.get('model','')} "
+                     f"{l.get('title') or ''}".strip())
+        title = _e(raw_title)
+        title_cell = _link(url, raw_title) if url else title
+        p = l.get("price_eur") or 0
+        rows.append(
+            f"<tr{zebra}>"
+            f"<td data-sort='{_e(title)}'>{_watch_star_car(l)}{title_cell}<br>"
+            f"<span style='color:var(--muted);font-size:12px'>"
+            f"{_spec_text(l)}</span></td>"
+            f"<td style='text-align:right' data-sort='{p}'>"
+            f"<b>{_fmt_eur(l.get('price_eur'))}</b></td>"
+            f"<td style='text-align:right' data-sort='{days}'>{days} d</td>"
+            f"<td>{_e(l.get('source',''))}</td></tr>")
+    return (
+        "<div class='card'>"
+        "<h3 style='color:var(--warn);border:none;margin:0 0 4px 0'>"
+        "Stale &amp; stubborn</h3>"
+        "<p style='color:var(--muted);font-size:12px;margin:0 0 8px 0'>"
+        f"Assessed cars seen for {config.STALE_MIN_DAYS_CAR}+ days that have "
+        "never cut their ask — watch these for an eventual drop.</p>"
+        "<div class='scroll-x'><table id='car-stale'>"
+        "<tr><th class=\"sort-th\" style='text-align:left' onclick=\"sortTable('car-stale',0)\">Listing</th>"
+        "<th class=\"sort-th\" onclick=\"sortTable('car-stale',1)\">Ask</th>"
+        "<th class=\"sort-th\" onclick=\"sortTable('car-stale',2)\">Seen</th>"
+        "<th class=\"sort-th\" onclick=\"sortTable('car-stale',3)\">Source</th></tr>"
+        + "".join(rows) +
+        "</table></div></div>")
+
+
+def _ta_months_left(ta, run_date=None):
+    """Months between run_date and a 'YYYY-MM' inspection string, or None."""
+    m = re.match(r"^(\d{4})-(\d{2})$", str(ta or ""))
+    if not m:
+        return None
+    today_d = _ref_date(run_date)
+    return (int(m.group(1)) - today_d.year) * 12 + (int(m.group(2)) - today_d.month)
+
+
 def _ta_cell(l, run_date=None):
     """'TA' column — tehniskā apskate month. Red when expired (or the ad
-    states none), amber when it lapses within ~2 months; '—' when we did
-    not fetch the detail page (pp.lv ads, or over the per-run cap)."""
+    states none), amber when it lapses within ~2 months, green when fresh
+    (>= CAR_LONG_TA_MONTHS remaining); '—' when unknown."""
     ta = l.get("inspection")
     m = re.match(r"^(\d{4})-(\d{2})$", str(ta or ""))
     if ta is None or (ta and not m):
@@ -962,47 +1200,99 @@ def _ta_cell(l, run_date=None):
                 "none</td>")
     sort = int(m.group(1)) * 100 + int(m.group(2))
     disp = f"{m.group(2)}.{m.group(1)}"
-    try:
-        today_d = date.fromisoformat(str(run_date)) if run_date \
-            else date.today()
-    except ValueError:
-        today_d = date.today()
-    cur = today_d.year * 100 + today_d.month
-    if sort < cur:
+    ml = _ta_months_left(ta, run_date)
+    if ml is not None and ml < 0:
         style, tip = "color:var(--bad)", "Tehniskā apskate has expired"
-    elif sort <= cur + 2:
+    elif ml is not None and ml <= 2:
         style, tip = "color:var(--warn)", "Tehniskā apskate lapses soon"
+    elif ml is not None and ml >= config.CAR_LONG_TA_MONTHS:
+        style, tip = "color:var(--good);font-weight:600", "Fresh tehniskā apskate valid to"
     else:
         style, tip = "", "Tehniskā apskate valid to"
     return (f"<td style='padding:6px;text-align:center;{style}' "
             f"data-sort='{sort}' title='{tip} {disp}'>{disp}</td>")
 
 
-def _is_heavenly(l):
+def _is_heavenly(l, run_date=None):
     """'Heavenly' deal — qualifies for the table AND carries no caution
-    flag: not high-mileage, not old. (Cheapness is the table's entry
-    bar already.) Same predicate as the caution lines in _row()."""
-    km, year = l.get("mileage_km"), l.get("year")
-    if isinstance(km, (int, float)) and \
-            km >= config.CAR_HIGH_MILEAGE_WARNING_KM:
+    flag: not high-mileage, not old, and not known-expired/missing TA."""
+    km = utils.to_float(l.get("mileage_km"))
+    year = utils.to_int(l.get("year"))
+    if km is not None and km >= config.CAR_HIGH_MILEAGE_WARNING_KM:
         return False
-    if isinstance(year, int) and \
-            year <= date.today().year - config.CAR_AGE_WARNING_YEARS:
+    if year is not None and \
+            year <= _ref_date(run_date).year - config.CAR_AGE_WARNING_YEARS:
+        return False
+    ta = l.get("inspection")
+    if ta == "":
+        return False
+    ml = _ta_months_left(ta, run_date)
+    if ml is not None and ml < 0:
         return False
     return True
+
+
+def _hero_card_html(qualified, badges=None, run_date=None):
+    """Compact 'deal of the day' card for the #1 ranked qualifying car."""
+    if not qualified:
+        return ""
+    l = qualified[0]
+    key = utils.listing_key(l)
+    u = _safe_url(l.get("url"))
+    head_txt = (f"{_e((l.get('make') or '').title())} "
+                f"{_e((l.get('model') or '').replace('-', ' ').title())} — "
+                f"{_fmt_eur(l.get('price_eur'))}")
+    head_link = (f"<a href='{_e(u)}' target='_blank' rel='noopener noreferrer'>"
+                 f"{head_txt}</a>" if u else head_txt)
+    disc = l.get("_discount_pct")
+    sav = l.get("_savings")
+    disc_txt = (f" (−{_fmt(disc, '%')} / −{_fmt_eur(sav)} vs "
+                f"{_fmt_eur(l.get('_median'))} median)"
+                if disc is not None and sav is not None else "")
+    chips = (f" {_badge_html(key, badges or {})}"
+             f"{_motivated_chip(l, run_date)}{_relisted_chip(l)}"
+             f"{_low_km_chip(l)}{_pace_chip(l, run_date)}")
+    return (
+        "<div class='card' style='border-left:4px solid var(--accent)'>"
+        "<h3 style='margin:0 0 6px 0'>Deal of the day</h3>"
+        f"<p style='margin:0;font-size:15px'>{head_link} "
+        f"<span class='note'>{_spec_text(l)}{_e(disc_txt)}</span> "
+        f"<b style='color:var(--accent)'>score {_fmt(l.get('_score'))}</b>"
+        f"{chips}</p>"
+        f"<p class='note' style='margin:4px 0 0'>{_e(l.get('title') or '')}"
+        + (f" · <a href='#r-{_e(key)}'>jump to row</a>" if key else "")
+        + "</p></div>")
+
+
+_CAR_HIST_BUCKET_EUR = 500
+
+
+def _histogram_card_html(assessed):
+    """Ask-price histogram over today's assessed candidate cars."""
+    prices = sorted(p for p in
+                    (utils.to_float(l.get("price_eur"))
+                     for l in (assessed or []))
+                    if p and p > 0)
+    if len(prices) < 10:
+        return ""
+    return web_style.histogram_card_html(
+        prices, _CAR_HIST_BUCKET_EUR,
+        f"Candidate price spread — today ({len(prices)} cars)",
+        f"Assessed candidate cars in {_fmt_eur(_CAR_HIST_BUCKET_EUR)} "
+        "buckets — hover a bar for its range.",
+        unit_label="cars", h=80, bh=52)
 
 
 def _row(l, badges, run_date=None):
     key = utils.listing_key(l)
     title = l.get("title") or f"{l.get('make', '')} {l.get('model', '')}"
     cautions = []
-    mileage = l.get("mileage_km")
-    year = l.get("year")
-    if isinstance(mileage, (int, float)) and \
-            mileage >= config.CAR_HIGH_MILEAGE_WARNING_KM:
+    mileage = utils.to_float(l.get("mileage_km"))
+    year = utils.to_int(l.get("year"))
+    if mileage is not None and mileage >= config.CAR_HIGH_MILEAGE_WARNING_KM:
         cautions.append("High mileage — budget for repairs")
-    if isinstance(year, int) and \
-            year <= date.today().year - config.CAR_AGE_WARNING_YEARS:
+    if year is not None and \
+            year <= _ref_date(run_date).year - config.CAR_AGE_WARNING_YEARS:
         cautions.append("Older car — inspect carefully")
     caution_html = ""
     if cautions:
@@ -1010,21 +1300,17 @@ def _row(l, badges, run_date=None):
                         f"{_e('; '.join(cautions))}</span>")
     sort_model = html.escape(
         f"{l.get('make') or ''} {l.get('model') or ''}".strip(), quote=True)
-    star_label = (f"{(l.get('make') or '').title()} "
-                  f"{(l.get('model') or '').replace('-', ' ').title()}").strip()
-    star = (
-        f"<button type='button' class='watch-star' "
-        f"data-key='{_e(key)}' data-label='{_e(star_label or 'car')}' "
-        f"data-price='{_e(l.get('price_eur'))}' "
-        f"data-url='{_e(_safe_url(l.get('url')) or '')}' "
-        f"title='Watch this listing'>☆</button> ")
+    star = _watch_star_car(l)
+    anchor = (f" <a href='#r-{_e(key)}' title='Link to this row' "
+              f"style='font-size:11px;color:var(--faint)'>#</a>"
+              if key else "")
     cells = [
         f"<td style='padding:6px' data-sort='{sort_model}'>{star}{_e(title)}<br>"
         f"<span style='color:var(--muted);font-size:12px'>{_e(l.get('make'))} {_e(l.get('model'))} — {_spec_text(l)}</span><br>"
         f"{_badge_html(key, badges)} {_listing_links(l)}"
         f"{_motivated_chip(l, run_date)}{_relisted_chip(l)}"
-        f"{_low_km_chip(l)}{caution_html}"
-        f"{_history_html(l)}</td>",
+        f"{_low_km_chip(l)}{_pace_chip(l, run_date)}{anchor}{caution_html}"
+        f"{_history_html(l, run_date)}</td>",
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('price_eur'))}'><b>{_fmt_eur(l.get('price_eur'))}</b></td>",
         f"<td style='padding:6px;text-align:right' data-sort='{_sort_val(l.get('_median'))}'>{_fmt_eur(l.get('_median'))}{_pool_note(l)}</td>",
         f"<td style='padding:6px;text-align:center' data-sort='{_sort_val(l.get('_comps'))}'>{_comps_html(l)}</td>",
@@ -1033,8 +1319,9 @@ def _row(l, badges, run_date=None):
         f"<td style='padding:6px;text-align:center' data-sort='{_sort_val(l.get('_score'))}'><b>{_fmt(l.get('_score'))}</b></td>",
         _ta_cell(l, run_date),
     ]
-    heav = " data-heaven='1'" if _is_heavenly(l) else ""
-    return f"<tr{heav}>" + "".join(cells) + "</tr>"
+    heav = " data-heaven='1'" if _is_heavenly(l, run_date) else ""
+    row_id = f" id='r-{_e(key)}'" if key else ""
+    return f"<tr{heav}{row_id}>" + "".join(cells) + "</tr>"
 
 
 def _gone_html(gone, seen, run_date):
@@ -1044,11 +1331,7 @@ def _gone_html(gone, seen, run_date):
     if not gone:
         return ""
     seen = seen or {}
-    try:
-        today_d = date.fromisoformat(str(run_date)) if run_date \
-            else date.today()
-    except ValueError:
-        today_d = date.today()
+    today_d = _ref_date(run_date)
     rows = []
     for i, r in enumerate(gone):
         zebra = " class='z'" if i % 2 else ""
@@ -1064,24 +1347,16 @@ def _gone_html(gone, seen, run_date):
         # Same "cut before gone" tag as the flat gone table — a price
         # that slid before vanishing usually means it sold once it hit
         # the right level.
-        cut_tag = ""
-        _tp = [utils.to_float(p[1])
-               for p in (entry.get("prices") or []) if len(p) >= 2]
-        _tp = [p for p in _tp if p]
-        if len(_tp) >= 2 and _tp[-1] < _tp[0]:
-            _trail = " → ".join(_fmt_eur(p) for p in _tp[-4:])
-            if len(_tp) > 4:
-                _trail = "… " + _trail
-            cut_tag = (f"<br><span style='font-size:11px;color:var(--faint)'>"
-                       f"{_trail}</span>"
-                       f"<br><span style='font-size:11px;color:var(--good)'>"
-                       f"−{_fmt_eur(_tp[0] - _tp[-1])} before gone</span>")
+        _tp = [p[1] for p in (entry.get("prices") or []) if len(p) >= 2]
+        cut_tag = utils.gone_cut_tag_html(_tp, _fmt_eur)
         rows.append(
             f"<tr{zebra}>"
             f"<td style='padding:6px'>{label or '—'}</td>"
-            f"<td style='padding:6px;text-align:right;font-weight:bold'>"
+            f"<td style='padding:6px;text-align:right;font-weight:bold' "
+            f"data-sort='{_sort_val(r.get('p'))}'>"
             f"{_fmt_eur(r.get('p'))}{cut_tag}</td>"
-            f"<td style='padding:6px;text-align:right;color:var(--muted)'>"
+            f"<td style='padding:6px;text-align:right;color:var(--muted)' "
+            f"data-sort='{days if days is not None else -1}'>"
             f"{tracked}</td>"
             f"<td style='padding:6px;font-size:12px;color:var(--faint)'>"
             f"{_e(r.get('k', '').split(':', 1)[0])}</td>"
@@ -1091,11 +1366,12 @@ def _gone_html(gone, seen, run_date):
         f"<b>Gone since yesterday ({len(gone)})</b> — ads that were live "
         "yesterday but are no longer listed (usually sold or withdrawn). "
         "'Tracked' is how long our scan had seen the ad."
-        f"<div class='scroll-x'><table><tr>"
-        "<th style='text-align:left;padding:6px'>Car</th>"
-        "<th style='text-align:right;padding:6px'>Last ask</th>"
-        "<th style='text-align:right;padding:6px'>Tracked</th>"
-        "<th style='padding:6px'>Source</th><th style='padding:6px'>Link</th>"
+        f"<div class='scroll-x'><table id='car-gone'><tr>"
+        "<th class=\"sort-th\" style='text-align:left;padding:6px' onclick=\"sortTable('car-gone',0)\">Car</th>"
+        "<th class=\"sort-th\" style='text-align:right;padding:6px' onclick=\"sortTable('car-gone',1)\">Last ask</th>"
+        "<th class=\"sort-th\" style='text-align:right;padding:6px' onclick=\"sortTable('car-gone',2)\">Tracked</th>"
+        "<th class=\"sort-th\" style='padding:6px' onclick=\"sortTable('car-gone',3)\">Source</th>"
+        "<th style='padding:6px'>Link</th>"
         f"</tr>{''.join(rows)}</table></div></div>")
 
 
@@ -1123,7 +1399,7 @@ def _coverage_html(source_counts, source_errors):
 
 
 def build_html(qualified, assessed, source_counts, source_errors, badges, run_date,
-               market=None, gone=None, seen=None):
+               market=None, gone=None, seen=None, market_pulse=None):
     qualified = qualified or []
     assessed = assessed or []
     badges = badges or {}
@@ -1164,7 +1440,10 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
         badge_bits = " · ".join(b for b in (badge_bits, *tail) if b)
         badge_line = (f"<p class='note' style='margin-top:0'>Today: "
                       f"{badge_bits}.</p>" if badge_bits else "")
+        hero_html = _hero_card_html(qualified, badges, run_date)
+        hist_html = _histogram_card_html(assessed)
         top_html = (
+            f"{hero_html}{hist_html}"
             f"<h2>All qualifying deals ({len(qualified)})</h2>"
             f"{badge_line}"
             "<p class='note'>Click a column header to sort; click again to "
@@ -1189,13 +1468,16 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
     # The custom-budget tool: embed today's full market snapshot and let the
     # browser re-rank for any budget in [min, compMax]. Without market data
     # (old callers / tests) the digest stays exactly as before.
-    market_html = _market_data_html(market) if market else ""
+    market_html = _market_data_html(market, run_date) if market else ""
     car_budget_script = (f'<script id="car-budget-js">{CAR_BUDGET_JS}</script>'
                          if market else "")
     car_watch_script = (f'<script id="car-watch-js">{CAR_WATCH_JS}</script>'
                         if market else "")
     budget_html = ""
     if market:
+        body_opts = "".join(
+            f"<option value='{_e(b)}'>{_e(b)}</option>"
+            for b in config.CAR_BODY_TYPES)
         budget_html = (
             "<div class='box' id='car-budget-box'>"
             "<b>Your budget:</b> "
@@ -1219,12 +1501,17 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "<select id='car-filter-gearbox'><option value=''>Any gearbox</option>"
             "<option value='manual'>manual</option>"
             "<option value='automatic'>automatic</option></select> "
+            f"<select id='car-filter-body'><option value=''>Any body</option>{body_opts}</select> "
             "<input type='number' id='car-filter-year' placeholder='min year' "
             f"min='{config.CAR_MIN_YEAR}' style='width:85px'> "
             "<input type='number' id='car-filter-km' placeholder='max km' "
             "min='0' step='10000' style='width:105px'> "
             "<input type='number' id='car-filter-min' placeholder='min €' "
-            f"min='{config.CAR_MIN_PRICE_EUR}' step='500' style='width:80px'>"
+            f"min='{config.CAR_MIN_PRICE_EUR}' step='500' style='width:80px'> "
+            "<label style='font-size:12.5px;margin-left:4px;cursor:pointer' "
+            "title='Only show cars with a known non-expired Tehniskā apskate'>"
+            "<input type='checkbox' id='car-filter-ta' "
+            "style='vertical-align:middle'> valid TA</label>"
             "</div>"
             "<p class='note' style='margin:6px 0 0'>Enter a maximum price "
             f"(from €{config.CAR_MIN_PRICE_EUR:,} up — the whole plausible "
@@ -1239,7 +1526,7 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
             "default daily view. <i>seen N d</i> = days since our scan "
             "first saw the ad (≈ days listed); €… → €… is the ask-price "
             "trail we have recorded. Shareable: append <b>?max=3500"
-            "&amp;fuel=diesel&amp;km=200000</b> or <b>?model=passat</b> "
+            "&amp;fuel=diesel&amp;body=wagon&amp;km=200000&amp;ta=1</b> or <b>?model=passat</b> "
             "to this page's URL.</p>"
             "</div>"
             "<details class='box' id='car-watch-box'>"
@@ -1258,16 +1545,17 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
 
     gone_html = _gone_html(gone, seen, run_date)
     cuts_html = build_cuts_html(assessed, run_date)
+    stale_html = build_stale_html(assessed, run_date)
 
-    n_heaven = sum(1 for l in qualified if _is_heavenly(l))
+    n_heaven = sum(1 for l in qualified if _is_heavenly(l, run_date))
     heaven_btn = ""
     if qualified:
         heaven_btn = (
             " <button type='button' id='car-heaven-btn' class='ghost' "
             "title='Show only deals with no caution flags — qualifying "
             "price, year newer than "
-            f"{date.today().year - config.CAR_AGE_WARNING_YEARS}, mileage "
-            f"under {config.CAR_HIGH_MILEAGE_WARNING_KM:,} km'>"
+            f"{_ref_date(run_date).year - config.CAR_AGE_WARNING_YEARS}, mileage "
+            f"under {config.CAR_HIGH_MILEAGE_WARNING_KM:,} km, TA not expired'>"
             f"★ Heavenly ({n_heaven})</button>")
     heaven_js = CAR_HEAVEN_JS if qualified else ""
 
@@ -1280,6 +1568,16 @@ def build_html(qualified, assessed, source_counts, source_errors, badges, run_da
         kpi_bits.append(web_style.kpi("gone", len(gone), "warn"))
     if source_errors:
         kpi_bits.append(web_style.kpi("errors", len(source_errors), "bad"))
+    if market_pulse and market_pulse.get("median"):
+        _cd = market_pulse.get("delta")
+        _cdt = f" · Δ7d {_cd:+.1f}%" if _cd is not None else ""
+        kpi_bits.append(web_style.kpi(
+            "market median", f"€{int(round(market_pulse['median'])):,}{_cdt}"))
+        _cads = market_pulse.get("ads")
+        if _cads is not None:
+            _cad = market_pulse.get("ads_delta")
+            _cadt = f" ({_cad:+d} vs yest)" if _cad is not None else ""
+            kpi_bits.append(web_style.kpi("eligible ads", f"{_cads}{_cadt}"))
     n_mot = sum(
         1 for l in assessed
         if utils.car_is_motivated(utils.car_motivated(l, today=run_date)))
@@ -1355,10 +1653,11 @@ listing.
 </div>
 <p class="secnav">Jump to:
 <a href="#sec-deals">Deals</a><a href="#sec-cuts">Price cuts</a><a
-href="#sec-gone">Gone</a>{heaven_btn}</p>
+href="#sec-stale">Stale</a><a href="#sec-gone">Gone</a>{heaven_btn}</p>
 <div id="sec-deals">{top_html}</div>
 <script>{heaven_js}</script>
 <div id="sec-cuts">{cuts_html}</div>
+<div id="sec-stale">{stale_html}</div>
 <div id="sec-gone">{gone_html}</div>
 <div class="box">
 <b>Before buying:</b> check mileage and history in the CSDD register

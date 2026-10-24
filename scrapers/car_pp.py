@@ -175,27 +175,36 @@ def scrape(max_pages=None):
         browser = p.chromium.launch(headless=True)
         try:
             page = browser.new_page(user_agent=config.SS_COM_USER_AGENT)
-            page.route("**/*", lambda route: route.abort() if route.request.resource_type in ("image", "media", "font") else route.continue_())
-            for pg in range(1, cap + 1):
-                if pg > 1:
-                    page.wait_for_timeout(delay_ms)
-                url = config.CAR_PP_LIST_URL if pg == 1 else f"{config.CAR_PP_LIST_URL}&page={pg}"
-                page.goto(url, timeout=nav_timeout, wait_until="domcontentloaded")
-                try:
-                    page.wait_for_selector(CARD_SELECTOR, timeout=nav_timeout)
-                except Exception:
-                    pass
-                items = parse_page(page.content())
-                if pg == 1 and not items:
-                    raise RuntimeError(
-                        "pp.lv page 1 returned no seller cards — markup may "
-                        "have changed or the site blocked the request")
-                new_items = [i for i in items if i["id"] not in seen]
-                for i in new_items:
-                    seen.add(i["id"])
-                results.extend(new_items)
-                if not new_items:
-                    break
+            try:
+                page.route("**/*", lambda route: route.abort() if route.request.resource_type in ("image", "media", "font") else route.continue_())
+                for pg in range(1, cap + 1):
+                    if pg > 1:
+                        page.wait_for_timeout(delay_ms)
+                    url = config.CAR_PP_LIST_URL if pg == 1 else f"{config.CAR_PP_LIST_URL}&page={pg}"
+                    try:
+                        page.goto(url, timeout=nav_timeout, wait_until="domcontentloaded")
+                    except Exception as e:
+                        if pg == 1:
+                            raise
+                        print(f"[car pp.lv] goto page {pg} failed: {e}")
+                        break
+                    try:
+                        page.wait_for_selector(CARD_SELECTOR, timeout=nav_timeout)
+                    except Exception:
+                        pass
+                    items = parse_page(page.content())
+                    if pg == 1 and not items:
+                        raise RuntimeError(
+                            "pp.lv page 1 returned no seller cards — markup may "
+                            "have changed or the site blocked the request")
+                    new_items = [i for i in items if i["id"] not in seen]
+                    for i in new_items:
+                        seen.add(i["id"])
+                    results.extend(new_items)
+                    if not new_items:
+                        break
+            finally:
+                page.close()
         finally:
             browser.close()
 

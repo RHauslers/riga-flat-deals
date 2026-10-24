@@ -20,6 +20,7 @@ CAR_SS_REQUEST_DELAY_SECONDS = 1.0
 CAR_PP_LIST_URL = "https://pp.lv/lv/transports-un-tehnika/vieglie-auto/?maxPrice=8%C2%A0000"
 CAR_PP_MAX_PAGES = 12
 CAR_PP_REQUEST_DELAY_SECONDS = 5.0
+CAR_PP_RETRY_DELAY_SECONDS = 15
 CAR_SOURCE_TIMEOUT_SECONDS = 30
 # Transient-network resilience (2026-09-30: an SS.com ConnectTimeout window
 # killed the whole flat scrape from the CI runner). Retries apply ONLY to
@@ -33,10 +34,14 @@ SS_COM_RETRY_STATUS = (429, 500, 502, 503, 504)
 CAR_MIN_YEAR = 2005
 CAR_MAX_MILEAGE_KM = 400000
 # Fuel values a listing must carry to be eligible — checked by both
-# car_value.eligible() and cars._ineligible_reason().
+# car_value.eligible() and car_value.ineligible_reason().
 CAR_FUEL_TYPES = ("petrol", "diesel", "hybrid", "electric", "lpg")
+CAR_BODY_TYPES = ("wagon", "sedan", "hatchback", "suv", "minivan",
+                  "coupe", "convertible", "pickup")
 CAR_HIGH_MILEAGE_WARNING_KM = 300000
 CAR_AGE_WARNING_YEARS = 15
+CAR_LONG_TA_MONTHS = 10
+CAR_LOW_PACE_KM_PER_YEAR = 12000
 CAR_MIN_PRICE_EUR = 1000
 CAR_PRICE_CEILING_EUR = 5000
 # Upper bound on the embedded market pool — a plausibility bound only
@@ -280,7 +285,9 @@ MOTIVATED_STALE_DAYS_CAR = 30
 # NO recorded cut (the opposite of a motivated seller; watch-list for the
 # cuts that usually come eventually).
 STALE_MIN_DAYS_FLAT = 75
+STALE_MIN_DAYS_CAR = 45
 STALE_TOP_N = 8
+AUCTION_APPRAISAL_DISCOUNT_PCT = 25
 MOTIVATED_MIN_RELISTINGS = 3         # previous_listings = serial relister
 MOTIVATED_MIN_TRAIL_DROPS = 2        # own trail: drops counted separately
 MOTIVATED_CUTS_TOP_N = 8             # rows in the cuts section

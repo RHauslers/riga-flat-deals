@@ -18,12 +18,12 @@ from datetime import date, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import cars   # noqa: E402
 import config   # noqa: E402
 import price_history   # noqa: E402
+import utils   # noqa: E402
 
 TODAY = date.today().isoformat()
-SEEN_EPOCH = date(2026, 1, 1)          # cars.py v2 epoch-day base
-GEO_MISS_STALE_DAYS = 7                # geocode.py retry window for misses
 WARNINGS = []
 
 
@@ -40,11 +40,7 @@ def _kb(path):
 
 
 def _load(path, default):
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
-        return default
+    return utils.read_json(path, default)
 
 
 def _report(name, path):
@@ -75,10 +71,7 @@ def _stale_flag(iso, what):
 
 
 def _seen_day_to_iso(n):
-    try:
-        return (SEEN_EPOCH + timedelta(days=int(n))).isoformat()
-    except (TypeError, ValueError):
-        return None
+    return cars._seen_iso(n)
 
 
 def main():
@@ -89,14 +82,21 @@ def main():
     if os.path.exists(path):
         days = set()
         n_rows = 0
+        n_bom = 0
         with open(path, "r", encoding="utf-8-sig", newline="") as f:
             for r in csv.DictReader(f):
                 n_rows += 1
-                if r.get("scrape_date"):
-                    days.add(r["scrape_date"])
+                sd = r.get("scrape_date") or ""
+                if "\ufeff" in sd:
+                    n_bom += 1
+                    sd = sd.lstrip("\ufeff")
+                if sd:
+                    days.add(sd)
         print(f"{'history.csv':32} {_kb(path):8.0f} KB  "
               f"{n_rows} rows, {len(days)} days "
               f"({min(days) if days else '-'} .. {max(days) if days else '-'})")
+        if n_bom:
+            _warn(f"history.csv has {n_bom} mid-file BOM character(s) in scrape_date")
         _stale_flag(max(days) if days else None, "history.csv last row")
     else:
         _report("history.csv", path)
@@ -148,9 +148,9 @@ def main():
     if isinstance(d, dict):
         n_cenu = sum(1 for e in d.values() if (e or {}).get("cenumednieks"))
         oldest = min(
-            (str(o.get("date")) for e in d.values()
+            (str(o.get("date") or o.get("d")) for e in d.values()
              for o in (e or {}).get("our_tracking") or []
-             if o.get("date")),
+             if o.get("date") or o.get("d")),
             default=None)
         dead = sum(1 for e in d.values()
                    if (_age(price_history._entry_last_activity(e)) or 0)
@@ -223,6 +223,29 @@ def main():
         ages = [a for a in ages if a is not None]
         print(f"{len(d)} models, scans "
               f"{min(ages) if ages else '-'}..{max(ages) if ages else '-'}d old")
+
+    # car_ta_cache.json — cached detail-page tehniskā apskate months
+    if os.path.exists(config.CAR_TA_CACHE_JSON):
+        d = _report("car_ta_cache.json", config.CAR_TA_CACHE_JSON)
+        if isinstance(d, dict):
+            stale_ta = sum(
+                1 for v in d.values()
+                if (_age((v or {}).get("f")) or 0) > config.CAR_TA_CACHE_DAYS)
+            with_ta = sum(1 for v in d.values() if (v or {}).get("ta"))
+            print(f"{len(d)} entries ({with_ta} valid TA), "
+                  f"{stale_ta} older than {config.CAR_TA_CACHE_DAYS}d")
+
+    # health_state.json — consecutive per-source failure streaks
+    if os.path.exists(config.HEALTH_STATE_JSON):
+        d = _report("health_state.json", config.HEALTH_STATE_JSON)
+        if isinstance(d, dict):
+            streaks = {k: v.get("fail_days") for k, v in d.items()
+                       if isinstance(v, dict) and (v.get("fail_days") or 0) > 0}
+            print(f"{len(d)} sources tracked, active fail streaks: "
+                  f"{streaks or 'none'}")
+            for k, fd in streaks.items():
+                if fd >= 2:
+                    _warn(f"health_state: {k} has failed {fd} days in a row")
 
     # digests dir
     dd = config.DIGEST_DIR

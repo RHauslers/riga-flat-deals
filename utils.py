@@ -133,8 +133,9 @@ def fmt_num(v):
 
 
 def median(values):
-    """statistics.median over the non-None values, or None."""
-    vals = [float(v) for v in values if v is not None]
+    """statistics.median over the usable numeric values, or None."""
+    vals = [f for v in (values or []) if v is not None
+            for f in [to_float(v)] if f is not None]
     try:
         return statistics.median(vals) if vals else None
     except (TypeError, ValueError):
@@ -163,6 +164,13 @@ def days_since(date_str, today=None):
         d = datetime.fromisoformat(str(date_str)).date()
     except (ValueError, TypeError):
         return None
+    if isinstance(today, datetime):
+        today = today.date()
+    elif isinstance(today, str):
+        try:
+            today = datetime.fromisoformat(today[:10]).date()
+        except ValueError:
+            today = None
     today = today or date.today()
     return (today - d).days
 
@@ -338,7 +346,7 @@ def dict_encode(rows, fields, dict_fields):
     for row in rows:
         for f, i in dict_idx.items():
             v = row[i]
-            if v is None:
+            if v is None or not isinstance(v, (str, int, float)):
                 continue
             d = dict_map[f].get(v)
             if d is None:
@@ -347,6 +355,42 @@ def dict_encode(rows, fields, dict_fields):
                 dicts[f].append(v)
             row[i] = d
     return dicts
+
+
+def dict_decode(payload, include_extra=False):
+    """Inverse of dict_encode: decode a {fields, dict, rows[, extra]} embed
+    payload back into a list of listing dicts."""
+    if not isinstance(payload, dict):
+        return []
+    fields = payload.get("fields") or []
+    dicts = payload.get("dict") or {}
+    raw_rows = list(payload.get("rows") or [])
+    if include_extra:
+        raw_rows.extend(payload.get("extra") or [])
+    out = []
+    for row in raw_rows:
+        item = dict(zip(fields, row))
+        for f, table in dicts.items():
+            v = item.get(f)
+            if isinstance(v, int) and 0 <= v < len(table):
+                item[f] = table[v]
+        out.append(item)
+    return out
+
+
+def gone_cut_tag_html(prices, fmt_fn):
+    """Format '€X → €Y' + '−€Z before gone' sub-lines for a gone-table cell
+    when the observed price trail dropped before vanishing."""
+    tp = [f for p in (prices or []) for f in [to_float(p)] if f and f > 0]
+    if len(tp) < 2 or tp[-1] >= tp[0]:
+        return ""
+    trail = " → ".join(fmt_fn(p) for p in tp[-4:])
+    if len(tp) > 4:
+        trail = "… " + trail
+    return (f"<br><span style='font-size:11px;color:var(--faint)'>"
+            f"{trail}</span>"
+            f"<br><span style='font-size:11px;color:var(--good)'>"
+            f"−{fmt_fn(tp[0] - tp[-1])} before gone</span>")
 
 
 def retry_after_seconds(resp):
@@ -384,20 +428,27 @@ def delta_7d(points, value_idx=1):
 
     points = [[date, value, ...], ...] ascending. None when the series
     has no point old enough to compare against."""
-    if len(points) < 2:
+    if not points or len(points) < 2:
+        return None
+    last = points[-1]
+    if not isinstance(last, (list, tuple)) or len(last) <= value_idx:
         return None
     try:
-        latest_date = date.fromisoformat(str(points[-1][0]))
+        latest_date = date.fromisoformat(str(last[0])[:10])
     except (ValueError, TypeError):
         return None
     cutoff = (latest_date - timedelta(days=7)).isoformat()
     base = None
     for p in points:
-        if str(p[0]) <= cutoff:
+        if isinstance(p, (list, tuple)) and len(p) > value_idx and str(p[0])[:10] <= cutoff:
             base = p
-    if base is None or not base[value_idx] or not points[-1][value_idx]:
+    if base is None:
         return None
-    return 100.0 * (points[-1][value_idx] - base[value_idx]) / base[value_idx]
+    b_val = to_float(base[value_idx])
+    l_val = to_float(last[value_idx])
+    if not b_val or not l_val:
+        return None
+    return 100.0 * (l_val - b_val) / b_val
 
 
 def sparkline_svg(points, w=64, h=16, title=None):
@@ -414,11 +465,11 @@ def sparkline_svg(points, w=64, h=16, title=None):
     if len(pts) < 2:
         return ""
     lo, hi = min(pts), max(pts)
-    span = (hi - lo) or 1.0
+    span = hi - lo
     n = len(pts)
     coords = " ".join(
         f"{round(i * (w - 4) / (n - 1) + 2, 1)},"
-        f"{round(h - 3 - (v - lo) / span * (h - 6), 1)}"
+        f"{round(h / 2, 1) if span == 0 else round(h - 3 - (v - lo) / span * (h - 6), 1)}"
         for i, v in enumerate(pts))
     # var() works in SVG presentation attrs and follows the page theme.
     color = ("var(--bad)" if pts[-1] < pts[0]
@@ -502,12 +553,23 @@ def filter_new_builds(listings):
 # ---------------------------------------------------------------------------
 # Cross-source deduplication
 # ---------------------------------------------------------------------------
+_STREET_STOPWORDS = {
+    "iela", "gatve", "gat", "bulvaris", "bulvars", "bulv", "prospekts",
+    "prosp", "linija", "lin", "dambis", "laukums", "lauk", "soseja",
+    "sos", "aleja", "cels", "krastmala", "krastm", "street", "stree",
+    "boulevard", "boule", "avenue", "prospect", "line", "riga", "korp",
+}
+
+
 def _street_tokens(street):
-    """Normalise a street string to comparable tokens, dropping house numbers.
-    'Dammes iela 12' -> {'dammes', 'iela'}"""
+    """Normalise a street string to comparable name tokens, dropping house
+    numbers and generic street-type words ('iela', 'gatve', 'bulvaris'...)
+    so 'Dammes iela 12' -> {'dammes'} and never false-matches 'Slokas iela'."""
     s = strip_diacritics(street or "").lower()
+    for a, b in (("sh", "s"), ("zh", "z"), ("ch", "c")):
+        s = s.replace(a, b)
     s = re.sub(r"[^a-z\s]+", " ", s)  # strip digits/punctuation
-    return {t for t in s.split() if len(t) > 2}
+    return {t for t in s.split() if len(t) > 2 and t not in _STREET_STOPWORDS}
 
 
 def _same_flat(a, b):

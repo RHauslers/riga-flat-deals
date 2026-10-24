@@ -495,6 +495,8 @@ class _TempPaths(unittest.TestCase):
             mock.patch.object(config, "CAR_TA_CACHE_JSON",
                               os.path.join(self.tmp.name,
                                            "car_ta_cache.json")),
+            # pp.lv retry delay — avoid sleeping 15 s in failure-path tests
+            mock.patch.object(config, "CAR_PP_RETRY_DELAY_SECONDS", 0),
         ]
         for p in self._patches:
             p.start()
@@ -2076,6 +2078,205 @@ class TestTaAndHeavenly(unittest.TestCase):
         self.assertIn("data-heaven='1'", html_text)
         # Exactly one heavenly row out of three.
         self.assertEqual(html_text.count("data-heaven='1'"), 1)
+
+
+class TestAddNewF50Cars(unittest.TestCase):
+    """Tests for the /addnewf 50 car digest, market, and JS features."""
+
+    def test_heavenly_excludes_expired_and_none_ta(self):
+        ok_ta = _car("ss.com", "h1", 3000, year=2018, mileage=140000)
+        ok_ta["inspection"] = "2027-08"
+        exp_ta = _car("ss.com", "h2", 3000, year=2018, mileage=140000)
+        exp_ta["inspection"] = "2025-05"
+        none_ta = _car("ss.com", "h3", 3000, year=2018, mileage=140000)
+        none_ta["inspection"] = ""
+        self.assertTrue(car_digest._is_heavenly(ok_ta, "2026-10-24"))
+        self.assertFalse(car_digest._is_heavenly(exp_ta, "2026-10-24"))
+        self.assertFalse(car_digest._is_heavenly(none_ta, "2026-10-24"))
+
+    def test_ta_months_left_year_boundary_and_long_ta(self):
+        # Dec 2026 -> Jan 2027 is +1 month (amber lapses soon), not +89!
+        c_soon = _car("ss.com", "s1", 3000)
+        c_soon["inspection"] = "2027-01"
+        cell_soon = car_digest._ta_cell(c_soon, "2026-12-15")
+        self.assertIn("var(--warn)", cell_soon)
+        self.assertIn("lapses soon", cell_soon)
+        # >= 10 months -> green fresh TA
+        c_long = _car("ss.com", "s2", 3000)
+        c_long["inspection"] = "2027-11"
+        cell_long = car_digest._ta_cell(c_long, "2026-12-15")
+        self.assertIn("var(--good)", cell_long)
+        self.assertIn("Fresh", cell_long)
+
+    def test_pace_chip_low_annual_km(self):
+        low = _car("ss.com", "p1", 3000, year=2016, mileage=80000)
+        high = _car("ss.com", "p2", 3000, year=2016, mileage=250000)
+        self.assertIn("~8k/yr", car_digest._pace_chip(low, "2026-10-24"))
+        self.assertEqual(car_digest._pace_chip(high, "2026-10-24"), "")
+
+    def test_car_hero_histogram_and_stale_cards(self):
+        cars_pool = []
+        for i in range(12):
+            c = _car("ss.com", f"c{i}", 2500 + i * 200, year=2015,
+                     mileage=160000)
+            c.update({"_score": 90 - i, "_median": 4200, "_comps": 6,
+                      "_savings": 1700 - i * 200, "_discount_pct": 30.0,
+                      "_first_seen": "2026-08-01",
+                      "_price_hist": [["2026-08-01", 2500 + i * 200]]})
+            cars_pool.append(c)
+        html = car_digest.build_html(
+            cars_pool[:3], cars_pool, {}, {}, {"ss.com:c0": "NEW"},
+            "2026-10-24",
+            market_pulse={"median": 3800, "delta": -3.2,
+                          "ads": 120, "ads_delta": 5})
+        self.assertIn("Deal of the day", html)
+        self.assertIn("jump to row", html)
+        self.assertIn("id='r-ss.com:c0'", html)
+        self.assertIn("Candidate price spread", html)
+        self.assertIn("Stale &amp; stubborn", html)
+        self.assertIn("id='car-stale'", html)
+        self.assertIn("market median", html)
+        self.assertIn("eligible ads", html)
+
+    def test_car_market_temperature_and_all_history(self):
+        c1 = _car("ss.com", "a1", 3000)
+        c1["_first_seen"] = "2026-09-24"
+        c1["_price_hist"] = [["2026-09-24", 3600], ["2026-10-24", 3000]]
+        c2 = _car("ss.com", "a2", 3500)
+        c2["_first_seen"] = "2026-10-14"
+        c3 = _car("ss.com", "a3", 4000)
+        c3["_first_seen"] = "2026-10-04"
+        stats = car_market.compute_market_stats(
+            [c1, c2, c3], [c1], today="2026-10-24")
+        self.assertEqual(len(stats), 1)
+        self.assertEqual(stats[0]["median_age"], 20)
+        self.assertEqual(stats[0]["cut_pct"], 33)
+        with tempfile.TemporaryDirectory() as td:
+            sp = os.path.join(td, "stats.json")
+            hp = os.path.join(td, "hist.json")
+            with mock.patch.object(config, "CAR_MARKET_HISTORY_JSON", hp):
+                car_market.save_stats(
+                    stats, "2026-10-24", 3, path=sp, pool_median=3500)
+                hist = car_market.load_history(hp)
+        self.assertIn("_all", hist)
+        self.assertEqual(hist["_all"][-1], ["2026-10-24", 3500, 3])
+
+    @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_js_car_body_and_ta_filters_and_flat_extra_filters(self):
+        c_wag = _car("ss.com", "w1", 3000, body="wagon")
+        c_wag["inspection"] = "2027-06"
+        c_sed = _car("ss.com", "s1", 3000, body="sedan")
+        c_sed["inspection"] = "2024-01"  # expired
+        peers = ([_car("pp.lv", f"pw{i}", 4400 + i * 50, body="wagon")
+                  for i in range(4)]
+                 + [_car("pp.lv", f"ps{i}", 4400 + i * 50, body="sedan")
+                    for i in range(4)])
+        html_car = car_digest.build_html(
+            [], [], {}, {}, {}, "2026-10-24",
+            market=[c_wag, c_sed] + peers)
+        car_pay = re.search(
+            r'id="car-market-data">(.*?)</script>', html_car, re.S).group(1)
+        car_js = re.search(
+            r'<script id="car-budget-js">(.*?)</script>', html_car,
+            re.S).group(1)
+        driver = (
+            "var fs = require('fs');\n"
+            "function makeEl() { return {style:{}, children:[], innerHTML:'',\n"
+            "  addEventListener:function(){},\n"
+            "  appendChild:function(c){this.children.push(c);},\n"
+            "  setAttribute:function(){}, textContent:'', value:''}; }\n"
+            "var elements = {'car-market-data': {textContent:\n"
+            "  fs.readFileSync(process.argv[3], 'utf8')},\n"
+            "  'car-budget-input': makeEl(), 'car-default-view': makeEl(),\n"
+            "  'car-custom-view': makeEl()};\n"
+            "global.document = {readyState: 'complete',\n"
+            "  getElementById: function(id){return elements[id] || null;},\n"
+            "  createElement: function(){return makeEl();},\n"
+            "  createTextNode: function(t){return {textContent:t};},\n"
+            "  addEventListener: function(){}};\n"
+            "global.window = {};\n"
+            "eval(fs.readFileSync(process.argv[4], 'utf8'));\n"
+            "var B = global.window.__carBudget;\n"
+            "function ids(list){return list.map(function(x){\n"
+            "  return x.r[0] + ':' + x.r[1];});}\n"
+            "console.log(JSON.stringify({\n"
+            "  wag: ids(B.compute(5000, {body:'wagon'})),\n"
+            "  taOk: ids(B.compute(5000, {validTa:true}))\n"
+            "}));\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            drv = os.path.join(tmp, "driver.js")
+            pay = os.path.join(tmp, "payload.txt")
+            jsf = os.path.join(tmp, "budget.js")
+            for path, text in ((drv, driver), (pay, car_pay), (jsf, car_js)):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            out = subprocess.run(["node", drv, "--", pay, jsf],
+                                 capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        res = json.loads(out.stdout.strip())
+        self.assertIn("ss.com:w1", res["wag"])
+        self.assertNotIn("ss.com:s1", res["wag"])
+        self.assertEqual(res["taOk"], ["ss.com:w1"])
+
+    def test_enrich_inspection_copies_empty_ta_and_survives_404(self):
+        import requests
+        c1 = _car("ss.com", "c1", 3000)
+        c2 = _car("ss.com", "c2", 3100)
+        peers = [_car("pp.lv", f"p{i}", 4400 + i * 50) for i in range(4)]
+
+        def fake_ta(url):
+            if "/c1" in url:
+                raise requests.HTTPError("404 Not Found")
+            return ""  # Bez TA ('none')
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(config, "CAR_TA_CACHE_JSON",
+                               os.path.join(td, "ta.json")), \
+             mock.patch.object(config, "CAR_SEEN_JSON",
+                               os.path.join(td, "seen.json")), \
+             mock.patch.object(config, "CAR_MARKET_SNAPSHOT_JSON",
+                               os.path.join(td, "snap.json")), \
+             mock.patch.object(config, "CAR_MARKET_STATS_JSON",
+                               os.path.join(td, "stats.json")), \
+             mock.patch.object(config, "CAR_MARKET_HISTORY_JSON",
+                               os.path.join(td, "hist.json")), \
+             mock.patch.object(config, "HEALTH_STATE_JSON",
+                               os.path.join(td, "hs.json")), \
+             mock.patch.object(config, "DIGEST_DIR", td), \
+             mock.patch.object(cars.car_ss, "scrape",
+                               return_value=[c1, c2] + peers), \
+             mock.patch.object(cars.car_pp, "scrape", return_value=[]), \
+             mock.patch.object(cars.car_ss, "fetch_inspection",
+                               side_effect=fake_ta):
+            cars.run(today="2026-10-24")
+            html_text = _read(os.path.join(td, "cars_2026-10-24.html"))
+        m = re.search(
+            r'id="car-market-data">(.*?)</script>', html_text, re.S)
+        decoded = {r["id"]: r for r in
+                   car_digest.utils.dict_decode(json.loads(m.group(1)))}
+        # c1 404'd -> stayed None, did NOT abort c2; c2 got '' ('none')
+        # copied back onto the embedded market row!
+        self.assertIsNone(decoded["c1"]["inspection"])
+        self.assertEqual(decoded["c2"]["inspection"], "")
+
+    def test_compact_state_preserves_recent_gone(self):
+        from helper_scripts import compact_state
+        with tempfile.TemporaryDirectory() as td:
+            snap_p = os.path.join(td, "snap.json")
+            seen_p = os.path.join(td, "seen.json")
+            car_digest.utils.write_json(snap_p, {
+                "date": "2026-10-24",
+                "listings": [_car("ss.com", "c1", 3000)],
+                "recent_gone": [{"k": "ss.com:old1", "p": 3500,
+                                 "gone": "2026-10-20"}],
+            })
+            with mock.patch.object(compact_state, "FILES",
+                                   ((seen_p, "car_seen"),
+                                    (snap_p, "snapshot"))):
+                compact_state.main()
+            loaded = cars.load_snapshot(snap_p)
+            self.assertEqual(loaded["recent_gone"][0]["k"], "ss.com:old1")
 
 
 if __name__ == "__main__":

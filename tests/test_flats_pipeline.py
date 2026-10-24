@@ -990,10 +990,12 @@ class TestAtomicWriteJson(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             p = os.path.join(td, "x.json")
             utils.write_json(p, {"a": 1}, indent=None)
-            self.assertEqual(json.load(open(p)), {"a": 1})
+            with open(p, encoding="utf-8") as f:
+                self.assertEqual(json.load(f), {"a": 1})
             with self.assertRaises(TypeError):
                 utils.write_json(p, object())
-            self.assertEqual(json.load(open(p)), {"a": 1})
+            with open(p, encoding="utf-8") as f:
+                self.assertEqual(json.load(f), {"a": 1})
             self.assertFalse(os.path.exists(p + ".tmp"))
 
 
@@ -1263,17 +1265,18 @@ class TestGoneSpikeGuardrail(unittest.TestCase):
 class TestOutageStreaks(unittest.TestCase):
     def test_streak_accumulates_and_resets(self):
         import tempfile
-        path = os.path.join(tempfile.mkdtemp(), "hs.json")
-        # streaks below 2 stay quiet
-        s1 = health.update_streaks({"ss.com": False, "city24": True},
-                                   "2026-10-04", path=path)
-        self.assertEqual(s1, {})
-        s2 = health.update_streaks({"ss.com": False},
-                                   "2026-10-05", path=path)
-        self.assertEqual(s2["ss.com"], 2)
-        s3 = health.update_streaks({"ss.com": True},
-                                   "2026-10-06", path=path)
-        self.assertNotIn("ss.com", s3)
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "hs.json")
+            # streaks below 2 stay quiet
+            s1 = health.update_streaks({"ss.com": False, "city24": True},
+                                       "2026-10-04", path=path)
+            self.assertEqual(s1, {})
+            s2 = health.update_streaks({"ss.com": False},
+                                       "2026-10-05", path=path)
+            self.assertEqual(s2["ss.com"], 2)
+            s3 = health.update_streaks({"ss.com": True},
+                                       "2026-10-06", path=path)
+            self.assertNotIn("ss.com", s3)
 
 
 class TestRelisted(unittest.TestCase):
@@ -1973,6 +1976,222 @@ class TestImprove200ColdReview(unittest.TestCase):
         out, merged = car_value.dedupe_cross_source(
             [peers[0], dup])
         self.assertEqual(merged, 1)
+
+
+class TestAddNewF50Flats(unittest.TestCase):
+    """Regression and feature tests for the /addnewf 50 batch (flats,
+    auctions, geocoder, state, and JS parity)."""
+
+    def test_days_since_accepts_str_and_datetime_today(self):
+        from datetime import datetime
+        self.assertEqual(utils.days_since("2026-10-01", "2026-10-11"), 10)
+        self.assertEqual(
+            utils.days_since("2026-10-01", datetime(2026, 10, 11, 15, 30)), 10)
+        self.assertTrue(utils.older_than_days("2026-10-01", 7, "2026-10-11"))
+        self.assertFalse(utils.older_than_days("2026-10-08", 7, "2026-10-11"))
+
+    def test_recent_gone_rows_uses_passed_today(self):
+        import gone
+        prev = [{"k": "ss.com:1", "p": 50000, "gone": "2026-01-01"}]
+        # Relative to 2026-01-10 (9 days old <= GONE_RELIST_DAYS) it survives;
+        # relative to wall-clock date.today() (months later) it would have
+        # been dropped before the fix.
+        kept = gone.recent_gone_rows(prev, [], "2026-01-10")
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(kept[0]["k"], "ss.com:1")
+
+    def test_geocode_bulv_prosp_gat_abbreviations(self):
+        self.assertEqual(
+            geocode.address_candidates("Anniņmuižas bulv. 10")[0][0],
+            "anniņmuižas bulvāris 10")
+        self.assertEqual(
+            geocode.address_candidates("Kurzemes prosp. 12")[0][0],
+            "kurzemes prospekts 12")
+        self.assertEqual(
+            geocode.address_candidates("Jūrmalas gat. 5")[0][0],
+            "jūrmalas gatve 5")
+        self.assertEqual(
+            geocode.address_candidates("Imantas 8. lin. 4")[0][0],
+            "imantas 8. līnija 4")
+
+    def test_izsoles_extracts_floor_and_target_district(self):
+        html = (
+            '<div class="info-parameter">Sākumcena:</div>'
+            '<div class="info-value">€ 25 000.00</div>'
+            '<div class="info-parameter">Novērtējums:</div>'
+            '<div class="info-value">€ 40 000.00</div>'
+            '<p>Dzīvoklis Zolitūdē, 3/5 stāvā, divistabu dzīvoklis '
+            'platību 48,0 m2.</p>'
+        )
+        item = izsoles._parse_detail(
+            html, "https://izsoles.ta.gov.lv/izsole/abc-123",
+            "Paula Lejiņa iela 5 - 10, Rīga")
+        self.assertEqual(item["district"], "Zolitude")
+        self.assertEqual(item["floor"], "3/5")
+        self.assertEqual(item["floor_num"], 3)
+        self.assertEqual(item["floor_total"], 5)
+
+    def test_auction_vs_appraisal_chip_and_watch_star(self):
+        a = _flat(source="izsoles.ta.gov.lv", lid="ap1", price=25000)
+        a.update({"title": "Paula Lejiņa 5", "series": "Auction",
+                  "auction_start_price": 25000, "auction_appraisal": 40000,
+                  "auction_end": "2026-11-10", "area_m2": None,
+                  "price_per_m2": None})
+        html = notifier.build_auctions_html([a], today="2026-10-24")
+        self.assertIn("-38% vs appraisal", html)
+        self.assertIn("watch-star", html)
+        self.assertIn("data-key='izsoles.ta.gov.lv:ap1'", html)
+
+    def test_hero_card_sanitizes_unsafe_url(self):
+        l = _flat(lid="h1")
+        l["url"] = "javascript:alert(1)"
+        html = notifier._hero_card_html([(l, 2.0, "reg", "NEW", "ok")], {})
+        self.assertNotIn("javascript:", html)
+        self.assertIn("Zolitude", html)
+
+    def test_floor_caution_chip_and_pred_price(self):
+        f1 = _flat(lid="f1"); f1["floor"] = "1/5"; f1["_pred_price"] = 68000
+        f5 = _flat(lid="f5"); f5["floor"] = "5/5"
+        f3 = _flat(lid="f3"); f3["floor"] = "3/5"
+        r1 = notifier._main_row_html((f1, 1.5, "reg", "NEW", ""), {})
+        r5 = notifier._main_row_html((f5, 1.0, "reg", "NEW", ""), {})
+        r3 = notifier._main_row_html((f3, 1.0, "reg", "NEW", ""), {})
+        self.assertIn("1st fl", r1)
+        self.assertIn("est. 68 000 EUR", r1)
+        self.assertIn("top fl", r5)
+        self.assertNotIn("1st fl", r3)
+        self.assertNotIn("top fl", r3)
+
+    def test_newest_and_gone_sortable_and_starred(self):
+        l = _flat(lid="n1"); l["_school_km"] = 0.6
+        newest = notifier.build_newest_html(
+            {"sale": [(l, 1.8, "reg", "NEW", "")]})
+        self.assertIn("id='tbl_newest'", newest)
+        self.assertIn("sortTable('tbl_newest'", newest)
+        self.assertIn("0.6 km", newest)
+        self.assertIn("watch-star", newest)
+        gone_html = notifier.build_gone_html(
+            [{"k": "ss.com:g1", "d": "Imanta", "s": "Dammes 1",
+              "p": 50000, "u": "https://www.ss.com/x"}], {}, "2026-10-24")
+        self.assertIn("id='tbl_gone'", gone_html)
+        self.assertIn("sortTable('tbl_gone'", gone_html)
+
+    def test_get_listing_age_reads_legacy_dp_tracking(self):
+        l = _flat(lid="leg1", price=45000)
+        pd = {"ss.com:leg1": {
+            "our_tracking": [{"d": "2026-10-01", "p": 50000}]}}
+        listed, days, first_p, chg = notifier._get_listing_age(
+            l, pd, date(2026, 10, 21))
+        self.assertEqual(listed, "2026-10-01")
+        self.assertEqual(days, "20")
+        self.assertIn("50 000 EUR", first_p)
+        self.assertEqual(chg, "-10.0%")
+
+    def test_auctions_embedded_in_extra_excluded_from_sale_filter(self):
+        import json as _json, re as _re
+        sale = _flat(lid="s1", price=55000)
+        auc = _flat(source="izsoles.ta.gov.lv", lid="a1", price=30000)
+        auc["series"] = "Auction"
+        html = notifier.build_html(
+            {}, {}, "", "note",
+            all_scored={"sale": [(sale, 1.0, "reg")]},
+            all_listings=[sale], auctions=[auc])
+        m = _re.search(
+            r'id="flat-listings-data">(.*?)</script>', html, _re.S)
+        payload = _json.loads(m.group(1))
+        self.assertEqual(len(payload["extra"]), 1)
+        fi = {f: i for i, f in enumerate(payload["fields"])}
+        dt_val = payload["extra"][0][fi["deal_type"]]
+        if isinstance(dt_val, int):
+            dt_val = payload["dict"]["deal_type"][dt_val]
+        self.assertEqual(dt_val, "auction")
+
+
+class TestImprove50ColdReview(unittest.TestCase):
+    """Regression tests for the /improve 50 cold-review fixes."""
+
+    def test_street_tokens_drops_iela_and_stopwords(self):
+        # Different streets sharing only 'iela' must NOT merge in dedupe.
+        a = _flat(source="ss.com", lid="a1", price=55000, area=50.0)
+        a["street"] = "Dammes iela 12"
+        b = _flat(source="city24.lv", lid="b1", price=55000, area=50.0)
+        b["street"] = "Slokas iela 45"
+        out, merged = utils.dedupe_cross_source([a, b])
+        self.assertEqual(merged, 0)
+        self.assertEqual(len(out), 2)
+        # Same street with/without 'iela' DOES merge.
+        c = _flat(source="city24.lv", lid="c1", price=55000, area=50.0)
+        c["street"] = "Dammes 12"
+        out2, merged2 = utils.dedupe_cross_source([a, c])
+        self.assertEqual(merged2, 1)
+        self.assertEqual(len(out2), 1)
+
+    def test_append_history_no_midfile_bom_and_exclude_today(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            csv_path = os.path.join(td, "history.csv")
+            with mock.patch.object(config, "HISTORY_CSV", csv_path):
+                history.append_history([_flat(lid="f1", price=50000)],
+                                       today="2026-10-20")
+                history.append_history([_flat(lid="f2", price=60000)],
+                                       today="2026-10-21")
+                all_rows = history.load_history()
+                self.assertEqual(
+                    [r["scrape_date"] for r in all_rows],
+                    ["2026-10-20", "2026-10-21"])
+                train_rows = history.load_history(
+                    exclude_today=True, today="2026-10-21")
+                self.assertEqual(len(train_rows), 1)
+                self.assertEqual(train_rows[0]["id"], "f1")
+
+    def test_fallback_scores_priceless_with_full_bucket(self):
+        hist = [_hist(v) for v in (900, 1000, 1100, 1200)]
+        priceless = dict(_flat(lid="np"), price_eur=None, price_per_m2=None)
+        scored = scoring._fallback_scores([priceless], hist)
+        self.assertEqual(scored[0][1], 0.0)
+
+    def test_comparison_header_survives_none_scores(self):
+        today_items = [(_flat(lid="n1"), None, "zscore"),
+                       (_flat(lid="n2"), 1.5, "zscore")]
+        yest = {"date": "2026-10-23",
+                "sale": [{"key": "ss.com:old1", "score": None},
+                         {"key": "ss.com:old2", "score": 1.0}]}
+        out = classify.comparison_header({"sale": today_items}, yest)
+        self.assertIn("beats", out)
+
+    def test_median_delta7d_and_dict_decode_edge_cases(self):
+        self.assertEqual(utils.median(["bad", 10, "20", None]), 15.0)
+        self.assertIsNone(utils.median(["bad", None]))
+        self.assertIsNone(utils.delta_7d([["2026-10-01"], ["2026-10-10"]]))
+        rows = [["ss.com", "Imanta", 50000], ["city24.lv", "Imanta", 60000]]
+        fields = ("source", "district", "price_eur")
+        dicts = utils.dict_encode(rows, fields, ("source", "district"))
+        decoded = utils.dict_decode(
+            {"fields": list(fields), "dict": dicts, "rows": rows})
+        self.assertEqual(decoded[0]["source"], "ss.com")
+        self.assertEqual(decoded[1]["district"], "Imanta")
+        self.assertEqual(decoded[1]["price_eur"], 60000)
+
+    def test_gone_relisted_matches_transliterated_street(self):
+        import gone
+        recent = [{"k": "ss.com:old", "p": 60000, "d": "Imanta",
+                   "s": "anninmuizhas bulv. 10", "r": 2, "a": 50.0,
+                   "gone": "2026-10-20"}]
+        live = [_flat(source="city24.lv", lid="new", district="Imanta",
+                      rooms=2, area=50.5, price=58000)]
+        live[0]["street"] = "Anniņmuižas bulvāris 10"
+        hit = gone.find_relisted(live, set(), recent)
+        self.assertIn("city24.lv:new", hit)
+
+    def test_market_page_uses_flat_date_and_empty_districts_note(self):
+        flat_data = {"date": "2026-10-24", "total": 0, "districts": []}
+        with mock.patch.object(car_market, "load_stats", return_value=None), \
+             mock.patch.object(car_market, "load_history", return_value={}), \
+             mock.patch.object(flat_market, "load_stats",
+                               return_value=flat_data):
+            html = car_market.build_page()
+        self.assertIn("Riga market — 2026-10-24", html)
+        self.assertIn("No flat stats yet", html)
 
 
 if __name__ == "__main__":

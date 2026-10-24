@@ -150,7 +150,7 @@ def _map_link(listing, color="var(--link)"):
     """'map' pseudo-link that pans the Leaflet map to this listing's
     marker — only when the listing has coordinates (markers are built
     from all_listings, so every geocoded row has one)."""
-    if not (listing.get('lat') and listing.get('lon')):
+    if listing.get('lat') is None or listing.get('lon') is None:
         return ""
     marker_id = utils.listing_key(listing)
     # json.dumps makes it a JS string literal; esc() then makes the
@@ -232,6 +232,27 @@ def _vs_district_chip(listing):
     return ""
 
 
+def _floor_caution_chip(listing):
+    """Subtle caution pill when a flat sits on the 1st (ground) floor or
+    the top floor of a multi-storey building."""
+    fn = utils.to_int(listing.get("floor_num"))
+    ft = utils.to_int(listing.get("floor_total"))
+    if fn is None:
+        m = re.match(r"^\s*(\d+)\s*/\s*(\d+)\s*$",
+                     str(listing.get("floor") or ""))
+        if m:
+            fn, ft = int(m.group(1)), int(m.group(2))
+    if fn == 1 and (ft is None or ft > 1):
+        return (" <span class='badge b-src' "
+                "title='Ground floor (1st floor) — check street noise, "
+                "damp and floor insulation'>1st fl</span>")
+    if fn and ft and ft > 1 and fn == ft:
+        return (" <span class='badge b-src' "
+                "title='Top floor — check roof condition and summer heat'>"
+                "top fl</span>")
+    return ""
+
+
 def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0,
                    today=None):
     """Shared row builder for the deal tables — main and still-active
@@ -241,9 +262,10 @@ def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0,
     if price_data is not None:
         timeline_html = price_history.format_price_timeline_html(listing, price_data)
     zebra = ' class="z"' if row_idx % 2 else ''
+    colspan = NUM_COLS if status_cell else (NUM_COLS - 1)
     timeline_row = ""
     if timeline_html:
-        timeline_row = (f'<tr class="timeline-row"{zebra}><td colspan="{NUM_COLS}" '
+        timeline_row = (f'<tr class="timeline-row"{zebra}><td colspan="{colspan}" '
                         f'style="padding:6px 10px;border-top:none;'
                         f'border-bottom:1px solid var(--line);background:var(--row-alt);'
                         f'font-size:11px;line-height:1.6">{timeline_html}</td></tr>')
@@ -270,6 +292,11 @@ def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0,
     anchor = (f" <a href='#r-{_t(key)}' title='Link to this row' "
               f"style='font-size:11px;color:var(--faint)'>#</a>"
               if key else "")
+    pred_p = listing.get("_pred_price")
+    pred_html = (f"<br><span style='font-size:10px;font-weight:normal;"
+                 f"color:var(--muted)' title='Regression model fair-value "
+                 f"estimate'>est. {_fmt_price(pred_p)}</span>"
+                 if pred_p else "")
 
     return (
         f"<tr{zebra}{row_id}>"
@@ -280,11 +307,11 @@ def _deal_row_html(listing, score, status_cell, price_data=None, row_idx=0,
         f"<td style='text-align:right'>{_t(listing.get('floor',''))}</td>"
         f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(listing.get('price_eur'), listing.get('price_unit'))}</td>"
         f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(listing.get('price_per_m2'))}</td>"
-        f"<td style='text-align:right;font-size:16px;font-weight:bold;color:var(--accent)' data-sort='{score_val}'>{score_str}</td>"
+        f"<td style='text-align:right;font-size:16px;font-weight:bold;color:var(--accent)' data-sort='{score_val}'>{score_str}{pred_html}</td>"
         f"{status_cell}"
         f"<td style='text-align:right;font-size:12px;color:var(--muted)' data-sort='{listed_date}'>{listed_days}</td>"
         f"<td style='text-align:right;font-size:12px;color:{ch_color}' data-sort='{ch_sort}'>{first_change}</td>"
-        f"<td>{_watch_star(listing)}{_source_link(listing, _motivated_chips(listing, price_data) + _relisted_chip(listing) + _vs_district_chip(listing) + map_link + anchor)}</td>"
+        f"<td>{_watch_star(listing)}{_source_link(listing, _motivated_chips(listing, price_data) + _relisted_chip(listing) + _vs_district_chip(listing) + _floor_caution_chip(listing) + map_link + anchor)}</td>"
         "</tr>"
         f"{timeline_row}"
     )
@@ -360,8 +387,9 @@ def _get_listing_age(listing, price_data=None, today=None):
     first_seen = entry.get('first_seen')
     our = entry.get('our_tracking', [])
     if first_seen or our:
-        first_date = first_seen or (our[0].get('date', '') if our else '')
-        first_price = our[0].get('price') if our else None
+        first_obs = (our[0] or {}) if our and isinstance(our[0], dict) else {}
+        first_date = first_seen or first_obs.get('date') or first_obs.get('d') or ''
+        first_price = first_obs.get('price', first_obs.get('p'))
         return _pack(first_date, None, first_price)
 
     return '', '', '', ''
@@ -417,14 +445,18 @@ def _hero_card_html(items, price_data=None):
     if dist:
         bits.append(_t(dist))
     chips = (_motivated_chips(listing, price_data) +
-             _relisted_chip(listing) + _vs_district_chip(listing))
+             _relisted_chip(listing) + _vs_district_chip(listing) +
+             _floor_caution_chip(listing))
     score_str = f"{score:+.2f}" if score is not None else "-"
+    u = safe_url(listing.get("url"))
+    head_txt = f"{_t(listing.get('district',''))} — {_fmt_price(listing.get('price_eur'))}"
+    head_link = (f"<a href='{_t(u)}' target='_blank' rel='noopener noreferrer'>"
+                 f"{head_txt}</a>" if u else head_txt)
     return (
         "<div class='card' style='border-left:4px solid var(--accent)'>"
         "<h3 style='margin:0 0 6px 0'>Deal of the day</h3>"
         f"<p style='margin:0;font-size:15px'>"
-        f"<a href='{_t(listing.get('url',''))}' target='_blank' rel='noopener'>"
-        f"{_t(listing.get('district',''))} — {_fmt_price(listing.get('price_eur'))}</a> "
+        f"{head_link} "
         f"<span class='note'>{' · '.join(bits)}</span> "
         f"<b style='color:var(--accent)'>{score_str}</b>{chips}</p>"
         f"<p class='note' style='margin:4px 0 0'>{_t(listing.get('street','') or '')}"
@@ -447,39 +479,13 @@ def _histogram_card_html(all_listings):
                     if p and p > 0)
     if len(prices) < 10:
         return ""
-    hi = int(prices[-1] // _HIST_BUCKET_EUR) + 1
-    lo = int(prices[0] // _HIST_BUCKET_EUR)
-    buckets = [0] * (hi - lo)
-    for p in prices:
-        buckets[int(p // _HIST_BUCKET_EUR) - lo] += 1
-    peak = max(buckets)
-    w, h, bh = 640, 90, 60
-    bw = w / len(buckets)
-    bars = []
-    for i, n in enumerate(buckets):
-        if not n:
-            continue
-        bh_i = max(2, int(n / peak * bh))
-        bars.append(f"<rect x='{i*bw:.1f}' y='{bh-bh_i}' width='{bw-1:.1f}' "
-                    f"height='{bh_i}' style='fill:var(--accent)' "
-                    f"opacity='0.75'>"
-                    f"<title>€{int((lo+i)*_HIST_BUCKET_EUR):,}–"
-                    f"€{int((lo+i+1)*_HIST_BUCKET_EUR):,}: {n} ads</title>"
-                    f"</rect>")
-    svg = (f"<svg viewBox='0 0 {w} {h}' style='width:100%;max-width:640px;"
-           f"height:auto;display:block' preserveAspectRatio='none'>"
-           f"{''.join(bars)}"
-           f"<text x='0' y='{h-2}' font-size='9' style='fill:var(--faint)'>"
-           f"€{lo*_HIST_BUCKET_EUR:,}</text>"
-           f"<text x='{w}' y='{h-2}' font-size='9' text-anchor='end' "
-           f"style='fill:var(--faint)'>€{hi*_HIST_BUCKET_EUR:,}</text></svg>")
-    return ("<div class='card'>"
-            "<h3 style='margin:0 0 4px 0'>Ask-price spread — today "
-            f"({len(prices)} sale ads)</h3>"
-            "<p class='note' style='margin:0 0 6px 0'>Today's sale asking "
-            f"prices in {_fmt_price(_HIST_BUCKET_EUR)} buckets — hover a bar "
-            "for its range. The budget tool below slices this same pool.</p>"
-            f"{svg}</div>")
+    return web_style.histogram_card_html(
+        prices, _HIST_BUCKET_EUR,
+        f"Ask-price spread — today ({len(prices)} sale ads)",
+        f"Today's sale asking prices in {_fmt_price(_HIST_BUCKET_EUR)} "
+        "buckets — hover a bar for its range. The budget tool below "
+        "slices this same pool.",
+        unit_label="ads", h=90, bh=60)
 
 
 def _main_section_html(title, items, subtitle, price_data=None, table_id="",
@@ -505,7 +511,7 @@ def _still_active_section_html(deal_type, items, price_data=None,
                    for idx, it in enumerate(items))
     return (
         "<div class='card' style='opacity:0.9'>"
-        f"<h3 style='color:var(--faint)'>Still active from yesterday — {deal_type}</h3>"
+        f"<h3 style='color:var(--faint)'>Still active from yesterday — {deal_type.upper()}</h3>"
         "<p class='note'>These deals were in yesterday's "
         "digest and are still among the best today. No action needed unless "
         "you missed them.</p>"
@@ -552,32 +558,38 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
     rows = []
     for idx, (listing, score, method, badge, detail) in enumerate(new_items):
         score_str = f"{score:+.2f}" if score is not None else "-"
+        score_val = score if score is not None else -999
         district = _t(listing.get('district', '?'))
+        dist_str = _fmt_distance(listing)
+        dist_sort = listing.get("_school_km") if listing.get("_school_km") is not None else 9999
         rooms = _t(listing.get('rooms', '?'))
         area = _t(listing.get('area_m2', '?'))
         floor = _t(listing.get('floor', '?'))
+        price_val = listing.get('price_eur', 0) or 0
+        ppu_val = listing.get('price_per_m2', 0) or 0
         price_str = _fmt_price(listing.get('price_eur'), listing.get('price_unit'))
         ppu_str = _fmt_ppu(listing.get('price_per_m2'))
-        source = listing.get('source', '')
 
         map_link = _map_link(listing)
 
         zebra = ' class="z"' if idx % 2 else ''
         rows.append(
             f'<tr{zebra}>'
-            f"<td style='text-align:right;font-size:16px;font-weight:bold;color:var(--accent)'>{score_str}</td>"
+            f"<td style='text-align:right;font-size:16px;font-weight:bold;color:var(--accent)' data-sort='{score_val}'>{score_str}</td>"
             f"<td>{district}</td>"
-            f"<td style='text-align:right'>{rooms}</td>"
-            f"<td style='text-align:right'>{area}</td>"
+            f"<td style='text-align:right;font-size:12px' data-sort='{dist_sort}'>{dist_str}</td>"
+            f"<td style='text-align:right' data-sort='{listing.get('rooms',0) or 0}'>{rooms}</td>"
+            f"<td style='text-align:right' data-sort='{listing.get('area_m2',0) or 0}'>{area}</td>"
             f"<td style='text-align:right'>{floor}</td>"
-            f"<td style='text-align:right;font-weight:bold'>{price_str}</td>"
-            f"<td style='text-align:right'>{ppu_str}</td>"
-            f"<td>{_source_link(listing, _relisted_chip(listing) + _vs_district_chip(listing) + map_link)}</td>"
+            f"<td style='text-align:right;font-weight:bold' data-sort='{price_val}'>{price_str}</td>"
+            f"<td style='text-align:right' data-sort='{ppu_val}'>{ppu_str}</td>"
+            f"<td>{_watch_star(listing)}{_source_link(listing, _relisted_chip(listing) + _vs_district_chip(listing) + _floor_caution_chip(listing) + map_link)}</td>"
             '</tr>'
         )
 
     rows_html = "".join(rows)
     n = len(new_items)
+    tid = "tbl_newest"
     return (
         '<div class="card">'
         '<h3 style="color:var(--accent);border:none;margin:0 0 8px 0">'
@@ -587,13 +599,16 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
         '(higher = cheaper than expected). Act fast &mdash; new listings '
         'get taken quickly. Always check the photos and condition on the '
         'source site before contacting.</p>'
-        f"<div class='scroll-x'><table>"
+        f"<div class='scroll-x'><table id='{tid}' data-sortable='1'>"
         "<tr>"
-        "<th style='text-align:right'>Deal score</th>"
-        "<th style='text-align:left'>District</th>"
-        "<th>Rooms</th><th>m²</th><th>Floor</th>"
-        "<th style='text-align:right'>Price</th>"
-        "<th style='text-align:right'>EUR/m²</th>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',0)\">Deal score</th>"
+        f"<th class='sort-th' style='text-align:left' onclick=\"sortTable('{tid}',1)\">District</th>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',2)\">Distance</th>"
+        f"<th class='sort-th' onclick=\"sortTable('{tid}',3)\">Rooms</th>"
+        f"<th class='sort-th' onclick=\"sortTable('{tid}',4)\">m²</th>"
+        f"<th class='sort-th' onclick=\"sortTable('{tid}',5)\">Floor</th>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',6)\">Price</th>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',7)\">EUR/m²</th>"
         "<th>Source</th>"
         "</tr>"
         f"{rows_html}"
@@ -606,13 +621,13 @@ def build_newest_html(main_deals, price_data=None, top_n=10):
 # "Walking distance to school" section
 # ---------------------------------------------------------------------------
 def build_near_school_html(all_listings):
-    """Every in-budget sale listing within NEAR_SCHOOL_RADIUS_KM of the
+    """Every sale listing within NEAR_SCHOOL_RADIUS_KM of the
     school, sorted by distance (closest first).
 
     This section exists so that fairly-priced flats near the school are
     never hidden by the bargain ranking: a flat priced at market rate
     scores ~0 on value and can fall below the top-N cutoff even though
-    it is exactly what the buyer needs (affordable, walking distance).
+    it is exactly what the buyer needs (walking distance).
     """
     near = [l for l in all_listings
             if l.get("deal_type") == "sale"
@@ -663,7 +678,7 @@ def build_near_school_html(all_listings):
             f"<td style='text-align:right' data-sort='{price_val}'>{_fmt_price(l.get('price_eur'), l.get('price_unit'))}</td>"
             f"<td style='text-align:right' data-sort='{ppu_val}'>{_fmt_ppu(l.get('price_per_m2'))}</td>"
             f"<td style='text-align:right;font-size:16px;font-weight:bold;color:var(--accent)' data-sort='{score_val}'>{score_str}</td>"
-            f"<td>{_watch_star(l)}{_source_link(l, _relisted_chip(l) + _vs_district_chip(l) + map_link)}</td>"
+            f"<td>{_watch_star(l)}{_source_link(l, _relisted_chip(l) + _vs_district_chip(l) + _floor_caution_chip(l) + map_link)}</td>"
             '</tr>'
         )
 
@@ -681,7 +696,7 @@ def build_near_school_html(all_listings):
         '<h3 style="color:var(--accent);border:none;margin:0 0 8px 0">'
         f'Walking distance to school ({n} within {radius:.0f} km){more_note}{approx_note}</h3>'
         '<p style="color:var(--muted);font-size:12px;margin:0 0 10px 0">'
-        'Every in-budget listing within walking distance of '
+        'Every sale listing within walking distance of '
         f'{config.SCHOOL_NAME}, closest first. A flat here is fairly priced '
         'for its size even when its deal score is near zero &mdash; the '
         'bargain ranking above the top-N cutoff does not apply to this '
@@ -739,30 +754,23 @@ def build_gone_html(gone, price_data=None, today=None):
         # "cut before gone" — the ask dropped before the ad vanished:
         # usually means it sold fast once the price hit the right level.
         # Show the observed trail itself so a steady slide is visible.
-        cut_tag = ""
-        _tp = [utils.to_float(o.get("price") or o.get("p"))
-               for o in (entry.get("our_tracking") or [])]
-        _tp = [p for p in _tp if p]
-        if len(_tp) >= 2 and _tp[-1] < _tp[0]:
-            _trail = " → ".join(_fmt_price(p) for p in _tp[-4:])
-            if len(_tp) > 4:
-                _trail = "… " + _trail
-            cut_tag = (f"<br><span style='font-size:11px;color:var(--faint)'>"
-                       f"{_trail}</span>"
-                       f"<br><span style='font-size:11px;color:var(--good)'>"
-                       f"−{_fmt_price(_tp[0] - _tp[-1])} before gone</span>")
+        _tp = [o.get("price") or o.get("p")
+               for o in (entry.get("our_tracking") or [])
+               if isinstance(o, dict)]
+        cut_tag = utils.gone_cut_tag_html(_tp, _fmt_price)
         rows.append(
             f'<tr{zebra}>'
             f"<td style='font-size:13px'>{_t(r.get('d') or '')}</td>"
             f"<td style='font-size:13px'>{_t(r.get('s') or '—')}</td>"
-            f"<td style='text-align:right;font-weight:bold'>"
+            f"<td style='text-align:right;font-weight:bold' data-sort='{r.get('p') or 0}'>"
             f"{_fmt_price(r.get('p')) if r.get('p') else '-'}{cut_tag}</td>"
-            f"<td style='text-align:right;color:var(--muted)'>{listed}</td>"
+            f"<td style='text-align:right;color:var(--muted)' data-sort='{days if days is not None else -1}'>{listed}</td>"
             f"<td style='font-size:12px;color:var(--faint)'>{src}</td>"
             f"<td style='font-size:12px'>{link}</td>"
             f'</tr>')
 
     n = len(gone)
+    tid = "tbl_gone"
     return (
         '<div class="card amber">'
         '<h3 style="color:var(--warn);border:none;margin:0 0 8px 0">'
@@ -771,13 +779,13 @@ def build_gone_html(gone, price_data=None, today=None):
         'Ads that were live yesterday but are gone from today\'s scan — '
         'usually sold (or withdrawn). "Listed" is how long our tracker '
         'saw the ad for.</p>'
-        "<div class='scroll-x'><table>"
+        f"<div class='scroll-x'><table id='{tid}' data-sortable='1'>"
         "<tr>"
-        "<th style='text-align:left'>District</th>"
-        "<th style='text-align:left'>Street</th>"
-        "<th style='text-align:right'>Last ask</th>"
-        "<th style='text-align:right'>Listed</th>"
-        "<th>Source</th><th>Link</th></tr>"
+        f"<th class='sort-th' style='text-align:left' onclick=\"sortTable('{tid}',0)\">District</th>"
+        f"<th class='sort-th' style='text-align:left' onclick=\"sortTable('{tid}',1)\">Street</th>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',2)\">Last ask</th>"
+        f"<th class='sort-th' style='text-align:right' onclick=\"sortTable('{tid}',3)\">Listed</th>"
+        f"<th class='sort-th' onclick=\"sortTable('{tid}',4)\">Source</th><th>Link</th></tr>"
         f"{''.join(rows)}</table></div>"
         '</div>'
     )
@@ -937,6 +945,14 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None,
         cb_style = "font-weight:bold" if cb else "color:var(--faint)"
         ap = a.get("auction_appraisal")
         ap_disp = _fmt_price(ap) if ap else "-"
+        vs_appraisal = ""
+        if ap and eff_price and ap > 0:
+            ap_pct = (eff_price - ap) / ap * 100
+            if ap_pct <= -config.AUCTION_APPRAISAL_DISCOUNT_PCT:
+                vs_appraisal = (
+                    f"<br><span class='badge b-cheap' "
+                    f"title='{_fmt_price(eff_price)} vs official appraisal "
+                    f"{_fmt_price(ap)}'>{ap_pct:.0f}% vs appraisal</span>")
         end = a.get("auction_end") or "-"
         days_end = days_to_end(a)
         days_reg = days_to_reg(a)
@@ -967,7 +983,7 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None,
         rows.append(
             f'<tr{zebra}>'
             f"<td style='text-align:right;font-weight:bold' data-sort='{dist_sort:.3f}'>{dist}</td>"
-            f"<td style='font-size:12px'>{_t(a.get('title',''))}{share_badge}{new_badge}{vs_market}</td>"
+            f"<td style='font-size:12px'>{_t(a.get('title',''))}{share_badge}{new_badge}{vs_market}{vs_appraisal}</td>"
             f"<td style='text-align:right' data-sort='{rooms if rooms is not None else 0}'>{rooms_disp}</td>"
             f"<td style='text-align:right' data-sort='{area if area is not None else 0}'>{area_disp}</td>"
             f"<td style='text-align:right' data-sort='{sp or 0}'>{sp_disp}</td>"
@@ -975,7 +991,7 @@ def build_auctions_html(auctions, top_n=15, failed=False, prev_bids=None,
             f"<td style='text-align:right' data-sort='{ap or 0}'>{ap_disp}</td>"
             f"<td style='text-align:right;font-size:12px' "
             f"data-sort='{_t(str(a.get('auction_end') or ''))}'>{end}</td>"
-            f"<td>{_source_link(a, map_link)}</td>"
+            f"<td>{_watch_star(a)}{_source_link(a, map_link)}</td>"
             '</tr>'
         )
 
@@ -1031,10 +1047,8 @@ def _watch_star(listing):
     src, lid = listing.get("source"), listing.get("id")
     if not src or lid is None:
         return ""
-    url = str(listing.get("url") or "")
-    if not url.startswith("https://"):
-        url = ""
-    bits = [str(listing.get("district") or "?")]
+    url = safe_url(listing.get("url"))
+    bits = [str(listing.get("street") or listing.get("district") or "?")]
     if listing.get("rooms") is not None:
         bits.append(f"{listing['rooms']} r")
     if listing.get("area_m2") is not None:
@@ -1065,30 +1079,31 @@ _FLAT_FIELDS = ("district", "rooms", "area_m2", "floor", "price_eur",
                 # sale/rent — without it rent flats leak into the sale
                 # budget view (a €600/mo ad looks like an absurd bargain).
                 "deal_type",
-                # coordinates + our own trail, for the map link and the
-                # 'seen N d' line in the custom view (car-view parity).
-                "lat", "lon", "_first_seen", "_price_hist")
+                # coordinates + regression fair-value + cross-portal dupes
+                # + our own trail (_price_hist kept last for [-1] consumers).
+                "lat", "lon", "_pred_price", "also_on", "also_cheaper",
+                "_first_seen", "_price_hist")
 
 # Dictionary-encoded like the car embed (see car_digest._MARKET_DICT_FIELDS)
 _FLAT_DICT_FIELDS = ("district", "source", "deal_type", "_first_seen")
 
 
-def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
+def _flat_market_data_html(all_scored, all_listings=None, price_data=None,
+                           auctions=None, today=None):
     """Embed every scored listing (not just the top-N shown in the tables)
     as JSON so the page can filter by a custom budget in the browser.
 
     ``extra`` carries every other in-budget listing rendered on the page
-    (e.g. near-school rows without a score) so the watchlist can still
-    resolve them as "still listed"; the budget tool reads only ``rows``.
+    (e.g. near-school rows without a score, plus auctions tagged with
+    deal_type='auction') so the watchlist can still resolve them as
+    "still listed"; the budget tool reads sale rows only.
     ``price_data`` feeds the motivated/relisted/vs-district signal fields
     so the custom view shows the same chips as the daily tables.
     """
     price_data = price_data or {}
 
-    def _row(listing, score):
-        url = str(listing.get("url") or "")
-        if not url.startswith("https://"):
-            url = ""
+    def _row(listing, score, force_dtype=None):
+        url = safe_url(listing.get("url"))
         key = utils.listing_key(listing)
         info = utils.flat_motivated(price_data.get(key))
         drop = mot = low = None
@@ -1112,6 +1127,25 @@ def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
                  p.get("price", p.get("p"))]
                 for p in (entry.get("our_tracking") or [])
                 if p.get("price", p.get("p")) is not None]
+        also = None
+        if listing.get("also_on"):
+            also = []
+            for o in listing["also_on"]:
+                if isinstance(o, dict):
+                    also.append({"source": o.get("source"),
+                                 "url": safe_url(o.get("url")),
+                                 "price_eur": o.get("price_eur")})
+                else:
+                    also.append({"source": str(o), "url": ""})
+        cheaper = None
+        ch = listing.get("also_cheaper")
+        if isinstance(ch, dict) and ch.get("price"):
+            cheaper = {"price": ch.get("price"),
+                       "source": ch.get("source"),
+                       "url": safe_url(ch.get("url"))}
+        dtype = force_dtype or (
+            "auction" if listing.get("series") == "Auction"
+            else listing.get("deal_type"))
         return [
             listing.get("district"), listing.get("rooms"),
             listing.get("area_m2"), listing.get("floor"),
@@ -1120,8 +1154,9 @@ def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
             listing.get("source"), url, listing.get("id"),
             listing.get("street"),
             drop, mot, low, relisted, vs,
-            listing.get("deal_type"),
+            dtype,
             listing.get("lat"), listing.get("lon"),
+            listing.get("_pred_price"), also, cheaper,
             entry.get("first_seen"), hist or None,
         ]
 
@@ -1141,13 +1176,22 @@ def _flat_market_data_html(all_scored, all_listings=None, price_data=None):
             continue
         extra.append(_row(listing, None))
         embedded.add(key)
+    for auc in (auctions or []):
+        key = (auc.get("source"), auc.get("id"))
+        if not all(key) or key in embedded:
+            continue
+        extra.append(_row(auc, None, force_dtype="auction"))
+        embedded.add(key)
     dicts = utils.dict_encode(rows + extra, _FLAT_FIELDS, _FLAT_DICT_FIELDS)
     _P = _FLAT_FIELDS.index("price_eur")
     prices = [r[_P] for r in rows + extra if r[_P]]
+    cfg = {"minPrice": config.MIN_SALE_PRICE_EUR,
+           # no fixed ceiling — the real data max is the bound
+           "maxPrice": max(prices) if prices else 0}
+    if today:
+        cfg["runDate"] = str(today)[:10]
     payload = {
-        "config": {"minPrice": config.MIN_SALE_PRICE_EUR,
-                   # no fixed ceiling — the real data max is the bound
-                   "maxPrice": max(prices) if prices else 0},
+        "config": cfg,
         "fields": list(_FLAT_FIELDS),
         "dict": dicts,
         "rows": rows,
@@ -1207,7 +1251,9 @@ def build_stale_html(all_listings, price_data, top_n=None, today=None):
         zebra = ' class="z"' if idx % 2 else ''
         url = utils.safe_url(l.get('url', ''))
         title = _t(l.get('street') or l.get('title') or l.get('district') or '?')
-        title_cell = f"<a href='{url}'>{title}</a>" if url else title
+        title_cell = (f"<a href='{_t(url)}' target='_blank' "
+                      f"rel='noopener noreferrer'>{title}</a>"
+                      if url else title)
         rows.append(
             f"<tr{zebra}>"
             f"<td>{_t(l.get('district',''))}</td>"
@@ -1216,7 +1262,7 @@ def build_stale_html(all_listings, price_data, top_n=None, today=None):
             f"{_fmt_price(l.get('price_eur'))}</td>"
             f"<td style='text-align:right' data-sort='{days}'>"
             f"{days} d</td>"
-            f"<td>{_source_link(l)}{_map_link(l)}</td>"
+            f"<td>{_watch_star(l)}{_source_link(l)}{_map_link(l)}</td>"
             "</tr>")
     return (
         "<div class='card'>"
@@ -1229,8 +1275,10 @@ def build_stale_html(all_listings, price_data, top_n=None, today=None):
         "comes it tends to be real.</p>"
         "<div class='scroll-x'><table id='tbl_stale' data-sortable='1'>"
         "<thead><tr>"
-        "<th class='sort-th'>District</th><th class='sort-th'>Listing</th>"
-        "<th class='sort-th'>Ask</th><th class='sort-th'>On market</th>"
+        "<th class='sort-th' onclick=\"sortTable('tbl_stale',0)\">District</th>"
+        "<th class='sort-th' onclick=\"sortTable('tbl_stale',1)\">Listing</th>"
+        "<th class='sort-th' onclick=\"sortTable('tbl_stale',2)\">Ask</th>"
+        "<th class='sort-th' onclick=\"sortTable('tbl_stale',3)\">On market</th>"
         "<th>Source</th>"
         "</tr></thead><tbody>"
         + "".join(rows) +
@@ -1262,10 +1310,13 @@ def build_price_cuts_html(all_listings, price_data, top_n=None):
         days = f"{info['days']}d" if info.get("days") else "?"
         url = utils.safe_url(l.get('url', ''))
         title = _t(l.get('street') or l.get('title') or l.get('district') or '?')
-        title_cell = f"<a href='{url}'>{title}</a>" if url else title
+        title_cell = (f"<a href='{_t(url)}' target='_blank' "
+                      f"rel='noopener noreferrer'>{title}</a>"
+                      if url else title)
         map_link = _map_link(l)
         _ent = price_data.get(utils.listing_key(l)) or {}
-        trail_pts = [(o.get("date"), o.get("price") or o.get("p"))
+        trail_pts = [(o.get("date") or o.get("d"),
+                      o.get("price") or o.get("p"))
                      for o in (_ent.get("our_tracking") or [])]
         spark = utils.sparkline_svg(trail_pts, title="asking-price trail")
         rows.append(
@@ -1280,7 +1331,7 @@ def build_price_cuts_html(all_listings, price_data, top_n=None):
             f"(−{info['drop_pct']:.0f}%)</td>"
             f"<td style='text-align:right' data-sort='{info.get('days',0)}'>"
             f"{days}</td>"
-            f"<td>{_source_link(l)}{mot}{map_link}</td>"
+            f"<td>{_watch_star(l)}{_source_link(l)}{mot}{map_link}</td>"
             "</tr>")
     return (
         "<div class='card'>"
@@ -1292,9 +1343,12 @@ def build_price_cuts_html(all_listings, price_data, top_n=None):
         "negotiable (stale listing or repeated cuts).</p>"
         "<div class='scroll-x'><table id='tbl_cuts' data-sortable='1'>"
         "<thead><tr>"
-        "<th class='sort-th'>District</th><th class='sort-th'>Listing</th>"
-        "<th class='sort-th'>Was → Now</th><th class='sort-th'>Cut</th>"
-        "<th class='sort-th'>On market</th><th>Source</th>"
+        "<th class='sort-th' onclick=\"sortTable('tbl_cuts',0)\">District</th>"
+        "<th class='sort-th' onclick=\"sortTable('tbl_cuts',1)\">Listing</th>"
+        "<th class='sort-th' onclick=\"sortTable('tbl_cuts',2)\">Was → Now</th>"
+        "<th class='sort-th' onclick=\"sortTable('tbl_cuts',3)\">Cut</th>"
+        "<th class='sort-th' onclick=\"sortTable('tbl_cuts',4)\">On market</th>"
+        "<th>Source</th>"
         "</tr></thead><tbody>"
         + "".join(rows) +
         "</tbody></table></div></div>")
@@ -1306,7 +1360,7 @@ def build_html(main_deals, still_active, comparison_html, status_note,
                all_scored=None, all_listings=None, gone_html="",
                source_counts=None, health_pairs=None, n_auctions=None,
                auctions_failed=False, n_gone=None, market_pulse=None,
-               today=None):
+               today=None, auctions=None):
     today = today or date.today().isoformat()
     # date object for the per-row "Listed Nd" math — one clock reading for
     # the whole digest (a run crossing midnight stays self-consistent).
@@ -1316,17 +1370,11 @@ def build_html(main_deals, still_active, comparison_html, status_note,
 
     for dt in config.DEAL_TYPES:
         items = main_deals.get(dt, [])
-        if dt == "sale":
-            subtitle = (f"Top {len(items)} {'new / changed' if items else ''} "
-                        f"{dt} deals ranked best-first. Score = 50% value "
-                        f"(cheaper than expected) + 50% proximity to "
-                        f"{config.SCHOOL_NAME} (see Distance column). "
-                        f"Click column headers to sort.")
-        else:
-            subtitle = (f"Top {len(items)} {'new / changed' if items else ''} "
-                        f"{dt} deals ranked best-first. Deal score = how much "
-                        f"cheaper than the model expects (higher = better deal). "
-                        f"Click column headers to sort.")
+        subtitle = (f"Top {len(items)} {'new / changed' if items else ''} "
+                    f"{dt} deals ranked best-first. Score = 50% value "
+                    f"(cheaper than expected) + 50% proximity to "
+                    f"{config.SCHOOL_NAME} (see Distance column). "
+                    f"Click column headers to sort.")
         sections.append(_main_section_html(dt.upper(), items, subtitle,
                                             price_data, f"tbl_main_{dt}",
                                             _today_d))
@@ -1343,7 +1391,8 @@ def build_html(main_deals, still_active, comparison_html, status_note,
 
     # Custom-budget tool: embed all scored listings, filter in the browser.
     flat_market_html = (_flat_market_data_html(all_scored, all_listings,
-                                               price_data)
+                                               price_data, auctions=auctions,
+                                               today=today)
                         if all_scored else "")
     price_cuts_html = build_price_cuts_html(all_listings, price_data)
     stale_html = build_stale_html(all_listings, price_data, today=_today_d)
@@ -1376,6 +1425,16 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             "</option><option value='1'>1</option><option value='2'>2</option>"
             "<option value='3'>3</option><option value='4'>4</option>"
             "<option value='5'>5+</option></select> "
+            "<input type='number' id='flat-filter-area' min='0' step='5' "
+            "placeholder='min m²' style='width:80px' "
+            "title='Minimum floor area in m²'> "
+            "<input type='number' id='flat-filter-km' min='0' step='0.5' "
+            "placeholder='max km' style='width:80px' "
+            "title='Maximum distance to school in km'> "
+            "<label style='font-size:12.5px;margin-left:4px;cursor:pointer' "
+            "title='Exclude 1st floor and top floor'>"
+            "<input type='checkbox' id='flat-filter-midfloor' "
+            "style='vertical-align:middle'> mid-floors only</label>"
             "</div>"
             f"<p class='note' style='margin:6px 0 0'>Enter a maximum price "
             f"(from €{config.MIN_SALE_PRICE_EUR:,} up) and/or pick "
@@ -1383,10 +1442,10 @@ def build_html(main_deals, still_active, comparison_html, status_note,
             "flat within it — filtered instantly in your browser from "
             "today's data, no rescraping (results also update as you type). "
             "Filters alone list all of today's scored flats in that "
-            "district/room class. <b>Reset</b> "
+            "district/room/area/distance class. <b>Reset</b> "
             "returns to the default daily view. Shareable: append "
             "<b>?min=40000&amp;max=60000</b> or "
-            "<b>?district=Zolitude&amp;rooms=2</b> "
+            "<b>?district=Zolitude&amp;rooms=2&amp;area=45&amp;km=1.5&amp;midfloor=1</b> "
             "to this page's URL.</p>"
             "</div>"
             "<details class='info' id='flat-watch-box'>"
@@ -1450,7 +1509,7 @@ def build_html(main_deals, still_active, comparison_html, status_note,
     n_mot = 0
     new_by_district = {}
     if price_data and all_listings:
-        for _l in all_listings:
+        for _l in utils.unique_by_key(all_listings):
             _e_ = price_data.get(utils.listing_key(_l)) or {}
             if utils.flat_is_motivated(utils.flat_motivated(_e_)):
                 n_mot += 1
@@ -1562,7 +1621,7 @@ def _build_map_html(markers):
     return f"""
 <!-- Inline map at bottom -->
 <div id="map-container">
-  <div class="map-header">{map_title}</div>
+  <div class="map-header">{map_title} <span style="font-weight:normal;font-size:11px;opacity:.9">&middot; orange = sale &middot; purple = auction &middot; red = school</span></div>
   <div id="map"></div>
 </div>
 <script>
@@ -1625,7 +1684,7 @@ def save_digest(main_deals, still_active, comparison_html, status_note,
                 all_listings=None, gone_html="", source_counts=None,
                 market_pulse=None,
                 health_pairs=None, n_auctions=None, auctions_failed=False,
-                n_gone=None, today=None):
+                n_gone=None, today=None, auctions=None):
     """Build today's digest and write it to data/digests/. Returns (path, info)."""
     html = build_html(main_deals, still_active, comparison_html, status_note,
                       price_data=price_data, map_markers=map_markers,
@@ -1636,7 +1695,8 @@ def save_digest(main_deals, still_active, comparison_html, status_note,
                       source_counts=source_counts,
                       health_pairs=health_pairs, n_auctions=n_auctions,
                       auctions_failed=auctions_failed, n_gone=n_gone,
-                      market_pulse=market_pulse, today=today)
+                      market_pulse=market_pulse, today=today,
+                      auctions=auctions)
     today = today or date.today().isoformat()
     digest_path = os.path.join(config.DIGEST_DIR, f"digest_{today}.html")
     utils.write_text(digest_path, html)

@@ -58,7 +58,10 @@ def _fallback_scores(new_listings, history):
         vals = (buckets.get(key)
                 or buckets.get((l.get("deal_type"), l.get("district"), None))
                 or [])
-        ppu = l.get("price_per_m2") or 0.0
+        ppu = utils.to_float(l.get("price_per_m2")) or 0.0
+        if ppu <= 0:
+            scored.append((l, 0.0, "zscore"))
+            continue
         if len(vals) >= 3:
             mu = statistics.mean(vals)
             sd = statistics.pstdev(vals) or 1.0
@@ -180,6 +183,8 @@ def _regression_scores(new_listings, history_rows):
         xb = np.concatenate([[1.0], x])
         pred = float(xb @ coef)
         actual = utils.to_float(l.get("price_eur")) or 0.0
+        if actual > 0 and pred > 0:
+            l["_pred_price"] = int(round(pred))
         # No usable price -> no residual to rank on (a missing price used
         # to read as -pred/std, i.e. the "cheapest" deal on the page).
         z = -(actual - pred) / resid_std if actual > 0 else 0.0

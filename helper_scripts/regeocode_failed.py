@@ -21,7 +21,8 @@ DRY_RUN = False
 
 def main():
     cache = geocode.load_cache()
-    failed = {k: v for k, v in cache.items() if v.get("lat") is None}
+    failed = {k: v for k, v in cache.items()
+              if (v or {}).get("lat") is None}
     print(f"{len(cache)} cached addresses, {len(failed)} without coordinates")
     today = date.today().isoformat()
     fixed = still = 0
@@ -30,8 +31,8 @@ def main():
         lat, lon, precision, n = geocode._geocode_address(street)
         if lat is not None:
             fixed += 1
-            km = geocode.haversine_km(lat, lon, geocode.config.SCHOOL_LAT,
-                                      geocode.config.SCHOOL_LON)
+            km = geocode.haversine_km(lat, lon, config.SCHOOL_LAT,
+                                      config.SCHOOL_LON)
             print(f"  OK   {key:55s} {precision:6s} {km:5.2f} km  ({n} req)")
         else:
             still += 1

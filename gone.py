@@ -13,6 +13,7 @@ returning nothing might just have failed, and calling every one of its
 ads 'gone' would be noise (or wrong).
 """
 import config
+import geocode
 import utils
 
 
@@ -106,8 +107,8 @@ def recent_gone_rows(prev_recent, gone_today, today, live_rows=None):
         k = r.get("k")
         if not k or k in live_keys:
             continue
-        if utils.days_since(r.get("gone")) is None or \
-                utils.days_since(r.get("gone")) > config.GONE_RELIST_DAYS:
+        age = utils.days_since(r.get("gone"), today)
+        if age is None or age > config.GONE_RELIST_DAYS:
             continue
         kept.append(r)
     new_keys = {r.get("k") for r in kept}
@@ -128,7 +129,10 @@ def recent_gone_rows(prev_recent, gone_today, today, live_rows=None):
 
 
 def _norm_street(s):
-    return " ".join(utils.strip_diacritics(s or "").lower().split())
+    street_raw, num = geocode._split_number(str(s or ""))
+    norm = geocode._normalize_street(street_raw)
+    full = f"{norm} {num}".strip() if norm else str(s or "")
+    return " ".join(utils.strip_diacritics(full).lower().split())
 
 
 def _matches_gone_flat(l, gone_row):

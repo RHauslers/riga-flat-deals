@@ -7,10 +7,11 @@ Compliance notes:
     request below uses /lv/ paths exclusively.
   - Seller ads only: we scrape /sell/ listing pages and additionally skip
     rows whose title starts with a want-to-buy/exchange/rent word.
-  - We fetch only list pages — never ad detail pages, phone numbers or
-    images. 429/5xx get one bounded retry honoring Retry-After (same
-    policy as the flat ss.com scraper); a still-blocked 403/429 then
-    aborts the whole scrape via SourceBlocked.
+  - We fetch list pages for discovery/scoring and bounded detail pages
+    only for cached Tehniskā apskate months (fetch_inspection); never
+    phone numbers or images. 429/5xx get one bounded retry honoring
+    Retry-After (same policy as the flat ss.com scraper); a still-blocked
+    403/429 then aborts the whole scrape via SourceBlocked.
 
 Row structure (verified):
   Each listing is <tr id="tr_{numeric_id}">. The title link is
@@ -257,15 +258,17 @@ def _save_model_scans(state):
         pass
 
 
-def _scan_age(key, state):
+def _scan_age(key, state, today=None):
     d = state.get(f"{key[0]}|{key[1]}")
     try:
-        return (date.today() - date.fromisoformat(d)).days if d else 10 ** 6
+        t = (date.fromisoformat(str(today)[:10])
+             if isinstance(today, str) else (today or date.today()))
+        return (t - date.fromisoformat(d)).days if d else 10 ** 6
     except (ValueError, TypeError):
         return 10 ** 6
 
 
-def _rank_models(model_counts, candidates, state, cap):
+def _rank_models(model_counts, candidates, state, cap, today=None):
     """Pick which model pages to deep-scan this run, two tiers:
 
     stale  — not deep-scanned within CAR_SS_MODEL_RESCAN_DAYS (or never),
@@ -277,8 +280,8 @@ def _rank_models(model_counts, candidates, state, cap):
     mainly adds a model's existing backlog — staleness beats volume.
     """
     days = config.CAR_SS_MODEL_RESCAN_DAYS
-    stale = [k for k in candidates if _scan_age(k, state) > days]
-    fresh = [k for k in candidates if _scan_age(k, state) <= days]
+    stale = [k for k in candidates if _scan_age(k, state, today) > days]
+    fresh = [k for k in candidates if _scan_age(k, state, today) <= days]
     stale.sort(key=lambda k: (state.get(f"{k[0]}|{k[1]}", ""),
                               -model_counts.get(k, 0), k))
     fresh.sort(key=lambda k: (-model_counts.get(k, 0), k))
@@ -340,7 +343,8 @@ def _discover_makes():
     return makes
 
 
-def scrape(max_pages_per_make=None, max_pages_per_model=None, max_models=None):
+def scrape(max_pages_per_make=None, max_pages_per_model=None, max_models=None,
+           today=None):
     """Return list of car listing dicts from ss.com /lv/ car pages.
 
     Coverage is model-blind: scan the newest pages of every make (which
@@ -378,8 +382,9 @@ def scrape(max_pages_per_make=None, max_pages_per_model=None, max_models=None):
         # enter rotation at all.
         candidates = set(model_counts) | sidebar_models
         state = _load_model_scans()
-        ranked = _rank_models(model_counts, candidates, state, cap_models)
-        today = date.today().isoformat()
+        today = str(today)[:10] if today else date.today().isoformat()
+        ranked = _rank_models(model_counts, candidates, state, cap_models,
+                              today=today)
         for make, model in ranked:
             url = f"{config.CAR_SS_BASE}/lv/transport/cars/{make}/{model}/sell/"
             _scrape_pages(url, cap_model, results, seen_ids)

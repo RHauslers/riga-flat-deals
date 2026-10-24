@@ -43,7 +43,16 @@ def canonical_model(make, raw, year):
     return value
 
 
-def eligible(listing, max_price=None):
+def _max_year(today=None):
+    if today:
+        try:
+            return date.fromisoformat(str(today)[:10]).year + 1
+        except ValueError:
+            pass
+    return date.today().year + 1
+
+
+def eligible(listing, max_price=None, today=None):
     price = _number(listing.get("price_eur"))
     year = _number(listing.get("year"))
     mileage = _number(listing.get("mileage_km"))
@@ -51,14 +60,14 @@ def eligible(listing, max_price=None):
     ceiling = config.CAR_COMPARABLE_MAX_PRICE_EUR if max_price is None else max_price
     return (price is not None and config.CAR_MIN_PRICE_EUR <= price <= ceiling
             and year is not None and year.is_integer()
-            and config.CAR_MIN_YEAR <= year <= date.today().year + 1
+            and config.CAR_MIN_YEAR <= year <= _max_year(today)
             and mileage is not None and 0 <= mileage <= config.CAR_MAX_MILEAGE_KM
             and bool(listing.get("make")) and bool(listing.get("model"))
             and listing.get("fuel") in config.CAR_FUEL_TYPES
             and (listing.get("fuel") == "electric" or (engine is not None and engine > 0)))
 
 
-def ineligible_reason(listing, max_price=None):
+def ineligible_reason(listing, max_price=None, today=None):
     """Coarse single reason a listing failed eligible() — same checks,
     same order. For digest 'why dropped' stats, not the gate itself."""
     price = _number(listing.get("price_eur"))
@@ -69,7 +78,7 @@ def ineligible_reason(listing, max_price=None):
     if price is None or not config.CAR_MIN_PRICE_EUR <= price <= ceiling:
         return "missing price" if price is None else "price out of range"
     if (year is None or not year.is_integer()
-            or not config.CAR_MIN_YEAR <= year <= date.today().year + 1):
+            or not config.CAR_MIN_YEAR <= year <= _max_year(today)):
         return "year out of range"
     if mileage is None:
         return "missing mileage"

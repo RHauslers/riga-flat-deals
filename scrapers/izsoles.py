@@ -38,6 +38,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import config
+import utils
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -200,6 +201,30 @@ def _parse_detail(html, url, title):
     share, street_full = parse_ownership_share(street_full)
     street_geo = re.sub(r"\s*-\s*\d+\s*$", "", street_full).strip()
 
+    # Floor extraction from legal description text ("3. stāvā", "3/5 stāvā",
+    # or Latvian ordinal words).
+    floor_num = floor_total = None
+    floor_str = ""
+    fm = re.search(r"\b(\d{1,2})\s*/\s*(\d{1,2})\s*\.?\s*stāv[āa]", text, re.I)
+    if fm:
+        floor_num, floor_total = int(fm.group(1)), int(fm.group(2))
+        floor_str = f"{floor_num}/{floor_total}"
+    else:
+        fm2 = re.search(r"\b(\d{1,2})\s*\.\s*stāv[āa]", text, re.I)
+        if fm2:
+            floor_num = int(fm2.group(1))
+            floor_str = str(floor_num)
+        else:
+            for word, fn in (("pirmajā stāvā", 1), ("pirmais stāvs", 1),
+                             ("otrajā stāvā", 2), ("trešajā stāvā", 3),
+                             ("ceturtajā stāvā", 4), ("piektajā stāvā", 5)):
+                if word in text.lower():
+                    floor_num = fn
+                    floor_str = str(fn)
+                    break
+
+    district = utils.match_district(f"{title} {text}") or "Riga"
+
     # The realistic price today is the current bid, or the starting
     # price when nobody has bid yet.
     price = current_bid or start_price
@@ -214,13 +239,13 @@ def _parse_detail(html, url, title):
         "deal_type": "sale",
         "id": listing_id,
         "url": url,
-        "district": "Riga",
+        "district": district,
         "street": street_geo,
         "rooms": rooms,
         "area_m2": area,
-        "floor": "",
-        "floor_num": None,
-        "floor_total": None,
+        "floor": floor_str,
+        "floor_num": floor_num,
+        "floor_total": floor_total,
         "series": "Auction",
         "price_eur": price,
         "price_per_m2": round(price / area, 2) if area else None,

@@ -102,11 +102,15 @@ def save_cache(data):
 # progressively looser query candidates.
 # ---------------------------------------------------------------------------
 _STREET_TYPE_WORDS = ("iela", "gatve", "prospekts", "linija", "līnija",
-                      "bulvaris", "bulvāris", "dambis", "laukums", "soseja",
-                      "šoseja", "aleja", "cels", "ceļš", "krastmala")
-_ABBREVIATIONS = {"g.": "gatve", "pr.": "prospekts", "l.": "līnija",
-                  "b.": "bulvāris", "d.": "dambis", "lauk.": "laukums",
-                  "šos.": "šoseja", "sos.": "šoseja"}
+                      "bulvaris", "bulvāris", "bulvārs", "dambis", "laukums",
+                      "soseja", "šoseja", "aleja", "cels", "ceļš", "krastmala")
+_ABBREVIATIONS = {"g.": "gatve", "gat.": "gatve",
+                  "pr.": "prospekts", "prosp.": "prospekts", "prosp": "prospekts",
+                  "l.": "līnija", "lin.": "līnija", "līn.": "līnija",
+                  "b.": "bulvāris", "bulv.": "bulvāris", "bulv": "bulvāris",
+                  "d.": "dambis", "lauk.": "laukums",
+                  "šos.": "šoseja", "sos.": "šoseja",
+                  "al.": "aleja", "krastm.": "krastmala"}
 _LEADING_ABBREVIATIONS = {"m.": "Mazā", "l.": "Lielā"}
 # SS.com truncates long cells ("anninmuizhas boule..", "... stree.."): the
 # cut-off word is matched as a PREFIX of these English/Latvian street types.
@@ -276,7 +280,7 @@ def enrich_coordinates(listings, today=None):
 
     for listing in listings:
         # Already has coordinates (city24 API provides them)
-        if listing.get("lat") and listing.get("lon"):
+        if listing.get("lat") is not None and listing.get("lon") is not None:
             listing.setdefault("geo_precision", "house")
             n_skipped += 1
             continue
@@ -296,7 +300,8 @@ def enrich_coordinates(listings, today=None):
             continue
         # A cached MISS is retried only after GEOCODE_RETRY_FAILED_DAYS.
         if cached and not utils.older_than_days(cached.get("fetched_at"),
-                                              config.GEOCODE_RETRY_FAILED_DAYS):
+                                                config.GEOCODE_RETRY_FAILED_DAYS,
+                                                today=today):
             n_failed += 1
             continue
 
@@ -412,7 +417,7 @@ def get_school_marker():
         f"<div style='font-family:Arial,sans-serif;font-size:13px;min-width:200px'>"
         f"<b>{config.SCHOOL_NAME}</b><br>"
         f"{config.SCHOOL_ADDRESS}<br>"
-        f"<span style='color:#666'>Reference point for proximity ranking</span>"
+        f"<span style='color:var(--muted,#666)'>Reference point for proximity ranking</span>"
         f"</div>"
     )
     return {

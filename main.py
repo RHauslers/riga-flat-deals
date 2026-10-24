@@ -290,7 +290,7 @@ def _run_body(today, _t0):
 
     if not all_listings:
         try:
-            website.build()
+            website.build(today=today)
         except Exception as e:
             print(f"[main] website.build failed: {e}")
             traceback.print_exc()
@@ -496,10 +496,11 @@ def _run_body(today, _t0):
                                        auctions_failed=auctions_failed,
                                        n_gone=len(gone_rows),
                                        market_pulse=_market_pulse,
-                                       today=today)
+                                       today=today,
+                                       auctions=auctions)
 
     # Step 8 cont: build hosted site (latest digest -> docs/index.html + archive)
-    website.build()
+    website.build(today=today)
 
     # Step 9: update state: record today's surfaced deals + save today's digest
     history.update_seen_deals(all_scored, seen_deals, today=today)

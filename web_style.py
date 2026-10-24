@@ -249,6 +249,11 @@ button.ghost{background:var(--row-alt);font-weight:700}
 .site-nav a:hover{background:var(--hover);text-decoration:none}
 .site-nav a.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .site-nav a.on:hover{filter:brightness(1.08)}
+.daynav{font-size:12px;margin:2px 0 12px;color:var(--faint)}
+.daynav a{color:var(--link);text-decoration:none;padding:1px 6px}
+.daynav a:hover{text-decoration:underline}
+.daynav .cur{font-weight:600;color:var(--fg);padding:0 6px}
+.daynav .off{color:var(--faint);padding:1px 6px}
 
 /* Archive coverage strip cells */
 .cov-cell{display:inline-block;width:14px;height:14px;margin-right:3px;
@@ -324,13 +329,20 @@ b.onclick=function(){var next=cur()==='dark'?'light':'dark';de.setAttribute('dat
 paint();})();</script>"""
 
 
-# Back-to-top — floating button that appears once the page is scrolled.
+# Back-to-top — floating button that appears once the page is scrolled,
+# plus global '/' shortcut to focus the page's primary filter/budget box.
 TOP_BTN_HTML = """<button type="button" id="top-btn" class="top-btn"
 title="Back to top">&#8593;</button>
 <script>(function(){var b=document.getElementById('top-btn');
 function paint(){b.style.display=(window.scrollY>600)?'block':'none';}
 b.onclick=function(){window.scrollTo({top:0,behavior:'smooth'});};
-if(window.addEventListener){addEventListener('scroll',paint,{passive:true});}
+if(window.addEventListener){addEventListener('scroll',paint,{passive:true});
+addEventListener('keydown',function(e){
+var a=document.activeElement,tag=a&&a.tagName?a.tagName.toUpperCase():'';
+if(e.key==='Escape'&&(tag==='INPUT'||tag==='SELECT')){a.blur();return;}
+if(e.key==='/'&&tag!=='INPUT'&&tag!=='TEXTAREA'&&tag!=='SELECT'&&!e.ctrlKey&&!e.metaKey){
+var el=document.querySelector&&document.querySelector('input[type="number"],input[type="text"]');
+if(el){e.preventDefault();el.focus();if(el.select)el.select();}}});}
 paint();})();</script>"""
 
 
@@ -402,6 +414,74 @@ def motivated_badge():
             "negotiable'>MOTIVATED</span>")
 
 
+def histogram_card_html(prices, bucket_eur, title, note, unit_label="ads",
+                        h=90, bh=60):
+    """Shared SVG ask-price histogram card used by the flat and car digests."""
+    if len(prices) < 10:
+        return ""
+    hi = int(prices[-1] // bucket_eur) + 1
+    lo = int(prices[0] // bucket_eur)
+    buckets = [0] * max(1, hi - lo)
+    for p in prices:
+        buckets[int(p // bucket_eur) - lo] += 1
+    peak = max(buckets) or 1
+    w = 640
+    bw = w / len(buckets)
+    bars = []
+    for i, n in enumerate(buckets):
+        if not n:
+            continue
+        bh_i = max(2, int(n / peak * bh))
+        bars.append(
+            f"<rect x='{i*bw:.1f}' y='{bh-bh_i}' width='{max(1.0, bw-1):.1f}' "
+            f"height='{bh_i}' style='fill:var(--accent)' opacity='0.75'>"
+            f"<title>€{int((lo+i)*bucket_eur):,}–"
+            f"€{int((lo+i+1)*bucket_eur):,}: {n} {unit_label}</title></rect>")
+    svg = (f"<svg viewBox='0 0 {w} {h}' style='width:100%;max-width:640px;"
+           f"height:auto;display:block' preserveAspectRatio='none'>"
+           f"{''.join(bars)}"
+           f"<text x='0' y='{h-2}' font-size='9' style='fill:var(--faint)'>"
+           f"€{lo*bucket_eur:,}</text>"
+           f"<text x='{w}' y='{h-2}' font-size='9' text-anchor='end' "
+           f"style='fill:var(--faint)'>€{hi*bucket_eur:,}</text></svg>")
+    return (f"<div class='card'>"
+            f"<h3 style='margin:0 0 4px 0'>{title}</h3>"
+            f"<p class='note' style='margin:0 0 6px 0'>{note}</p>"
+            f"{svg}</div>")
+
+
+# Shared inline-SVG price-trail sparkline builder for the browser budget
+# tools (interpolated into both FLAT_BUDGET_JS and CAR_BUDGET_JS so each
+# script stays self-contained for Node eval tests).
+SPARK_EL_JS = """  function sparkEl(hist) {
+    if (typeof document.createElementNS === 'undefined') return null;
+    var pts = [];
+    (hist || []).forEach(function (h) {
+      var v = Number(h[1]);
+      if (!isNaN(v)) pts.push(v);
+    });
+    if (pts.length < 2) return null;
+    var w = 64, h = 16;
+    var lo = Math.min.apply(null, pts), hi = Math.max.apply(null, pts);
+    var span = hi - lo;
+    var coords = pts.map(function (v, i) {
+      var y = span === 0 ? (h / 2) : (h - 3 - (v - lo) / span * (h - 6));
+      return (i * (w - 4) / (pts.length - 1) + 2).toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', w); svg.setAttribute('height', h);
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    svg.style.verticalAlign = '-3px'; svg.style.marginLeft = '4px';
+    var pl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    pl.setAttribute('points', coords); pl.setAttribute('fill', 'none');
+    pl.setAttribute('stroke', pts[pts.length - 1] < pts[0] ? 'var(--bad)'
+      : (pts[pts.length - 1] > pts[0] ? 'var(--good)' : 'var(--muted)'));
+    pl.setAttribute('stroke-width', '1.5');
+    svg.appendChild(pl);
+    return svg;
+  }"""
+
+
 # Click-to-sort table headers, shared by both digests.
 SORT_JS = r"""// Click-to-sort table headers. Timeline rows stay attached to their
 // parent row (the flat digest interleaves them; tables without
@@ -427,12 +507,16 @@ function sortTable(tableId, colIdx) {
   var clickedTh = table.querySelectorAll('th')[colIdx];
   if (clickedTh) clickedTh.classList.add(asc ? 'sort-asc' : 'sort-desc');
   groups.sort(function(a, b) {
-    var va = a[0].children[colIdx].getAttribute('data-sort');
-    var vb = b[0].children[colIdx].getAttribute('data-sort');
-    if (va === null || vb === null) return 0;
-    va = va.trim(); vb = vb.trim();
+    var ca = a[0].children && a[0].children[colIdx];
+    var cb = b[0].children && b[0].children[colIdx];
+    if (!ca || !cb) return 0;
+    var va = ca.getAttribute('data-sort');
+    var vb = cb.getAttribute('data-sort');
+    if (va === null) va = ca.textContent || '';
+    if (vb === null) vb = cb.textContent || '';
+    va = String(va).trim(); vb = String(vb).trim();
     var na = parseFloat(va), nb = parseFloat(vb);
-    if (!isNaN(na) && !isNaN(nb)) {
+    if (!isNaN(na) && !isNaN(nb) && /^-?\d+(\.\d+)?$/.test(va) && /^-?\d+(\.\d+)?$/.test(vb)) {
       return asc ? na - nb : nb - na;
     }
     return asc ? va.localeCompare(vb) : vb.localeCompare(va);
@@ -530,12 +614,35 @@ function __@NS@WatchInit() {
     renderBox();
   }
 
+  function clearGone() {
+    var w = load();
+    Object.keys(w).forEach(function (k) {
+      if (!byKey[k]) delete w[k];
+    });
+    save(w);
+    refreshStars();
+    renderBox();
+  }
+
   function renderBox() {
     var w = load();
     var keys = Object.keys(w).sort(function (a, b) {
       return String(w[b].added || '').localeCompare(String(w[a].added || ''));
     });
-    if (countEl) countEl.textContent = '(' + keys.length + ')';
+    var nDropped = 0, nGone = 0;
+    keys.forEach(function (k) {
+      var cur = byKey[k];
+      if (!cur) { nGone++; return; }
+      var p0 = Number(w[k].price), p1 = Number(cur[idx.price_eur]);
+      if (isFinite(p0) && isFinite(p1) && p1 < p0 - 0.5) nDropped++;
+    });
+    if (countEl) {
+      countEl.textContent = '(' + keys.length + ')';
+      var tips = [];
+      if (nDropped) tips.push(nDropped + ' price drop(s) since starred');
+      if (nGone) tips.push(nGone + ' no longer listed');
+      countEl.title = tips.join(' · ');
+    }
     listEl.innerHTML = '';
     if (!keys.length) {
       var p = document.createElement('p');
@@ -543,6 +650,24 @@ function __@NS@WatchInit() {
       p.textContent = 'Nothing starred yet — click ☆ on a listing to pin it here.';
       listEl.appendChild(p);
       return;
+    }
+    if (nDropped || nGone) {
+      var bar = document.createElement('div');
+      bar.className = 'note';
+      bar.style.marginBottom = '6px';
+      var sbits = [];
+      if (nDropped) sbits.push(nDropped + ' dropped since starred');
+      if (nGone) sbits.push(nGone + ' no longer listed');
+      bar.textContent = sbits.join(' · ') + ' ';
+      if (nGone) {
+        var cg = document.createElement('button');
+        cg.type = 'button';
+        cg.className = 'ghost watch-clear-gone';
+        cg.style.cssText = 'font-size:11px;padding:2px 8px;margin-left:6px';
+        cg.textContent = 'Clear gone (' + nGone + ')';
+        bar.appendChild(cg);
+      }
+      listEl.appendChild(bar);
     }
     var table = document.createElement('table');
     keys.forEach(function (key) {
@@ -611,12 +736,15 @@ function __@NS@WatchInit() {
     if (t.classList.contains('watch-star')) { toggle(t); }
     else if (t.classList.contains('watch-remove')) {
       remove(t.getAttribute('data-key'));
+    } else if (t.classList.contains('watch-clear-gone')) {
+      clearGone();
     }
   });
   refreshStars();
   renderBox();
   if (typeof window !== 'undefined') {
-    window.__@NS@Watch = { toggle: toggle, renderBox: renderBox, load: load };
+    window.__@NS@Watch = { toggle: toggle, renderBox: renderBox, load: load,
+                           clearGone: clearGone };
     window.__@NS@WatchRefresh = refreshStars;
   }
 }
@@ -671,11 +799,17 @@ function __flatBudgetInit() {
   var rows = payload.rows.concat(payload.extra || []);
   var districtSel = document.getElementById('flat-filter-district');
   var roomsSel = document.getElementById('flat-filter-rooms');
+  var areaInput = document.getElementById('flat-filter-area');
+  var kmInput = document.getElementById('flat-filter-km');
+  var midFloorChk = document.getElementById('flat-filter-midfloor');
 
   // Fill the district dropdown from today's data.
   if (districtSel) {
     var seen = {};
-    rows.forEach(function (r) { if (r[idx.district]) seen[r[idx.district]] = 1; });
+    rows.forEach(function (r) {
+      if (r[idx.district] && (r[idx.deal_type] || 'sale') === 'sale')
+        seen[r[idx.district]] = 1;
+    });
     Object.keys(seen).sort().forEach(function (d) {
       var o = document.createElement('option');
       o.value = d; o.textContent = d;
@@ -686,17 +820,30 @@ function __flatBudgetInit() {
   function readFilters() {
     return {
       district: districtSel && districtSel.value ? districtSel.value : '',
-      rooms: roomsSel && roomsSel.value ? roomsSel.value : ''
+      rooms: roomsSel && roomsSel.value ? roomsSel.value : '',
+      minArea: areaInput ? (parseFloat(areaInput.value) || 0) : 0,
+      maxKm: kmInput ? (parseFloat(kmInput.value) || 0) : 0,
+      midFloor: !!(midFloorChk && midFloorChk.checked)
     };
   }
-  function anyFilterSet(f) { return !!(f.district || f.rooms); }
+  function anyFilterSet(f) {
+    return !!(f.district || f.rooms || f.minArea || f.maxKm || f.midFloor);
+  }
   function passesFilters(r, f) {
     if (f.district && r[idx.district] !== f.district) return false;
     if (f.rooms === '5') {
       if (!(r[idx.rooms] >= 5)) return false;   // '5+' means five or more
     } else if (f.rooms && String(r[idx.rooms]) !== f.rooms) return false;
-    // Rent flats are priced monthly and would read as absurd bargains in
-    // the sale view — hardwired sale scope (the dtype <select> is gone).
+    if (f.minArea && (r[idx.area_m2] == null || r[idx.area_m2] < f.minArea)) return false;
+    if (f.maxKm && (r[idx.school_km] == null || r[idx.school_km] > f.maxKm)) return false;
+    if (f.midFloor) {
+      var fl = String(r[idx.floor] || '');
+      var fm = fl.match(/^(\\d+)\\s*\\/\\s*(\\d+)$/);
+      if (!fm) return false;
+      var fn = parseInt(fm[1], 10), ft = parseInt(fm[2], 10);
+      if (fn <= 1 || (ft > 1 && fn >= ft)) return false;
+    }
+    // Rent/auction entries are excluded from the regular sale budget view.
     // A null field means the pipeline didn't tag it -> treat as sale.
     if ((r[idx.deal_type] || 'sale') !== 'sale') return false;
     return true;
@@ -705,6 +852,10 @@ function __flatBudgetInit() {
   function fmtEur(v) {
     return v == null ? '—' : '€' + Math.round(v).toLocaleString('en-US');
   }
+
+""" + SPARK_EL_JS + """
+  var refNowMs = Math.max(Date.now(),
+    (cfg && cfg.runDate) ? (Date.parse(String(cfg.runDate) + 'T00:00:00Z') || 0) : 0);
 
   function cell(text, sortVal, alignRight) {
     var td = document.createElement('td');
@@ -753,6 +904,8 @@ function __flatBudgetInit() {
     table.appendChild(hr);
     matches.forEach(function (r) {
       var tr = document.createElement('tr');
+      var rKey = (r[idx.source] || '') + ':' + (r[idx.id] || '');
+      if (rKey !== ':') tr.setAttribute('id', 'r-' + rKey);
       tr.appendChild(cell(r[idx.district] || '?', r[idx.district]));
       tr.appendChild(cell(r[idx.street] || '—', r[idx.street]));
       var km = r[idx.school_km];
@@ -766,12 +919,21 @@ function __flatBudgetInit() {
         ? Math.round(r[idx.price_per_m2]).toLocaleString('en-US') : '—',
         r[idx.price_per_m2], true));
       var score = r[idx.score];
-      tr.appendChild(cell(score != null ? (+score).toFixed(2) : '—', score, true));
+      var scTd = cell(score != null ? (+score).toFixed(2) : '—', score, true);
+      if (idx._pred_price != null && r[idx._pred_price]) {
+        scTd.appendChild(document.createElement('br'));
+        var est = document.createElement('span');
+        est.style.cssText = 'font-size:10px;color:var(--muted);font-weight:normal';
+        est.title = 'Regression model fair-value estimate';
+        est.textContent = 'est. ' + fmtEur(r[idx._pred_price]);
+        scTd.appendChild(est);
+      }
+      tr.appendChild(scTd);
       var srcTd = cell(r[idx.source] || '', r[idx.source]);
       var star = document.createElement('button');
       star.type = 'button';
       star.className = 'watch-star';
-      star.setAttribute('data-key', r[idx.source] + ':' + r[idx.id]);
+      star.setAttribute('data-key', rKey);
       star.setAttribute('data-label',
         ((r[idx.street] || r[idx.district] || '?') + ' · ' +
          (r[idx.rooms] || '?') + ' r · ' +
@@ -789,6 +951,33 @@ function __flatBudgetInit() {
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
         srcTd.appendChild(a);
+      }
+      if (idx.also_on != null && Array.isArray(r[idx.also_on])) {
+        r[idx.also_on].forEach(function (ao) {
+          var nm = (ao && ao.source) ? ao.source : String(ao || '');
+          if (!nm) return;
+          var el = (ao && ao.url) ? document.createElement('a') : document.createElement('span');
+          el.className = 'badge b-src';
+          if (ao && ao.url) { el.href = ao.url; el.target = '_blank'; el.rel = 'noopener noreferrer'; }
+          el.textContent = 'also on ' + nm;
+          srcTd.appendChild(document.createTextNode(' '));
+          srcTd.appendChild(el);
+        });
+      }
+      if (idx.also_cheaper != null && r[idx.also_cheaper] && r[idx.also_cheaper].price && r[idx.price_eur]) {
+        var chDiff = r[idx.price_eur] - r[idx.also_cheaper].price;
+        if (chDiff > 0) {
+          var chEl = r[idx.also_cheaper].url ? document.createElement('a') : document.createElement('span');
+          chEl.className = 'badge b-cheap';
+          if (r[idx.also_cheaper].url) {
+            chEl.href = r[idx.also_cheaper].url;
+            chEl.target = '_blank';
+            chEl.rel = 'noopener noreferrer';
+          }
+          chEl.textContent = '−' + fmtEur(chDiff) + ' on ' + (r[idx.also_cheaper].source || '?');
+          srcTd.appendChild(document.createTextNode(' '));
+          srcTd.appendChild(chEl);
+        }
       }
       // Signal chips — same motivated/relisted/district badges the
       // daily tables show (fields appended at _FLAT_FIELDS tail).
@@ -813,13 +1002,26 @@ function __flatBudgetInit() {
         srcTd.appendChild(document.createTextNode(' '));
         srcTd.appendChild(s);
       });
+      var flStr = String(r[idx.floor] || '');
+      var flm = flStr.match(/^(\\d+)\\s*\\/\\s*(\\d+)$/);
+      if (flm) {
+        var fln = parseInt(flm[1], 10), flt = parseInt(flm[2], 10);
+        var flTag = (fln === 1 && flt > 1) ? '1st fl' : ((flt > 1 && fln === flt) ? 'top fl' : '');
+        if (flTag) {
+          var flBadge = document.createElement('span');
+          flBadge.className = 'badge b-src';
+          flBadge.textContent = flTag;
+          srcTd.appendChild(document.createTextNode(' '));
+          srcTd.appendChild(flBadge);
+        }
+      }
       if (r[idx.lat] != null && r[idx.lon] != null &&
           typeof showOnMap === 'function') {
         var ml = document.createElement('a');
         ml.href = '#';
         ml.textContent = 'map';
         ml.style.cssText = 'font-size:11px;color:var(--link)';
-        ml.setAttribute('data-key', r[idx.source] + ':' + r[idx.id]);
+        ml.setAttribute('data-key', rKey);
         ml.onclick = function () {
           showOnMap(this.getAttribute('data-key'));
           return false;
@@ -833,7 +1035,7 @@ function __flatBudgetInit() {
       if (fs) {
         var ft = Date.parse(String(fs) + 'T00:00:00Z');
         if (!isNaN(ft)) {
-          var fdd = Math.max(0, Math.round((Date.now() - ft) / 86400000));
+          var fdd = Math.max(0, Math.round((refNowMs - ft) / 86400000));
           hbits.push(fdd > 0 ? 'seen ' + fdd + ' d' : 'seen today');
         }
       }
@@ -849,6 +1051,8 @@ function __flatBudgetInit() {
         hsp.style.fontSize = '12px';
         hsp.textContent = hbits.join(' · ');
         srcTd.appendChild(hsp);
+        var fSpark = sparkEl(hist);
+        if (fSpark) srcTd.appendChild(fSpark);
       }
       tr.appendChild(srcTd);
       table.appendChild(tr);
@@ -859,10 +1063,29 @@ function __flatBudgetInit() {
     }
   }
 
+  function syncUrl(rawMax, minRaw, f) {
+    if (typeof history === 'undefined' || !history.replaceState ||
+        typeof location === 'undefined') return;
+    try {
+      var p = new URLSearchParams();
+      if (minRaw) p.set('min', minRaw);
+      if (rawMax) p.set('max', rawMax);
+      if (f && f.district) p.set('district', f.district);
+      if (f && f.rooms) p.set('rooms', f.rooms);
+      if (f && f.minArea) p.set('area', String(f.minArea));
+      if (f && f.maxKm) p.set('km', String(f.maxKm));
+      if (f && f.midFloor) p.set('midfloor', '1');
+      var q = p.toString();
+      history.replaceState(null, '',
+        (location.pathname || '') + (q ? '?' + q : '') + (location.hash || ''));
+    } catch (e) {}
+  }
+
   function hide() {
     customView.style.display = 'none';
     customView.innerHTML = '';
     if (statusEl) statusEl.textContent = '';
+    syncUrl('', '', null);
   }
 
   var timer = null;
@@ -877,6 +1100,8 @@ function __flatBudgetInit() {
     if ((!raw || isNaN(maxPrice)) && !floorSet && !filtered) {
       hide(); return;
     }
+    syncUrl(!isNaN(maxPrice) ? String(maxPrice) : '',
+            floorSet ? String(floor) : '', filters);
     if (isNaN(maxPrice)) maxPrice = cfg.maxPrice;  // filters alone
     maxPrice = Math.max(cfg.minPrice, Math.min(cfg.maxPrice, maxPrice));
     var matches = rows.filter(function (r) {
@@ -901,27 +1126,24 @@ function __flatBudgetInit() {
     }
   }
 
-  input.addEventListener('input', function () {
+  function scheduleApply() {
     if (timer) clearTimeout(timer);
     timer = setTimeout(apply, 150);
+  }
+  [input, minInput, areaInput, kmInput].forEach(function (el) {
+    if (el) el.addEventListener('input', scheduleApply);
   });
-  if (minInput) minInput.addEventListener('input', function () {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(apply, 150);
-  });
-  [districtSel, roomsSel].forEach(function (el) {
-    if (el) el.addEventListener('change', function () {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(apply, 150);
-    });
+  [districtSel, roomsSel, midFloorChk].forEach(function (el) {
+    if (el) el.addEventListener('change', scheduleApply);
   });
   var resetBtn = document.getElementById('flat-budget-reset');
   if (resetBtn) resetBtn.addEventListener('click', function () {
     input.value = '';
     if (minInput) minInput.value = '';
-    [districtSel, roomsSel].forEach(function (el) {
+    [districtSel, roomsSel, areaInput, kmInput].forEach(function (el) {
       if (el) el.value = '';
     });
+    if (midFloorChk) midFloorChk.checked = false;
     hide();
   });
   var okBtn = document.getElementById('flat-budget-ok');
@@ -945,14 +1167,19 @@ function __flatBudgetInit() {
     minInput.value = urlMin;
   }
   var urlActive = !!(urlMax || urlMin);
-  ['district', 'rooms'].forEach(function (name) {
+  ['district', 'rooms', 'area', 'km'].forEach(function (name) {
     var el = document.getElementById('flat-filter-' + name);
     var v = params.get(name);
     if (v && el) { el.value = v; urlActive = true; }
   });
+  if (params.get('midfloor') === '1' && midFloorChk) {
+    midFloorChk.checked = true;
+    urlActive = true;
+  }
   if (urlActive) apply();
   if (typeof window !== 'undefined') {
-    window.__flatBudget = { apply: apply };
+    window.__flatBudget = { apply: apply, readFilters: readFilters,
+                            passesFilters: passesFilters, idx: idx };
   }
 }
 if (document.readyState === 'loading') {

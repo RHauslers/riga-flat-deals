@@ -60,13 +60,25 @@ def compute_market_stats(listings, qualified=None, today=None):
         if len(items) < config.CAR_MARKET_MIN_LISTINGS:
             continue
         make, model = display[key]
-        prices = [l.get("price_eur") for l in items if l.get("price_eur")]
-        cheapest = min((l for l in items if l.get("price_eur")),
-                       key=lambda l: l["price_eur"], default=None)
+        priced = [(p, l) for l in items
+                  for p in [utils.to_float(l.get("price_eur"))]
+                  if p and p > 0]
+        prices = [p for p, _ in priced]
+        cheapest = min(priced, key=lambda t: t[0], default=(None, None))[1]
         deals = sum(1 for l in items
                     if utils.listing_key(l) in deal_keys)
         new_today = (sum(1 for l in items if l.get("_first_seen") == today)
                      if today else 0)
+        ages = []
+        n_cuts = 0
+        for l in items:
+            if l.get("_first_seen"):
+                age = utils.days_since(l["_first_seen"], today)
+                if age is not None:
+                    ages.append(age)
+            info = utils.car_motivated(l, today=today)
+            if info and info.get("drop_eur"):
+                n_cuts += 1
         stats.append({
             "make": make, "model": model, "ads": len(items),
             "median_price": utils.median(prices),
@@ -76,6 +88,8 @@ def compute_market_stats(listings, qualified=None, today=None):
             "median_year": utils.median([l.get("year") for l in items]),
             "median_km": utils.median([l.get("mileage_km") for l in items]),
             "deals": deals, "new_today": new_today,
+            "median_age": utils.median(ages),
+            "cut_pct": round(100.0 * n_cuts / len(items)) if items else 0,
         })
     stats.sort(key=lambda s: (-s["deals"], -s["ads"],
                               s["median_price"] or 0))
@@ -106,7 +120,8 @@ def build_market_html(stats, run_date, total_ads, history=None,
         stats = []
     history = history or {}
     headers = ["Make", "Model", "Ads", "New", "Median ask", "Δ 7d", "Trend",
-               "Cheapest", "Median year", "Median km", "Deals today"]
+               "Med. days", "Cuts", "Cheapest", "Median year", "Median km",
+               "Deals today"]
     head_cells = "".join(
         "<th class='sort-th' style='padding:6px;{align}' "
         "onclick=\"sortTable('car-market', {i})\">{name}</th>".format(
@@ -139,11 +154,14 @@ def build_market_html(stats, run_date, total_ads, history=None,
                       "var(--bad)" if delta > 0 else "var(--muted)")
             delta_html = (f"<span style='color:{dcolor}'>"
                           f"{delta:+.1f}%</span>")
+        med_age = s.get("median_age")
+        age_disp = f"{int(round(med_age))} d" if med_age is not None else "—"
+        cut_pct = s.get("cut_pct") or 0
         rows.append(
             f"<tr{zebra}>"
-            f"<td style='padding:6px' data-sort='{_e(str(s['make']))}'>"
+            f"<td style='padding:6px' data-sort='{_e(str(s['make']).lower())}'>"
             f"{make_l}</td>"
-            f"<td style='padding:6px' data-sort='{_e(str(s['model']))}'>"
+            f"<td style='padding:6px' data-sort='{_e(str(s['model']).lower())}'>"
             f"{model_l}</td>"
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['ads']}'>{s['ads']}</td>"
@@ -157,6 +175,11 @@ def build_market_html(stats, run_date, total_ads, history=None,
             f"data-sort='{delta_sort:.2f}'>{delta_html}</td>"
             f"<td style='padding:6px' data-sort='{pct:.1f}'>"
             f"{spark}</td>"
+            f"<td style='padding:6px;text-align:right' "
+            f"data-sort='{med_age if med_age is not None else -1}'>"
+            f"{age_disp}</td>"
+            f"<td style='padding:6px;text-align:right' "
+            f"data-sort='{cut_pct}'>{cut_pct}%</td>"
             f"<td style='padding:6px;text-align:right' "
             f"data-sort='{s['min_price'] or 0}'>{cheap}</td>"
             f"<td style='padding:6px;text-align:right' "
@@ -173,12 +196,30 @@ def build_market_html(stats, run_date, total_ads, history=None,
         f"<table id='car-market'><tr>{head_cells}</tr>{''.join(rows)}"
         "</table>" if rows else
         "<p>No models with enough ads to summarise yet.</p>")
+    n_models = len(stats)
+    n_with_deals = sum(1 for s in stats if s.get("deals"))
+    n_deals_tot = sum(s.get("deals") or 0 for s in stats)
+    n_new_tot = sum(s.get("new_today") or 0 for s in stats)
+    car_kpis = ""
+    if stats:
+        car_kpis = (
+            "<div class='kpis'>"
+            + web_style.kpi("eligible ads", utils.fmt_num(total_ads))
+            + web_style.kpi("models", n_models)
+            + web_style.kpi("models w/ deals", n_with_deals,
+                            "good" if n_with_deals else "")
+            + web_style.kpi("deals today", n_deals_tot,
+                            "good" if n_deals_tot else "")
+            + (web_style.kpi("new today", n_new_tot, "good")
+               if n_new_tot else "")
+            + "</div>")
 
     flat_section = flat_market.flat_section_html(
         flat_stats.get("districts"), flat_stats.get("date"),
         flat_market.load_history()) \
-        if flat_stats else ("<p class='note'>No flat stats yet — they are "
-                            "written by the daily flat scan.</p>")
+        if (flat_stats and flat_stats.get("districts")) else (
+            "<p class='note'>No flat stats yet — they are "
+            "written by the daily flat scan.</p>")
 
     _STYLE = web_style.style_block(_MTAB_CSS)
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -200,13 +241,16 @@ def build_market_html(stats, run_date, total_ads, history=None,
 </div>
 <div id="mpane-cars">
 <h2>Cars — by make &amp; model</h2>
+{car_kpis}
 <p class="note">Aggregated from today's full eligible pool —
 <b>{utils.fmt_num(total_ads)}</b> ads across ss.com + pp.lv
 after cross-source dedupe. Models with fewer than
 {_e(str(config.CAR_MARKET_MIN_LISTINGS))} ads are omitted.
 <b>Deals today</b> = ads currently qualifying on the Cars tab;
 <b>New</b> = ads our scan saw for the first time today;
-<b>&Delta; 7d</b> = median ask change vs a week ago (green = cheaper).
+<b>&Delta; 7d</b> = median ask change vs a week ago (green = cheaper);
+<b>Med. days</b> = median days tracked; <b>Cuts</b> = share of ads with
+an observed price cut.
 Click column headers to sort.</p>
 <div class="box"><b>How to read this:</b> a model with many ads and a
 low median ask is easy to find cheap; <b>Deals today</b> shows where
@@ -267,27 +311,31 @@ def build_page(path=None):
 <p>Not generated yet — the market stats are written by the daily car
 scan.</p>
 </body></html>"""
+    run_date = ((data and data.get("date"))
+                or (flat_data and flat_data.get("date")) or "?")
     return build_market_html(data.get("models") if data else [],
-                             data.get("date") if data else "?",
+                             run_date,
                              data.get("total") if data else 0,
                              load_history(), flat_data)
 
 
-def save_stats(stats, run_date, total_ads, path=None):
+def save_stats(stats, run_date, total_ads, path=None, pool_median=None):
     """Persist stats for website.build() to render. Also appends today's
     per-model median ask to the history file so the page can draw a trend
     sparkline once a model has been tracked on multiple days."""
     path = path or config.CAR_MARKET_STATS_JSON
     utils.write_json(path, {"date": run_date, "total": total_ads,
                             "models": stats}, indent=None)
-    _append_history(stats, run_date)
+    _append_history(stats, run_date, pool_median=pool_median,
+                    total_ads=total_ads)
     return path
 
 
 def _append_history(stats, run_date,
-                    path=None):
+                    path=None, pool_median=None, total_ads=None):
     """car_market_history.json: {make|model: [[date, median_eur], ...]},
-    capped at CAR_MARKET_HISTORY_MAX_POINTS points per model."""
+    capped at CAR_MARKET_HISTORY_MAX_POINTS points per model.
+    '_all' is a reserved whole-market series [date, median_eur, total_ads]."""
     path = path or config.CAR_MARKET_HISTORY_JSON
     hist = utils.read_json(path, {})
     for s in stats:
@@ -298,6 +346,11 @@ def _append_history(stats, run_date,
         point = [run_date, s["median_price"]]
         utils.upsert_history_point(
             pts, run_date, point, config.CAR_MARKET_HISTORY_MAX_POINTS)
+    if pool_median is not None:
+        utils.upsert_history_point(
+            hist.setdefault("_all", []), run_date,
+            [run_date, pool_median, total_ads],
+            config.CAR_MARKET_HISTORY_MAX_POINTS)
     try:
         utils.write_json(path, hist, indent=None)
     except OSError:

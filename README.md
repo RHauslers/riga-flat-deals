@@ -27,18 +27,25 @@ publishes the result as a static site on GitHub Pages:
   Both digests end with a "Biggest price cuts" card covering the entire
   scanned pool, plus a "Stale & stubborn" card for old ads that never cut.
 - **Market context** — flat rows show `−X% vs district` when the listing's
-  €/m² undercuts the district median ≥10% (or `+N%` when it's ≥20% over);
-  cars get a `LOW KM` chip below 75% of the pool median. Auction rows
-  compare against the city median and flag lots with no bids yet
-  (`FIRST BID`); the digest KPI row carries a Riga-wide
-  `median €/m² · Δ7d` pulse and new/motivated/gone counts; the market
-  page's flats tab adds per-district median days-on-market and % of ads
-  with a cut.
+  €/m² undercuts the district median ≥10% (or `+N%` when it's ≥20% over),
+  regression fair-value estimates (`est. €X`), and `1st fl` / `top fl` floor
+  caution pills; cars get a `LOW KM` chip below 75% of the pool median, a
+  `~Xk/yr` low annual pace pill, and a `TA` (tehniskā apskate) column with
+  expired/soon/fresh (`≥10m`) color coding. Auction rows compare against both
+  the city median and the official `Novērtējums` appraisal (`−X% vs appraisal`)
+  and flag lots with no bids yet (`FIRST BID`); both digests carry market-pulse
+  KPIs (`Riga median €/m²` / `market median €X`, `live/eligible ads ±Δ vs yest`,
+  new/motivated/gone counts), a "Deal of the day" hero card, an SVG ask-price
+  histogram, and a "Stale & stubborn" card; the Market page shows `Med. days`
+  and `Cuts %` temperature columns on both the Flats and Cars tabs.
 - **Browser tools** — each digest embeds today's market snapshot so the
   budget tool re-filters/re-scores instantly in the page (min/max price,
-  district/rooms or make/model/fuel/year/km filters, shareable
-  `?min=&max=` URLs); a localStorage watchlist pins rows between visits;
-  every deal row is deep-linkable via `#r-<key>` anchors.
+  district/rooms/min-m²/max-km/mid-floors-only on Flats; make/model/fuel/
+  gearbox/body/year/km/valid-TA + `★ Heavenly` toggle on Cars, with live
+  `?min=&max=...` URL sync via `history.replaceState` and `/` keyboard focus);
+  a localStorage watchlist pins rows across all sections (with a live
+  drop/gone summary and one-click `Clear gone` button); every deal row is
+  deep-linkable via `#r-<key>` anchors.
 - **Archive** — the last 30 days of both digests. Archived digest pages have
   the large embedded market JSON stripped (the budget tool is a live-page
   feature); tables and gone sections stay intact. The archive index also

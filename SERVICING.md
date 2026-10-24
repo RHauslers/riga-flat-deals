@@ -1,10 +1,171 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-16 18:45
+Last updated: 2026-10-24 13:26
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
+
+- 2026-10-24 13:26 — /improve 50 (cold read first; sanity filter dropped
+  0 items, flagged item 3 as revisiting/completing the 2026-10-04
+  price-less scoring fix):
+  (1) BUG (utils.py:505): _street_tokens kept 'iela'/'gatve'/'bulvaris'
+    so _same_flat merged flats on different streets sharing only 'iela'
+    (e.g. 'Dammes iela 12' and 'Slokas iela 45'); street-type stopwords
+    and sh/zh/ch transliteration added;
+  (2) BUG (history.py:136): append_history opened an existing history.csv
+    in 'a' mode with encoding='utf-8-sig', injecting a mid-file \ufeff
+    BOM into the first appended row's scrape_date so
+    load_history(exclude_today=True) failed to exclude it; now uses
+    'utf-8' on append and strips \ufeff on read;
+  (3) BUG (scoring.py:61, revisiting 2026-10-04): _fallback_scores still
+    scored price_per_m2=None/0 as +(mu-0)/sd when len(vals)>=3; guarded
+    to 0.0;
+  (4) BUG (classify.py:131): comparison_header max() crashed with
+    TypeError if any today/yesterday item had score=None; filtered;
+  (5-8) utils.py hardening: median() coerces via to_float instead of
+    crashing on non-numeric strings; delta_7d() guards tuple length and
+    coerces values; dict_encode() guards non-scalars + added inverse
+    utils.dict_decode(); sparkline_svg() centers flat lines at h/2;
+  (9) BUG (gone.py:130): _norm_street now normalizes via
+    geocode._split_number + _normalize_street so transliterated/
+    abbreviated SS.com streets ('anninmuizhas bulv. 10') match full
+    names ('Anniņmuižas bulvāris 10') on relist;
+  (10) BUG (cars.py:308): enrich_inspection skipped `""` ('Bez TA' /
+    'none') when copying inspection values to deduped market rows; now
+    checks `is not None`;
+  (11) BUG (cars.py:57): a single 404 detail page in enrich_inspection
+    aborted all remaining TA fetches; now only SourceBlocked breaks,
+    per-ad errors continue;
+  (12) config.CAR_PP_RETRY_DELAY_SECONDS (15s) extracted from
+    cars.py:218 and patched to 0 in _TempPaths (test suite 25s -> 9.8s);
+  (13) BUG (helper_scripts/compact_state.py:45): rewriting v2 car
+    snapshots dropped `recent_gone`; now preserved;
+  (14-15) helper_scripts/backfill_flat_market.py +
+    backfill_car_market.py: use utils.upsert_history_point /
+    utils.dict_decode and backfill the city-wide 'Riga' and '_all'
+    market series;
+  (16-18) scrapers: car_pp.py breaks instead of raising on pg>1 navigation
+    errors and closes page in finally; city24.py coerces API numerics via
+    to_int/to_float; ss_com.py strips cell tags without spinning up
+    nested BeautifulSoup parsers per row;
+  (19-25) price_history/flat_market/car_market/geocode: coerce prices via
+    to_float, normalize `today` date objects, fallback market page title
+    date to flat_data['date'] when car stats absent, handle empty
+    districts list, use `is not None` for lat/lon, and replace raw #666
+    in school popup with var(--muted,#666);
+  (26-28) deduplication: extracted utils.gone_cut_tag_html(),
+    web_style.histogram_card_html(), and web_style.SPARK_EL_JS;
+  (29-37) HTML/CSS/JS polish: car_digest._safe_url composes
+    utils.safe_url; external card links carry target/rel; still-active
+    timeline-row uses colspan=NUM_COLS-1 and uppercase heading;
+    unique_by_key on KPI loop; map header legend; .daynav in BASE_CSS;
+    website._plain_text strips <script>/<style> before tag regex;
+  (38-42) helper_scripts/audit_data.py, regeocode_failed.py,
+    scrub_email_text.py cleanup + mid-file BOM check + stale comment
+    fixes;
+  (43-50) 9 new regression tests in TestImprove50ColdReview +
+    TestAddNewF50Cars (270 -> 279 tests, all green in 9.8s).
+
+- 2026-10-24 13:08 — /addnewf 50 (15 bug/hardening fixes + 35 flat/car/
+  market/UI features; 270 tests green, all 6 JS scripts node --check
+  clean, audit_data 0 structural warnings):
+  BUGS & HARDENING (1-15):
+  (1) BUG: utils.days_since raised TypeError when passed an ISO str or
+    datetime as `today` (e.g. build_stale_html/compute_market_stats);
+    now normalises str/datetime -> date;
+  (2) BUG: gone.recent_gone_rows called utils.days_since(r.get("gone"))
+    twice per row without passing `today` (used wall clock instead of run
+    date); now passes `today` once;
+  (3) price_history.update_price_history + fetch_cenumednieks thread
+    `today` into older_than_days and days_on_market/fetched_at;
+  (4) geocode.enrich_coordinates passes `today` into older_than_days;
+  (5) BUG: geocode._ABBREVIATIONS lacked bulv./bulv/prosp./prosp/gat./
+    lin./līn./al./krastm. ("Anniņmuižas bulv. 10" in sscom_today.html
+    became "anniņmuižas bulv. iela 10"); fixed + bulvārs added to
+    _STREET_TYPE_WORDS;
+  (6) BUG: car_digest._is_heavenly + _row used date.today().year instead
+    of `run_date`, and _is_heavenly ignored known expired/missing TA;
+    now threads `run_date` and excludes expired/"" TA when known;
+  (7) BUG: car_digest._row dropped `run_date` when calling _history_html;
+  (8) BUG: notifier._hero_card_html interpolated raw listing['url'] into
+    href without safe_url; now sanitized + rel='noopener noreferrer';
+  (9) notifier._watch_star + _flat_market_data_html use utils.safe_url
+    instead of bare startswith('https://');
+  (10) legacy {"d","p"} our_tracking rows decoded in _get_listing_age,
+    build_price_cuts_html and audit_data.py;
+  (11) price_history.format_price_timeline_html escapes dates and
+    coerces prices via to_float;
+  (12) web_style.SORT_JS guards missing cells and falls back to
+    textContent when data-sort is absent; wired sortTable onclick on
+    tbl_stale, tbl_cuts, car-cuts;
+  (13) car_value.eligible/ineligible_reason accept `today`; CAR_BUDGET_JS
+    enforces cfg.maxYear;
+  (14) website.build(today=) and car_ss.scrape(today=)/_scan_age thread
+    `today`; main.py passes `today` to website.build;
+  (15) audit_data.py now reports car_ta_cache.json and health_state.json
+    (active failure streaks); test_parsers.py gained sys.path bootstrap.
+  FLAT & AUCTION FEATURES (16-29):
+  (16) scoring._regression_scores attaches `_pred_price` (fair-value EUR
+    estimate), rendered as `est. €X` under Deal score in default + custom
+    views;
+  (17) notifier._floor_caution_chip badges `1st fl` and `top fl` on
+    multi-storey apartments (default + custom views);
+  (18) izsoles._parse_detail extracts floor (`floor`, `floor_num`,
+    `floor_total`) from legal descriptions ("3/5 stāvā", "3. stāvā",
+    Latvian ordinals);
+  (19) izsoles._parse_detail matches target districts (Zolitude,
+    Sampeteris, Imanta) via utils.match_district before falling back to
+    "Riga";
+  (20) build_auctions_html adds a green `-X% vs appraisal` chip when
+    current bid/start price is >=25% below official Novērtējums;
+  (21) build_newest_html gained a Distance column, watch-star buttons,
+    and clickable sortTable('tbl_newest', col) headers;
+  (22) build_gone_html (`tbl_gone`) gained clickable sortTable headers
+    and numeric data-sort attributes;
+  (23) watch-star buttons added to Auctions, Newest, Price Cuts and
+    Stale rows; auctions embedded in flat-listings-data `extra` with
+    deal_type='auction' so starred auctions resolve in the watchlist
+    without leaking into the sale budget table;
+  (24-26) Flat budget tool gained `min m²` (#flat-filter-area / ?area=),
+    `max km` (#flat-filter-km / ?km=), and `mid-floors only`
+    (#flat-filter-midfloor / ?midfloor=1) filters;
+  (27-29) Flat custom view gained cross-source `also on` + `also_cheaper`
+    badges, inline SVG price-trail sparklines (`sparkEl`), and `#r-<key>`
+    row ids.
+  CAR, MARKET & SHARED UI FEATURES (30-50):
+  (30-32) Car digest gained a "Deal of the day" hero card
+    (_hero_card_html), an SVG candidate ask-price histogram
+    (_histogram_card_html), and a "Stale & stubborn" card
+    (build_stale_html, STALE_MIN_DAYS_CAR=45, #sec-stale nav link);
+  (33) Car deal rows carry `id='r-<key>'` + `#` permalink anchors;
+  (34) _ta_cell fixes year-boundary month math via _ta_months_left() and
+    highlights fresh inspections (>=10 months, CAR_LONG_TA_MONTHS) in
+    green;
+  (35) _pace_chip flags low annual mileage pace (<=12k km/yr on 3+ yr
+    cars) as `~Xk/yr`;
+  (36-40) CAR_BUDGET_JS custom view gained the 8th `TA` column, `also_on`
+    cross-source links, `#car-filter-body` (?body=) dropdown,
+    `#car-filter-ta` (?ta=1) valid-TA checkbox, and `data-heaven='1'`
+    row tagging wired to CAR_HEAVEN_JS across both default and custom
+    tables;
+  (41) Car Cuts & Stale cards gained watch-star buttons; _gone_html
+    (`car-gone`) gained clickable sortTable headers;
+  (42) car_market tracks an `_all` whole-market history series; cars.html
+    renders `market median · Δ7d` and `eligible ads (±Δ vs yest)` KPIs;
+  (43-44) Market page (`docs/market.html`) gained `Med. days` and `Cuts`
+    temperature columns on the Cars table plus `.kpis` summary rows on
+    both Cars and Flats panes;
+  (45) Archive page (`docs/archive.html`) gained summary KPIs +
+    ROW_FILTER_HTML;
+  (46-47) Watchlist (`_WATCH_JS_TEMPLATE`) gained a drop/gone summary bar
+    and a one-click `Clear gone (N)` button;
+  (48-49) Live URL query-string sync via `history.replaceState` in both
+    budget tools + `/` keyboard shortcut (and `Escape` to blur) in
+    TOP_BTN_HTML;
+  (50) Cleaned up unclosed-file ResourceWarnings and leaked mkdtemp in
+    test_flats_pipeline.py; added 16 new tests (TestAddNewF50Flats +
+    TestAddNewF50Cars). Tests: 254 -> 270, all green.
 
 - 2026-10-16 18:45 — push + live run. Remote had advanced 7 daily data
   commits (Oct 11-16, incl. today's 0f0fea2); code batch committed as

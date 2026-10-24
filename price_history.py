@@ -74,7 +74,7 @@ def _parse_date(text):
         return None
 
 
-def fetch_cenumednieks(ss_id):
+def fetch_cenumednieks(ss_id, today=None):
     """Fetch price history for an SS.com listing from CenuMednieks.lv.
 
     Returns dict with:
@@ -84,6 +84,8 @@ def fetch_cenumednieks(ss_id):
 
     Returns None if the page is not found or parsing fails.
     """
+    today_d = (date.fromisoformat(str(today)[:10])
+               if isinstance(today, str) else (today or date.today()))
     url = f"{CENU_BASE}{ss_id}"
     try:
         r = requests.get(url, headers={'User-Agent': CENU_USER_AGENT},
@@ -108,7 +110,7 @@ def fetch_cenumednieks(ss_id):
         'first_listed_date': None,
         'days_on_market': None,
         'previous_listings': [],
-        'fetched_at': date.today().isoformat(),
+        'fetched_at': today_d.isoformat(),
         'source_url': url,
     }
 
@@ -151,7 +153,7 @@ def fetch_cenumednieks(ss_id):
             if listed_date:
                 try:
                     d = datetime.strptime(listed_date, '%Y-%m-%d').date()
-                    result['days_on_market'] = (date.today() - d).days
+                    result['days_on_market'] = (today_d - d).days
                 except ValueError:
                     pass
         else:
@@ -215,8 +217,8 @@ def update_price_history(listings, today=None):
     n_tracked = 0
 
     for listing in listings:
-        price = listing.get('price_eur')
-        if not price or not listing.get('source') or not listing.get('id'):
+        price = utils.to_float(listing.get('price_eur'))
+        if not price or price <= 0 or not listing.get('source') or not listing.get('id'):
             # no id -> the key would collapse every id-less listing into
             # one shared "source:None" entry
             continue
@@ -239,17 +241,17 @@ def update_price_history(listings, today=None):
         #      before the current one), inject it as a synthetic earlier
         #      observation so we capture drops we missed before tracking.
         if entry.get('first_seen') is None:
-            entry['first_seen'] = today
+            entry['first_seen'] = str(today)[:10]
             # city24 old_price: inject as a synthetic prior observation
-            old_price = listing.get('old_price')
-            if old_price and float(old_price) > 0 and float(old_price) != float(price):
+            old_price = utils.to_float(listing.get('old_price'))
+            if old_price and old_price > 0 and old_price != price:
                 # Use yesterday as the date (we don't know when it changed)
-                yesterday = (date.fromisoformat(today)
+                yesterday = (date.fromisoformat(str(today)[:10])
                              - timedelta(days=1)).isoformat()
-                entry['our_tracking'].append({'date': yesterday, 'price': float(old_price)})
-                entry['city24_old_price'] = float(old_price)
+                entry['our_tracking'].append({'date': yesterday, 'price': old_price})
+                entry['city24_old_price'] = old_price
 
-        today_obs = {'date': today, 'price': float(price)}
+        today_obs = {'date': str(today)[:10], 'price': price}
         if not entry['our_tracking']:
             entry['our_tracking'].append(today_obs)
             n_tracked += 1
@@ -257,17 +259,17 @@ def update_price_history(listings, today=None):
             # Legacy "p"/"d"-keyed rows decode too — flat_motivated already
             # tolerates them; a direct ['price'] index used to KeyError here.
             last_obs = entry['our_tracking'][-1] or {}
-            last_price = last_obs.get('price', last_obs.get('p'))
+            last_price = utils.to_float(last_obs.get('price', last_obs.get('p')))
             last_date = last_obs.get('date', last_obs.get('d'))
-            if last_price != float(price):
+            if last_price != price:
                 # Price changed — new observation
                 entry['our_tracking'].append(today_obs)
                 n_tracked += 1
-            elif last_date != today:
+            elif last_date != str(today)[:10]:
                 # Same price, new day — update the LAST entry's date only.
                 # This is safe: our_tracking[0] is only touched when a price
                 # change creates a new first entry, which can't happen here.
-                last_obs['date'] = today
+                last_obs['date'] = str(today)[:10]
 
         # 2. Fetch CenuMednieks data for SS.com listings (weekly refresh).
         #    cenumednieks_attempt stamps every try — hits AND misses — so an
@@ -280,13 +282,18 @@ def update_price_history(listings, today=None):
             needs_refresh = (
                 not cached
                 or utils.older_than_days(cached.get('fetched_at'),
-                                       config.CENU_REFRESH_DAYS)
+                                         config.CENU_REFRESH_DAYS,
+                                         today=today)
             )
             due = utils.older_than_days(entry.get('cenumednieks_attempt'),
-                                      config.CENU_REFRESH_DAYS)
+                                        config.CENU_REFRESH_DAYS,
+                                        today=today)
             if needs_refresh and due:
                 entry['cenumednieks_attempt'] = today
-                cenu_data = fetch_cenumednieks(ss_id)
+                try:
+                    cenu_data = fetch_cenumednieks(ss_id, today=today)
+                except TypeError:
+                    cenu_data = fetch_cenumednieks(ss_id)
                 if cenu_data:
                     entry['cenumednieks'] = cenu_data
                     n_fetched += 1
@@ -296,7 +303,7 @@ def update_price_history(listings, today=None):
 
     # Prune entries whose newest observed activity is older than
     # PRICE_HISTORY_KEEP_DAYS — dead listings were accumulating forever.
-    cutoff = (date.fromisoformat(today)
+    cutoff = (date.fromisoformat(str(today)[:10])
               - timedelta(days=config.PRICE_HISTORY_KEEP_DAYS)).isoformat()
     stale = [k for k, e in history.items()
              if (_entry_last_activity(e) or "") < cutoff]
@@ -435,19 +442,21 @@ def format_price_timeline_html(listing, history=None):
     parts = []
     if len(current_timeline) == 1:
         t = current_timeline[0]
+        p_val = utils.to_float(t.get("price"), 0.0)
+        d_str = utils.esc(t.get("date"))
         parts.append(f'<span style="color:var(--muted);font-size:11px">'
-                     f'Listed at <b>{t["price"]:,.0f} EUR</b> ({t["date"]}), '
+                     f'Listed at <b>{p_val:,.0f} EUR</b> ({d_str}), '
                      f'unchanged</span>')
     else:
         for i, t in enumerate(current_timeline):
-            price = t['price']
-            date_str = t['date']
+            price = utils.to_float(t.get('price'), 0.0)
+            date_str = utils.esc(t.get('date'))
             if i == 0:
                 parts.append(f'<span style="color:var(--muted);font-size:11px">'
                             f'First: <b>{price:,.0f} EUR</b> ({date_str})</span>')
             else:
-                prev_price = current_timeline[i - 1]['price']
-                if price != prev_price:
+                prev_price = utils.to_float(current_timeline[i - 1].get('price'), 0.0)
+                if price != prev_price and prev_price > 0:
                     pct = ((price - prev_price) / prev_price) * 100
                     # Up = bad for the buyer (red), down = good (green).
                     color = 'var(--bad)' if price > prev_price else 'var(--good)'
@@ -468,9 +477,11 @@ def format_price_timeline_html(listing, history=None):
         hidden_count = len(previous_ads_sorted) - 3
         prev_parts = []
         for t in shown:
+            p_val = utils.to_float(t.get("price"), 0.0)
+            d_str = utils.esc(t.get("date"))
             prev_parts.append(
                 f'<span style="color:var(--faint);font-size:10px">'
-                f'{t["price"]:,.0f} EUR ({t["date"]})</span>'
+                f'{p_val:,.0f} EUR ({d_str})</span>'
             )
         prev_str = " &middot; ".join(prev_parts)
         if hidden_count > 0:

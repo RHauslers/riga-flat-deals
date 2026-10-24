@@ -35,7 +35,7 @@ def _rows_by_day(csv_path):
             if r.get("deal_type") != "sale":
                 continue
             district = (r.get("district") or "").strip()
-            day = (r.get("scrape_date") or "").strip()
+            day = (r.get("scrape_date") or "").lstrip("\ufeff").strip()
             if not district or not day:
                 continue
             try:
@@ -57,7 +57,9 @@ def main():
     hist = flat_market.load_history()
     added = updated = 0
     for day in sorted(per_day):
+        all_day_rows = []
         for district, rows in per_day[day].items():
+            all_day_rows.extend(rows.values())
             ppu = utils.median([utils.to_float(r.get("price_per_m2"))
                                 for r in rows.values()])
             price = utils.median([utils.to_float(r.get("price_eur"))
@@ -66,17 +68,27 @@ def main():
                 continue
             pts = hist.setdefault(district, [])
             point = [day, ppu, price, len(rows)]
-            for i, p in enumerate(pts):
-                if p[0] == day:
-                    if p != point:
-                        pts[i] = point
-                        updated += 1
-                    break
-            else:
-                pts.append(point)
+            before = list(pts)
+            utils.upsert_history_point(
+                pts, day, point, config.FLAT_MARKET_HISTORY_MAX_POINTS)
+            if len(pts) > len(before):
                 added += 1
-            pts.sort(key=lambda p: str(p[0]))
-            del pts[:-config.FLAT_MARKET_HISTORY_MAX_POINTS]
+            elif pts != before:
+                updated += 1
+        city_ppu = utils.median([utils.to_float(r.get("price_per_m2"))
+                                 for r in all_day_rows])
+        city_price = utils.median([utils.to_float(r.get("price_eur"))
+                                   for r in all_day_rows])
+        if city_ppu is not None:
+            rpts = hist.setdefault("Riga", [])
+            rpoint = [day, city_ppu, city_price, len(all_day_rows)]
+            before_r = list(rpts)
+            utils.upsert_history_point(
+                rpts, day, rpoint, config.FLAT_MARKET_HISTORY_MAX_POINTS)
+            if len(rpts) > len(before_r):
+                added += 1
+            elif rpts != before_r:
+                updated += 1
 
     if added or updated:
         utils.write_json(config.FLAT_MARKET_HISTORY_JSON, hist, indent=None)

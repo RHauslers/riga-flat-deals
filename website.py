@@ -250,10 +250,20 @@ def _strip_archive_embeds():
             pass
 
 
+_SCRIPT_STYLE_RE = re.compile(
+    r"<script\b[^>]*>.*?</script\s*>|<style\b[^>]*>.*?</style\s*>",
+    re.S | re.I)
+
+
+def _plain_text(html):
+    text = _SCRIPT_STYLE_RE.sub(" ", html or "")
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"\s+", " ", text)
+
+
 def _extract_summary(html):
     """Extract a short summary (deal counts) from a digest HTML file."""
-    text = re.sub(r"<[^>]+>", " ", html)
-    text = re.sub(r"\s+", " ", text)
+    text = _plain_text(html)
     # try to find "X new/changed" and "Y still active" from the subject/comparison
     main = re.search(r"(\d+)\s+new\s*/?\s*changed", text, re.I)
     still = re.search(r"(\d+)\s+still\s*active", text, re.I)
@@ -267,8 +277,7 @@ def _extract_summary(html):
 
 def _extract_car_summary(html):
     """Short summary for a car digest: qualifying-deal count + badge bits."""
-    text = re.sub(r"<[^>]+>", " ", html)
-    text = re.sub(r"\s+", " ", text)
+    text = _plain_text(html)
     parts = []
     qual = re.search(r"All qualifying deals \((\d+)\)", text)
     if qual:
@@ -281,14 +290,15 @@ def _extract_car_summary(html):
     return ", ".join(parts)
 
 
-def build():
+def build(today=None):
     """Copy the latest flat digest to docs/index.html and the latest car
     digest to docs/cars.html, mirror both into docs/archive/, then
     regenerate docs/archive.html with links to all past digests.
     The originals in data/digests/ are never modified — the Flats/Cars tab
     bar is injected only into the hosted copies."""
     _ensure_dirs()
-    today = date.today().isoformat()
+    today = str(today)[:10] if today else date.today().isoformat()
+    today_d = date.fromisoformat(today)
     prune_old_digests(today)
 
     # find the latest digest
@@ -487,9 +497,12 @@ def build():
     flat_dates = {d for d in (_digest_date(f, "digest") for f in archive_files) if d}
     car_dates = {d for d in (_digest_date(f, "cars") for f in car_archive_files) if d}
     strip = []
+    n_both = 0
     for i in range(config.ARCHIVE_GAP_DAYS - 1, -1, -1):
-        d = (date.today() - timedelta(days=i)).isoformat()
+        d = (today_d - timedelta(days=i)).isoformat()
         both = d in flat_dates and d in car_dates
+        if both:
+            n_both += 1
         label = ("flat + car digests" if both else
                  "flat digest only" if d in flat_dates else
                  "car digest only" if d in car_dates else "no scan")
@@ -502,6 +515,14 @@ def build():
         f"<div class='note'>Last {config.ARCHIVE_GAP_DAYS} days: "
         "green = both digests, amber = one source only, red = no scan. "
         "Hover a cell for the date.</div></div>")
+    arch_kpis = (
+        "<div class='kpis'>"
+        + web_style.kpi("flat digests", len(archive_files))
+        + web_style.kpi("car digests", len(car_archive_files))
+        + web_style.kpi(f"{config.ARCHIVE_GAP_DAYS}d complete",
+                        f"{n_both}/{config.ARCHIVE_GAP_DAYS}",
+                        "good" if n_both == config.ARCHIVE_GAP_DAYS else "warn")
+        + "</div>")
 
     _STYLE = web_style.style_block()
     archive_html = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -513,7 +534,8 @@ def build():
 {web_style.TOP_BTN_HTML}
 {_nav_html("", "")}
 <h1>Riga flat & car deals — archive</h1>
-<p class="note">Districts: {', '.join(config.DISTRICTS.keys())} · Sources: ss.com, city24.lv, pp.lv</p>
+<p class="note">Districts: {', '.join(config.DISTRICTS.keys())} · Sources: ss.com, city24.lv, pp.lv {web_style.ROW_FILTER_HTML}</p>
+{arch_kpis}
 {coverage_html}
 <p><a href="index.html">← Back to today's deals</a></p>
 <div class='card'><h2>Flat digests ({len(archive_files)} total)</h2>

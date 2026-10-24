@@ -53,7 +53,7 @@ def update_seen_deals(scored_by_type, seen_deals, today=None):
             }
     # Prune entries not re-shown for SEEN_DEALS_TTL_DAYS — the dict
     # otherwise grows forever with long-gone listings.
-    cutoff = (date.fromisoformat(today)
+    cutoff = (date.fromisoformat(str(today)[:10])
               - timedelta(days=config.SEEN_DEALS_TTL_DAYS)).isoformat()
     stale = [k for k, v in seen_deals.items()
              if (v.get("last_shown_date") or "") < cutoff]
@@ -131,9 +131,12 @@ def append_history(listings, latest_price=None, today=None):
                 for r in csv.DictReader(f):
                     # DictReader yields rows in file order, so the last one wins
                     latest_price[utils.listing_key(r)] = utils.to_float(r.get('price_eur'))
-    today = today or date.today().isoformat()
+    today = str(today)[:10] if today else date.today().isoformat()
     new_rows = 0
-    with open(config.HISTORY_CSV, "a", encoding="utf-8-sig", newline="") as f:
+    # Use utf-8-sig only when creating the file; appending with utf-8-sig
+    # injects a fresh \ufeff BOM into the first appended row's scrape_date.
+    enc = "utf-8" if exists else "utf-8-sig"
+    with open(config.HISTORY_CSV, "a", encoding=enc, newline="") as f:
         writer = csv.DictWriter(f, fieldnames=config.HISTORY_COLUMNS)
         if not exists:
             writer.writeheader()
@@ -179,11 +182,13 @@ def load_history(exclude_today=False, today=None):
     """
     if not os.path.exists(config.HISTORY_CSV):
         return []
-    today = today or date.today().isoformat()
+    today = str(today)[:10] if today else date.today().isoformat()
     rows = []
     with open(config.HISTORY_CSV, "r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         for r in reader:
+            if r.get("scrape_date"):
+                r["scrape_date"] = r["scrape_date"].lstrip("\ufeff")
             if exclude_today and r.get("scrape_date") == today:
                 continue
             rows.append(r)

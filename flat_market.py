@@ -1,7 +1,7 @@
 """Per-district flat-market stats, rendered as a section on the Market
 tab (docs/market.html) by website.build().
 
-Symmetric to car_market.py: aggregates today's in-budget flat listings
+Symmetric to car_market.py: aggregates today's sale flat listings
 per district — ad count, median EUR/m2, median ask, cheapest ad, and how
 many were first seen today. main.run() writes the JSON; the page renders
 from it, so no extra scraping is involved.
@@ -13,11 +13,12 @@ from urllib.parse import quote as _q
 
 import config
 import utils
+import web_style
 
 
 def compute_district_stats(listings, price_data=None, today=None,
                            deal_type="sale"):
-    """Group in-budget listings of ``deal_type`` by district.
+    """Group listings of ``deal_type`` by district.
 
     Returns [{district, ads, median_ppu, median_price, min_price,
     min_url, new_today}], sorted by ads desc. ``price_data`` (the
@@ -35,9 +36,11 @@ def compute_district_stats(listings, price_data=None, today=None,
 
     stats = []
     for district, items in groups.items():
-        prices = [l.get("price_eur") for l in items if l.get("price_eur")]
-        cheapest = min((l for l in items if l.get("price_eur")),
-                       key=lambda l: l["price_eur"], default=None)
+        priced = [(p, l) for l in items
+                  for p in [utils.to_float(l.get("price_eur"))]
+                  if p and p > 0]
+        prices = [p for p, _ in priced]
+        cheapest = min(priced, key=lambda t: t[0], default=(None, None))[1]
         new_today = 0
         ages = []
         n_cuts = 0
@@ -150,8 +153,23 @@ def flat_section_html(stats, run_date=None, history=None):
         return ""
     history = history or {}
     as_of = f" — as of {_e(str(run_date))}" if run_date else ""
+    tot_ads = sum(s.get("ads") or 0 for s in stats)
+    tot_new = sum(s.get("new_today") or 0 for s in stats)
+    riga_ppu = utils.median([s.get("median_ppu") for s in stats
+                             if s.get("median_ppu")])
+    kpis = [
+        web_style.kpi("live ads", tot_ads),
+        web_style.kpi("districts", len(stats)),
+    ]
+    if riga_ppu:
+        kpis.append(web_style.kpi("median €/m²",
+                                  f"€{int(round(riga_ppu)):,}"))
+    if tot_new:
+        kpis.append(web_style.kpi("new today", tot_new, "good"))
+    kpi_row = f"<div class='kpis'>{''.join(kpis)}</div>"
     return (
         f"<h2 id='flats'>Riga flat market — by district{as_of}</h2>"
+        f"{kpi_row}"
         "<p class='note'>All in-budget sale listings from today's scan, "
         "grouped by district. Median €/m² is the asking-price reality "
         "check; <b>New</b> = ads first seen today; <b>Δ 7d</b> = median "

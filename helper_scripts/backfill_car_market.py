@@ -40,22 +40,8 @@ FILE_DATE_RE = re.compile(r"cars_(\d{4}-\d{2}-\d{2})\.html$")
 
 
 def _decode_listings(payload):
-    """car-market-data payload -> [{make, model, price_eur, ...}].
-
-    Rows are positional against payload['fields']; string columns named
-    in payload['dict'] carry integer dictionary indices.
-    """
-    fields = payload.get("fields") or []
-    dicts = payload.get("dict") or {}
-    out = []
-    for row in payload.get("rows") or []:
-        l = dict(zip(fields, row))
-        for f, table in dicts.items():
-            v = l.get(f)
-            if isinstance(v, int) and 0 <= v < len(table):
-                l[f] = table[v]
-        out.append(l)
-    return out
+    """car-market-data payload -> [{make, model, price_eur, ...}]."""
+    return utils.dict_decode(payload)
 
 
 def _model_medians(listings):
@@ -104,11 +90,19 @@ def main():
         except ValueError:
             print(f"[backfill] {run_date}: unparseable embed — skip")
             continue
-        medians = _model_medians(_decode_listings(payload))
+        decoded = _decode_listings(payload)
+        medians = _model_medians(decoded)
         for key, med in medians.items():
             pts = hist.setdefault(key, [])
             utils.upsert_history_point(
                 pts, run_date, [run_date, med], MAX_POINTS)
+            n_points += 1
+        pool_med = utils.median(
+            [l.get("price_eur") for l in decoded if l.get("price_eur")])
+        if pool_med is not None:
+            utils.upsert_history_point(
+                hist.setdefault("_all", []), run_date,
+                [run_date, pool_med, len(decoded)], MAX_POINTS)
             n_points += 1
         n_days += 1
         print(f"[backfill] {run_date}: {len(medians)} model medians")

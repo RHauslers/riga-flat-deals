@@ -16,6 +16,8 @@ from unittest import mock
 import requests
 from bs4 import BeautifulSoup
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from scrapers import ss_com, car_ss, car_pp, izsoles, city24
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")

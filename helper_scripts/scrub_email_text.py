@@ -5,9 +5,15 @@ and delete old alert_*.html email artifacts. Idempotent."""
 import glob
 import os
 import re
+import sys
 
-DATA_DIGESTS = "data/digests"
-DOCS_ARCHIVE = "docs/archive"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import config
+import utils
+
+DATA_DIGESTS = config.DIGEST_DIR
+DOCS_ARCHIVE = os.path.join(config.BASE_DIR, "docs", "archive")
 UNSUB_RE = re.compile(
     r"<p class=['\"]note['\"]>To unsubscribe[^<]*</p>\s*")
 CAR_FOOTER_RE = re.compile(
@@ -19,8 +25,7 @@ def _scrub_file(path):
         text = f.read()
     new = CAR_FOOTER_RE.sub("", UNSUB_RE.sub("", text))
     if new != text:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(new)
+        utils.write_text(path, new)
         return True
     return False
 

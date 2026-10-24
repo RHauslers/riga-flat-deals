@@ -42,12 +42,15 @@ def main():
             cars._write_seen(cars._read_seen(path), path)
         else:
             snap = cars.load_snapshot(path)
-            utils.write_json(path, {
+            payload = {
                 "v": 2, "date": snap.get("date"),
                 "fields": list(config.CAR_SNAPSHOT_FIELDS),
                 "rows": [[l.get(f) for f in config.CAR_SNAPSHOT_FIELDS]
-                         for l in snap.get("listings") or []]},
-                indent=None)
+                         for l in snap.get("listings") or []],
+            }
+            if snap.get("recent_gone") is not None:
+                payload["recent_gone"] = snap.get("recent_gone")
+            utils.write_json(path, payload, indent=None)
         after = os.path.getsize(path)
         print(f"[compact] {label}: {before:,} -> {after:,} bytes "
               f"({100 * after / before:.0f}% of v1; backup {bak})")

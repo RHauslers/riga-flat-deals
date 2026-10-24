@@ -17,6 +17,7 @@ We walk pages /pg=1 .. /pg=N, collect items, and keep only those whose
 address.district_name matches one of our target districts.
 """
 import config
+import utils
 from utils import match_district, slugify
 
 API_HOST = "api.city24.lv"
@@ -36,8 +37,8 @@ def _extract_item(item, deal_type):
     street_full = " ".join(p for p in [street, house] if p).strip()
 
     attrs = item.get("attributes") or {}
-    floor_num = attrs.get("FLOOR")
-    floor_total = attrs.get("TOTAL_FLOORS")
+    floor_num = utils.to_int(attrs.get("FLOOR"))
+    floor_total = utils.to_int(attrs.get("TOTAL_FLOORS"))
     if floor_num is not None and floor_total is not None:
         floor_text = f"{floor_num}/{floor_total}"
     elif floor_num is not None:
@@ -48,10 +49,10 @@ def _extract_item(item, deal_type):
     project = item.get("project") or {}
     series = project.get("project_name") or ""
 
-    rooms = item.get("room_count")
-    area = item.get("property_size")
-    price = item.get("price")
-    ppu = item.get("price_per_unit")
+    rooms = utils.to_int(item.get("room_count"))
+    area = utils.to_float(item.get("property_size"))
+    price = utils.to_float(item.get("price"))
+    ppu = utils.to_float(item.get("price_per_unit"))
 
     if price is None or area is None or area <= 0:
         return None
@@ -76,19 +77,19 @@ def _extract_item(item, deal_type):
         "url": url,
         "district": district,
         "street": street_full,
-        "rooms": int(rooms) if rooms is not None else None,
-        "area_m2": float(area),
+        "rooms": rooms,
+        "area_m2": area,
         "floor": floor_text,
-        "floor_num": int(floor_num) if floor_num is not None else None,
-        "floor_total": int(floor_total) if floor_total is not None else None,
+        "floor_num": floor_num,
+        "floor_total": floor_total,
         "series": series,
-        "price_eur": float(price),
-        "price_per_m2": float(ppu) if ppu is not None else round(float(price) / float(area), 2),
+        "price_eur": price,
+        "price_per_m2": ppu if ppu is not None else round(price / area, 2),
         "price_unit": "mon",  # city24 rent search is long-term by default
         "title": title,
-        "lat": float(item.get("latitude")) if item.get("latitude") else None,
-        "lon": float(item.get("longitude")) if item.get("longitude") else None,
-        "old_price": float(item.get("old_price")) if item.get("old_price") else None,
+        "lat": utils.to_float(item.get("latitude")),
+        "lon": utils.to_float(item.get("longitude")),
+        "old_price": utils.to_float(item.get("old_price")),
         "show_price_drop": bool(item.get("show_price_drop")),
     }
 

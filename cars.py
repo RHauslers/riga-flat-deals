@@ -39,7 +39,7 @@ def enrich_inspection(listings, today):
     per run. pp.lv ads can't be read without a browser; they stay
     unknown."""
     cache = utils.read_json(config.CAR_TA_CACHE_JSON, {})
-    fresh_cutoff = (date.fromisoformat(today)
+    fresh_cutoff = (date.fromisoformat(str(today)[:10])
                     - timedelta(days=config.CAR_TA_CACHE_DAYS)).isoformat()
     fetched = 0
     for l in listings:
@@ -50,16 +50,20 @@ def enrich_inspection(listings, today):
         if entry and (entry.get("f") or "") >= fresh_cutoff:
             l["inspection"] = entry.get("ta")
             continue
-        if l.get("source") != "ss.com" or fetched >= config.CAR_TA_MAX_FETCHES:
+        if (l.get("source") != "ss.com" or not l.get("url")
+                or fetched >= config.CAR_TA_MAX_FETCHES):
             continue
         try:
             ta = car_ss.fetch_inspection(l.get("url"))
-        except Exception as e:
-            print(f"[cars] inspection fetch stopped: {e}")
+        except car_ss.SourceBlocked as e:
+            print(f"[cars] inspection fetch blocked: {e}")
             break
+        except Exception as e:
+            print(f"[cars] inspection fetch skipped for {key}: {e}")
+            continue
         fetched += 1
         l["inspection"] = ta
-        cache[key] = {"ta": ta, "f": today}
+        cache[key] = {"ta": ta, "f": str(today)[:10]}
     stale = [k for k, v in cache.items()
              if (v.get("f") or "") < fresh_cutoff]
     for k in stale:
@@ -209,13 +213,16 @@ def run(today=None):
         attempts = 2 if name == "pp.lv" else 1
         for attempt in range(attempts):
             try:
-                raw[name] = scraper.scrape()
+                try:
+                    raw[name] = scraper.scrape(today=today)
+                except TypeError:
+                    raw[name] = scraper.scrape()
                 break
             except Exception as e:
                 if attempt + 1 < attempts:
                     print(f"[cars] {name} scrape failed ({e}); "
-                          "retrying in 15 s")
-                    time.sleep(15)
+                          f"retrying in {config.CAR_PP_RETRY_DELAY_SECONDS} s")
+                    time.sleep(config.CAR_PP_RETRY_DELAY_SECONDS)
                     continue
                 raw[name] = []
                 source_errors[name] = f"{type(e).__name__}: {e}"
@@ -228,11 +235,11 @@ def run(today=None):
     for name, items in raw.items():
         n_ok = 0
         for l in items:
-            if car_value.eligible(l):
+            if car_value.eligible(l, today=today):
                 eligible_listings.append(l)
                 n_ok += 1
             else:
-                reason = car_value.ineligible_reason(l)
+                reason = car_value.ineligible_reason(l, today=today)
                 drop_reasons[reason] = drop_reasons.get(reason, 0) + 1
         source_counts[name] = {"raw": len(items), "eligible": n_ok}
         if n_ok == 0 and name not in source_errors:
@@ -306,11 +313,11 @@ def run(today=None):
     # embedded market JSON (and therefore the browser custom view) reads.
     enrich_inspection(qualified, today)
     _insp = {utils.listing_key(l): l["inspection"] for l in qualified
-             if l.get("inspection")}
+             if l.get("inspection") is not None}
     for l in deduped:
         if l.get("inspection") is None:
             v = _insp.get(utils.listing_key(l))
-            if v:
+            if v is not None:
                 l["inspection"] = v
 
     utils.write_json(config.CAR_MARKET_SNAPSHOT_JSON,
@@ -364,18 +371,35 @@ def run(today=None):
 
     # Per-model market stats for the Market tab (docs/market.html),
     # rendered by website.build() from this JSON.
+    _pool_median = utils.median(
+        [utils.to_float(l.get("price_eur")) for l in deduped
+         if l.get("price_eur")])
     car_market.save_stats(
         car_market.compute_market_stats(deduped, qualified, today),
-        today, len(deduped))
+        today, len(deduped), pool_median=_pool_median)
+    _car_pulse = None
+    if _pool_median:
+        _all_hist = car_market.load_history().get("_all", [])
+        _ADS_IDX = 2
+        _ads_prev = (_all_hist[-2][_ADS_IDX]
+                     if len(_all_hist) > 1 and len(_all_hist[-2]) > _ADS_IDX
+                     else None)
+        _car_pulse = {
+            "median": _pool_median,
+            "delta": utils.delta_7d(_all_hist),
+            "ads": len(deduped),
+            "ads_delta": (len(deduped) - _ads_prev
+                          if _ads_prev is not None else None),
+        }
 
     health.check_cars(source_counts, source_errors)
 
     html_text = car_digest.build_html(qualified, assessed, source_counts,
                                       source_errors, badges, today,
                                       market=deduped, gone=gone_car_rows,
-                                      seen=seen)
+                                      seen=seen, market_pulse=_car_pulse)
     path = _save_digest(html_text, today)
-    cutoff = (date.fromisoformat(today)
+    cutoff = (date.fromisoformat(str(today)[:10])
               - timedelta(days=config.CAR_SEEN_TTL_DAYS)).isoformat()
     stale = [k for k, v in seen.items()
              if (v.get("last_seen") or v.get("first_seen") or "") < cutoff]
