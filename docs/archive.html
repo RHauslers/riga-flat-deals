@@ -181,6 +181,11 @@ button.ghost{background:var(--row-alt);font-weight:700}
 .site-nav a:hover{background:var(--hover);text-decoration:none}
 .site-nav a.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .site-nav a.on:hover{filter:brightness(1.08)}
+.daynav{font-size:12px;margin:2px 0 12px;color:var(--faint)}
+.daynav a{color:var(--link);text-decoration:none;padding:1px 6px}
+.daynav a:hover{text-decoration:underline}
+.daynav .cur{font-weight:600;color:var(--fg);padding:0 6px}
+.daynav .off{color:var(--faint);padding:1px 6px}
 
 /* Archive coverage strip cells */
 .cov-cell{display:inline-block;width:14px;height:14px;margin-right:3px;
@@ -231,18 +236,37 @@ title="Back to top">&#8593;</button>
 <script>(function(){var b=document.getElementById('top-btn');
 function paint(){b.style.display=(window.scrollY>600)?'block':'none';}
 b.onclick=function(){window.scrollTo({top:0,behavior:'smooth'});};
-if(window.addEventListener){addEventListener('scroll',paint,{passive:true});}
+if(window.addEventListener){addEventListener('scroll',paint,{passive:true});
+addEventListener('keydown',function(e){
+var a=document.activeElement,tag=a&&a.tagName?a.tagName.toUpperCase():'';
+if(e.key==='Escape'&&(tag==='INPUT'||tag==='SELECT')){a.blur();return;}
+if(e.key==='/'&&tag!=='INPUT'&&tag!=='TEXTAREA'&&tag!=='SELECT'&&!e.ctrlKey&&!e.metaKey){
+var el=document.querySelector&&document.querySelector('input[type="number"],input[type="text"]');
+if(el){e.preventDefault();el.focus();if(el.select)el.select();}}});}
 paint();})();</script>
 <style>.site-nav{margin:0 0 18px}.site-nav a{display:inline-block;padding:7px 16px;margin-right:6px;border-radius:999px;text-decoration:none;font-size:13.5px;font-weight:600;background:var(--card,#fff);color:var(--accent,#1d4ed8);border:1px solid var(--line,#e2e8f0)}.site-nav a:hover{background:var(--hover,#eef4fb);text-decoration:none}.site-nav a.on{background:var(--accent,#1d4ed8);color:#fff;border-color:var(--accent,#1d4ed8)}.daynav{font-size:12px;margin:2px 0 12px;color:var(--faint,#94a3b8)}.daynav a{color:var(--link,#2563eb);text-decoration:none;padding:1px 6px}.daynav a:hover{text-decoration:underline}.daynav .cur{font-weight:600;color:var(--fg,#0f172a);padding:0 6px}.daynav .off{color:var(--faint,#94a3b8);padding:1px 6px}</style><nav class="site-nav" aria-label="Sections"><a href="index.html">Flats</a><a href="cars.html">Cars</a><a href="market.html">Market</a><a href="archive.html">Archive</a></nav>
 
 <h1>Riga flat & car deals — archive</h1>
-<p class="note">Districts: Zolitude, Sampeteris, Imanta · Sources: ss.com, city24.lv, pp.lv</p>
+<p class="note">Districts: Zolitude, Sampeteris, Imanta · Sources: ss.com, city24.lv, pp.lv <input type="text" id="row-filter"
+placeholder="filter rows&hellip;" style="width:140px;margin-left:8px"
+title="Show only rows containing this text">
+<script>(function(){
+var q=document.getElementById('row-filter');if(!q)return;
+q.addEventListener('input',function(){
+var needle=q.value.toLowerCase();
+var trs=document.querySelectorAll('table tr');
+for(var i=0;i<trs.length;i++){var tr=trs[i];
+if(tr.querySelector('th'))continue;
+tr.style.display=(!needle||tr.textContent.toLowerCase()
+.indexOf(needle)>=0)?'':'none';}});
+})();</script></p>
+<div class='kpis'><div class='kpi'><b>28</b><span>flat digests</span></div><div class='kpi'><b>29</b><span>car digests</span></div><div class='kpi warn'><b>11/14</b><span>14d complete</span></div></div>
 <div class='card'><span class='cov-cell cov-both' title='2026-10-11: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-12: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-13: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-14: flat + car digests'></span><span class='cov-cell cov-one' title='2026-10-15: car digest only'></span><span class='cov-cell cov-both' title='2026-10-16: flat + car digests'></span><span class='cov-cell cov-one' title='2026-10-17: car digest only'></span><span class='cov-cell cov-both' title='2026-10-18: flat + car digests'></span><span class='cov-cell cov-one' title='2026-10-19: car digest only'></span><span class='cov-cell cov-both' title='2026-10-20: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-21: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-22: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-23: flat + car digests'></span><span class='cov-cell cov-both' title='2026-10-24: flat + car digests'></span><div class='note'>Last 14 days: green = both digests, amber = one source only, red = no scan. Hover a cell for the date.</div></div>
 <p><a href="index.html">← Back to today's deals</a></p>
 <div class='card'><h2>Flat digests (28 total)</h2>
 <table>
 <tr><th>Date</th><th>Summary</th></tr>
-<tr><td><b><a href='archive/digest_2026-10-24.html'>2026-10-24 (today)</a></b></td><td class='note'>5 new/changed</td></tr>
+<tr><td><b><a href='archive/digest_2026-10-24.html'>2026-10-24 (today)</a></b></td><td class='note'>1 new/changed</td></tr>
 <tr><td><b><a href='archive/digest_2026-10-23.html'>2026-10-23</a></b></td><td class='note'>4 new/changed</td></tr>
 <tr><td><b><a href='archive/digest_2026-10-22.html'>2026-10-22</a></b></td><td class='note'>3 new/changed</td></tr>
 <tr><td><b><a href='archive/digest_2026-10-21.html'>2026-10-21</a></b></td><td class='note'>3 new/changed</td></tr>
@@ -274,7 +298,7 @@ paint();})();</script>
 <div class='card'><h2>Car digests (29 total)</h2>
 <table>
 <tr><th>Date</th><th>Summary</th></tr>
-<tr><td><b><a href='archive/cars_2026-10-24.html'>2026-10-24 (today)</a></b></td><td class='note'>206 qualifying, 69 new · 23 price drop · 111 reappeared · 3 still active · 20 gone since yesterday · 16 relisted</td></tr>
+<tr><td><b><a href='archive/cars_2026-10-24.html'>2026-10-24 (today)</a></b></td><td class='note'>205 qualifying, 74 new · 7 price drop · 21 reappeared · 103 still active · 20 gone since yesterday · 1 relisted</td></tr>
 <tr><td><b><a href='archive/cars_2026-10-23.html'>2026-10-23</a></b></td><td class='note'>124 qualifying, 54 new · 19 price drop · 51 reappeared · 20 gone since yesterday · 10 relisted</td></tr>
 <tr><td><b><a href='archive/cars_2026-10-22.html'>2026-10-22</a></b></td><td class='note'>173 qualifying, 76 new · 20 price drop · 69 reappeared · 8 still active · 20 gone since yesterday · 11 relisted</td></tr>
 <tr><td><b><a href='archive/cars_2026-10-21.html'>2026-10-21</a></b></td><td class='note'>155 qualifying, 74 new · 19 price drop · 62 reappeared · 20 gone since yesterday · 10 relisted</td></tr>

@@ -1,11 +1,24 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-24 13:26
+Last updated: 2026-10-24 13:42
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
 
+- 2026-10-24 13:42 — push + live run. Remote had advanced 8 daily data
+  commits (Oct 17-24, incl. today's 6d31602); code batch (/addnewf 50 +
+  /improve 50) committed and rebased cleanly onto remote as 00a3cb1
+  (c35a918 pre-rebase) BEFORE the run. Live run: 865s, all scrapers
+  healthy — 224 flats scraped (ss.com 207 + city24.lv 17; 85 new-builds
+  excluded, 12 cross-source duplicates merged -> 127 active flats + 29
+  auctions; 1 new/changed + 24 still-active + 2 gone; 499 history rows ->
+  linear regression), cars 7995 ss.com + 237 pp.lv -> 4462 deduped
+  eligible -> 205 qualifying deals / 1311 assessed; enrich_inspection
+  fetched TA for 32 new ads (714 cached total, 680 valid TA). Site
+  rebuilt (index/cars/market/archive 2026-10-24, 28 flat + 29 car
+  archived digests); audit_data: 0 warnings. Committed and pushed to
+  origin/main.
 - 2026-10-24 13:26 — /improve 50 (cold read first; sanity filter dropped
   0 items, flagged item 3 as revisiting/completing the 2026-10-04
   price-less scoring fix):
