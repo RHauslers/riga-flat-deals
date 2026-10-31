@@ -1,11 +1,17 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-31 18:35
+Last updated: 2026-10-31 18:50
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
 
+- 2026-10-31 18:50 — pushed to origin/main: code commit dd98a00 rebased
+  onto remote's 7 daily data commits (Oct 25-31), then rebuilt the
+  NEWEST digest (cars_2026-10-31, from today's CI run — 139 qualifying /
+  139 badges / 20 gone) and committed data+docs as 4419f66. Live site
+  verified: rhauslers.github.io/riga-flat-deals/cars.html serves the
+  M/A/? circles on 2026-10-31 data.
 - 2026-10-31 18:35 — user feature: circled gearbox marker (M/A/?) on every
   car in the Cars tab. web_style BASE_CSS gained `.gbadge` (15px circle,
   M=accent, `.gb-a`=green, `.gb-unknown`=faint '?'); car_digest gained
