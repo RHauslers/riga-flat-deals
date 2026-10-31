@@ -202,6 +202,13 @@ button.ghost{background:var(--row-alt);font-weight:700}
 .badge.b-mot{background:var(--warn-bg);color:var(--warn)}
 .badge.b-relist{background:transparent;border:1px solid var(--auction);color:var(--auction)}
 .badge.b-low{background:var(--good-bg);color:var(--good)}
+/* Gearbox circle marker — M/A/? on car spec lines */
+.gbadge{display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;border-radius:50%;border:1.5px solid var(--accent);
+  color:var(--accent);font-size:9.5px;font-weight:700;line-height:1;
+  vertical-align:-2px;margin-right:4px}
+.gbadge.gb-a{border-color:var(--good);color:var(--good)}
+.gbadge.gb-unknown{border-color:var(--faint);color:var(--faint)}
 /* In-page section jump nav (chip row above the digest sections) */
 .secnav{margin:4px 0 14px;font-size:12px;color:var(--faint)}
 .secnav a{display:inline-block;padding:2px 9px;margin:2px 3px 2px 0;

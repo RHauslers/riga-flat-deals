@@ -6,11 +6,20 @@ import json
 import os
 import re
 import statistics
+import sys
 import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from html import escape as _html_escape
 
 import config
+
+# Windows consoles default to cp1252: a single Latvian char in a log line
+# (e.g. "tehniskā apskate") otherwise kills the run with UnicodeEncodeError.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass
 
 
 # ---------------------------------------------------------------------------

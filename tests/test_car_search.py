@@ -849,6 +849,30 @@ class TestDigestOutput(unittest.TestCase):
         self.assertNotIn("<script>x", html_text)
         self.assertNotIn("javascript:", html_text)
 
+    def test_gearbox_circle_marker(self):
+        """Circled M/A/? gearbox badge renders on deal rows and the gone
+        table; the custom-view JS emits the same marker."""
+        manual = _car("ss.com", "m1", 3000)                       # default manual
+        auto = _car("ss.com", "a1", 3000, gearbox="automatic")
+        unknown = _car("pp.lv", "u1", 3000, gearbox=None)
+        m_peers = [_car("pp.lv", f"mp{i}", p)
+                   for i, p in enumerate([4200, 4300, 4500, 4700])]
+        a_peers = [_car("pp.lv", f"ap{i}", p, gearbox="automatic")
+                   for i, p in enumerate([4200, 4300, 4500, 4700])]
+        market = [manual, auto, unknown] + m_peers + a_peers
+        qualified, assessed = car_value.score_and_rank(market)
+        html_text = car_digest.build_html(
+            qualified, assessed, {}, {}, {}, "2026-10-24",
+            market=market,
+            gone=[{"k": "ss.com:g1", "p": 3900, "mk": "vw", "mo": "golf",
+                   "y": 2007, "g": "automatic", "u": "https://www.ss.com/x"}])
+        self.assertIn("title='Manual gearbox'>M<", html_text)
+        self.assertIn("title='Automatic gearbox'>A<", html_text)
+        self.assertIn("gbadge gb-unknown", html_text)
+        # the JS port renders the identical marker in the custom view
+        self.assertIn("gbadge", car_digest.CAR_BUDGET_JS)
+        self.assertIn("gb-unknown", car_digest.CAR_BUDGET_JS)
+
 
 class TestBudgetTool(unittest.TestCase):
     """The in-browser custom-budget recomputation (embedded market JSON +

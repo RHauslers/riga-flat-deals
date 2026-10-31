@@ -75,6 +75,19 @@ def _spec_text(l):
     return _e(" · ".join(parts + [str(x) for x in extras]))
 
 
+def _gearbox_badge(gearbox):
+    """Circled transmission marker — M (manual, accent) / A (automatic,
+    green) / '?' when the ad never stated a gearbox (most ss.com ads don't
+    name it in the title; unknown is shown, never guessed)."""
+    g = str(gearbox or "").strip().lower()
+    if g.startswith("man"):
+        return "<span class='gbadge' title='Manual gearbox'>M</span>"
+    if g.startswith("aut"):
+        return "<span class='gbadge gb-a' title='Automatic gearbox'>A</span>"
+    return ("<span class='gbadge gb-unknown' "
+            "title='Gearbox not stated in the ad'>?</span>")
+
+
 def _badge_html(key, badges):
     b = badges.get(key)
     if not b:
@@ -672,6 +685,15 @@ function __carBudgetInit() {
       if (r[idx.body]) parts.push(r[idx.body]);
       if (r[idx.inspection]) parts.push('TA ' + String(r[idx.inspection]).split('-').reverse().join('.'));
       spec.textContent = parts.join(' · ');
+      // Circled M/A/? gearbox marker — same rule as _gearbox_badge().
+      var gbx = String(r[idx.gearbox] || '').toLowerCase();
+      var gbIsM = gbx.indexOf('man') === 0, gbIsA = gbx.indexOf('aut') === 0;
+      var gbEl = document.createElement('span');
+      gbEl.className = 'gbadge' + (gbIsA ? ' gb-a' : (gbIsM ? '' : ' gb-unknown'));
+      gbEl.title = gbIsM ? 'Manual gearbox'
+        : gbIsA ? 'Automatic gearbox' : 'Gearbox not stated in the ad';
+      gbEl.textContent = gbIsM ? 'M' : gbIsA ? 'A' : '?';
+      td.appendChild(gbEl);
       td.appendChild(spec);
       td.appendChild(document.createElement('br'));
       if (r[idx.url]) {
@@ -1093,6 +1115,7 @@ def build_cuts_html(assessed, run_date=None, top_n=None):
             f"<tr>"
             f"<td data-sort='{_e(title)}'>{_watch_star_car(l)}{title_cell}<br>"
             f"<span style='color:var(--muted);font-size:12px'>"
+            f"{_gearbox_badge(l.get('gearbox'))}"
             f"{_e(l.get('year',''))} · {_spec_text(l)}</span></td>"
             f"<td data-sort='{info['drop_eur']:.0f}' "
             f"style='text-align:right'>"
@@ -1155,7 +1178,7 @@ def build_stale_html(assessed, run_date=None, top_n=None):
             f"<tr{zebra}>"
             f"<td data-sort='{_e(title)}'>{_watch_star_car(l)}{title_cell}<br>"
             f"<span style='color:var(--muted);font-size:12px'>"
-            f"{_spec_text(l)}</span></td>"
+            f"{_gearbox_badge(l.get('gearbox'))}{_spec_text(l)}</span></td>"
             f"<td style='text-align:right' data-sort='{p}'>"
             f"<b>{_fmt_eur(l.get('price_eur'))}</b></td>"
             f"<td style='text-align:right' data-sort='{days}'>{days} d</td>"
@@ -1256,7 +1279,8 @@ def _hero_card_html(qualified, badges=None, run_date=None):
         "<div class='card' style='border-left:4px solid var(--accent)'>"
         "<h3 style='margin:0 0 6px 0'>Deal of the day</h3>"
         f"<p style='margin:0;font-size:15px'>{head_link} "
-        f"<span class='note'>{_spec_text(l)}{_e(disc_txt)}</span> "
+        f"<span class='note'>{_gearbox_badge(l.get('gearbox'))}"
+        f"{_spec_text(l)}{_e(disc_txt)}</span> "
         f"<b style='color:var(--accent)'>score {_fmt(l.get('_score'))}</b>"
         f"{chips}</p>"
         f"<p class='note' style='margin:4px 0 0'>{_e(l.get('title') or '')}"
@@ -1306,7 +1330,8 @@ def _row(l, badges, run_date=None):
               if key else "")
     cells = [
         f"<td style='padding:6px' data-sort='{sort_model}'>{star}{_e(title)}<br>"
-        f"<span style='color:var(--muted);font-size:12px'>{_e(l.get('make'))} {_e(l.get('model'))} — {_spec_text(l)}</span><br>"
+        f"<span style='color:var(--muted);font-size:12px'>{_gearbox_badge(l.get('gearbox'))}"
+        f"{_e(l.get('make'))} {_e(l.get('model'))} — {_spec_text(l)}</span><br>"
         f"{_badge_html(key, badges)} {_listing_links(l)}"
         f"{_motivated_chip(l, run_date)}{_relisted_chip(l)}"
         f"{_low_km_chip(l)}{_pace_chip(l, run_date)}{anchor}{caution_html}"
@@ -1351,7 +1376,7 @@ def _gone_html(gone, seen, run_date):
         cut_tag = utils.gone_cut_tag_html(_tp, _fmt_eur)
         rows.append(
             f"<tr{zebra}>"
-            f"<td style='padding:6px'>{label or '—'}</td>"
+            f"<td style='padding:6px'>{_gearbox_badge(r.get('g'))}{label or '—'}</td>"
             f"<td style='padding:6px;text-align:right;font-weight:bold' "
             f"data-sort='{_sort_val(r.get('p'))}'>"
             f"{_fmt_eur(r.get('p'))}{cut_tag}</td>"

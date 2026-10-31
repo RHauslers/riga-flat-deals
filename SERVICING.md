@@ -1,11 +1,50 @@
 # SERVICING — Flat_Searcher
 
-Last updated: 2026-10-24 13:42
+Last updated: 2026-10-31 18:35
 
 Living document. Updated after each Devin session. Read this first.
 
 ## Changelog
 
+- 2026-10-31 18:35 — user feature: circled gearbox marker (M/A/?) on every
+  car in the Cars tab. web_style BASE_CSS gained `.gbadge` (15px circle,
+  M=accent, `.gb-a`=green, `.gb-unknown`=faint '?'); car_digest gained
+  `_gearbox_badge()` wired into _row / build_cuts_html / build_stale_html /
+  _hero_card_html / _gone_html (reads the 'g' spec key) and into
+  CAR_BUDGET_JS render() (same marker in the custom view). ~70% of market
+  rows have gearbox=None (ss.com only infers it from the ad title) — they
+  show '?', never guessed; pp.lv reads the spec field so its rows are
+  mostly M/A. Also fixed a LATENT crash: cars.py:76 printed "tehniskā
+  apskate" — the ā (U+0101) dies on Windows cp1252 consoles with
+  UnicodeEncodeError (3 tests failed locally because of it); utils now
+  reconfigures sys.stdout/sys.stderr to utf-8+replace at import so every
+  entry point is covered. New helper helper_scripts/rebuild_car_digest.py
+  re-renders an existing cars_*.html through CURRENT digest code with no
+  rescrape — decodes the page's own car-market-data embed, re-scores
+  (deterministic), parses badges/coverage/gone rows back off the rendered
+  page (gone rows must be parsed, NOT date-filtered from recent_gone: two
+  same-day runs stamp the same date; 2026-10-24 had 40 stamps for a 20-row
+  table), then calls website.build(). Used it to ship the badge to
+  docs/cars.html immediately (205 qualifying / 205 badges / 20 gone —
+  identical to the original page). Tests: 279 -> 280, all green
+  (test_gearbox_circle_marker); node --check clean on budget/heaven/watch
+  JS. NOTE: the website.build() also ran its normal prune — cars digests
+  Sep 26-30 + flat digests Sep 24-30 deleted (>30d, same as any daily
+  build), and daynav links in surviving archive pages were regenerated.
+- 2026-10-25 19:40 — ad-hoc research (no code changes): user asked
+  whether Ascent Lumina SIA (cv.lv employer 78164) posted vacancies in
+  the past. Findings: cv.lv employer pages list only ACTIVE ads, but
+  expired vacancy pages stay live at /vacancy/<id>/ascent-lumina-sia/<slug>
+  and remain indexed by search engines. Found 1 past cv.lv vacancy:
+  "Datorredzes inženieris" (Computer Vision Engineer), id 1507939,
+  €3000-5000 gross, deadline 03.03.2026 (ran ~Oct 2025-Mar 2026 per
+  LinkedIn posts 2025-10-22/2025-10-31/2026-02-04 + defencejobs.org
+  posting 2025-12-11). Wayback Machine has ZERO snapshots of the
+  employer page, any ascent-lumina cv.lv URL, or ascentlumina.com.
+  Currently active (2): Biznesa attīstības vadītājs (id 1671829,
+  €3000-5000) and Mārketinga speciālists (id 1671836, €15/h part-time),
+  both deadline 21.11.2026. Method for future checks: Google
+  site:cv.lv/vacancy "<employer-slug>"; Wayback CDX api for employer URL.
 - 2026-10-24 13:42 — push + live run. Remote had advanced 8 daily data
   commits (Oct 17-24, incl. today's 6d31602); code batch (/addnewf 50 +
   /improve 50) committed and rebased cleanly onto remote as 00a3cb1
